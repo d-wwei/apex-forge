@@ -1,0 +1,268 @@
+{
+  "name": "apex-protocol",
+  "version": "0.1.0",
+  "description": "Unified execution framework for AI coding agents. Three layers: execution discipline, workflow pipeline, multi-agent orchestration.",
+  "skills": [
+    {
+      "name": "apex",
+      "path": "protocol/SKILL.md",
+      "description": "Core execution protocol — auto-activates on every session",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-round",
+      "path": "protocol/round-based-execution.md",
+      "description": "PDCA round-based execution — structured iteration for Tier 2 tasks",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-wave",
+      "path": "protocol/wave-based-delivery.md",
+      "description": "Wave-based delivery — project-scale cross-session work for Tier 3 tasks",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-brainstorm",
+      "path": "workflow/stages/brainstorm.md",
+      "description": "Requirements exploration with hard gate (no code before approval)",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-plan",
+      "path": "workflow/stages/plan.md",
+      "description": "Convert requirements into execution plan with file paths, tasks, and tests",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-execute",
+      "path": "workflow/stages/execute.md",
+      "description": "TDD-first implementation with dispatch strategy based on task complexity",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-review",
+      "path": "workflow/stages/review.md",
+      "description": "Multi-persona quality gate — security, correctness, spec compliance",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-ship",
+      "path": "workflow/stages/ship.md",
+      "description": "Package and deliver — tests, version bump, changelog, commit, PR",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-compound",
+      "path": "workflow/stages/compound.md",
+      "description": "Knowledge extraction — capture solutions for future reuse",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-verify",
+      "path": "workflow/stages/verify.md",
+      "description": "Evidence gate — no success claims without proof",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-wave-planner",
+      "path": "workflow/roles/wave-planner.md",
+      "description": "Wave-level planning — system mapping, scope definition, risk identification",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-wave-challenger",
+      "path": "workflow/roles/wave-challenger.md",
+      "description": "Adversarial stress-testing of wave plans before execution",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-wave-worker",
+      "path": "workflow/roles/wave-worker.md",
+      "description": "Execute rounds within a wave, tracking state across iterations",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-design-review",
+      "path": "workflow/roles/design-review.md",
+      "description": "Visual QA and design polish — screenshot-driven fix-verify loops",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-security-audit",
+      "path": "workflow/roles/security-audit.md",
+      "description": "Chief Security Officer mode — infrastructure-first security audit",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-plan-ceo-review",
+      "path": "workflow/roles/plan-ceo-review.md",
+      "description": "Strategic plan review — CEO/founder evaluating ambition and scope",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-plan-eng-review",
+      "path": "workflow/roles/plan-eng-review.md",
+      "description": "Engineering architecture review — senior eng manager locking in execution",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-browse",
+      "path": "workflow/roles/browse.md",
+      "description": "Browser interaction — navigate, read, interact, screenshot",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-qa",
+      "path": "workflow/roles/qa.md",
+      "description": "Systematic QA testing with tiered depth, browser-aware verification, and bug-fix loop",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-investigate",
+      "path": "workflow/roles/investigate.md",
+      "description": "Systematic debugging with root-cause discipline — no fixes without understanding why",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-code-review",
+      "path": "workflow/roles/code-review.md",
+      "description": "Multi-pass code review — correctness, security, performance, maintainability",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-office-hours",
+      "path": "workflow/roles/office-hours.md",
+      "description": "Guided learning and explanation — teach concepts in the context of the codebase",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-retro",
+      "path": "workflow/roles/retro.md",
+      "description": "Retrospective analysis — extract lessons, patterns, and improvements from completed work",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-canary",
+      "path": "workflow/roles/canary.md",
+      "description": "Post-deploy canary monitoring — screenshots, error detection, performance regression checks",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-autoplan",
+      "path": "workflow/roles/autoplan.md",
+      "description": "Auto-review pipeline — runs CEO, Eng, and Design reviews with auto-decisions",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-benchmark",
+      "path": "workflow/roles/benchmark.md",
+      "description": "Performance baseline tracking — measure, store, compare, flag regressions",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-careful",
+      "path": "workflow/roles/careful.md",
+      "description": "Destructive command warnings — alerts before rm -rf, force-push, DROP TABLE",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-codex-consult",
+      "path": "workflow/roles/codex-consult.md",
+      "description": "Second opinion via Codex CLI or independent subagent",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-connect-chrome",
+      "path": "workflow/roles/connect-chrome.md",
+      "description": "Launch controlled Chrome with remote debugging",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-design-consultation",
+      "path": "workflow/roles/design-consultation.md",
+      "description": "Design system creation — aesthetic, typography, color, spacing, preview",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-design-shotgun",
+      "path": "workflow/roles/design-shotgun.md",
+      "description": "Design variant exploration — 3 distinct visual approaches",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-document-release",
+      "path": "workflow/roles/document-release.md",
+      "description": "Post-ship doc update — sync README, CHANGELOG, ARCHITECTURE with shipped code",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-freeze",
+      "path": "workflow/roles/freeze.md",
+      "description": "Restrict edits to a specific directory for the session",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-guard",
+      "path": "workflow/roles/guard.md",
+      "description": "Full safety mode — careful warnings + freeze boundary combined",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-land-and-deploy",
+      "path": "workflow/roles/land-and-deploy.md",
+      "description": "Merge PR, wait CI, deploy, verify with canary — full ship pipeline",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-plan-design-review",
+      "path": "workflow/roles/plan-design-review.md",
+      "description": "Designer eye plan review — rate design dimensions 0-10, annotate improvements",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-setup-browser-cookies",
+      "path": "workflow/roles/setup-browser-cookies.md",
+      "description": "Import cookies from real browser for authenticated testing",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-setup-deploy",
+      "path": "workflow/roles/setup-deploy.md",
+      "description": "Auto-detect and configure deployment platform settings",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-unfreeze",
+      "path": "workflow/roles/unfreeze.md",
+      "description": "Remove freeze boundary — allow edits to all directories",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-worktree",
+      "path": "workflow/roles/worktree.md",
+      "description": "Git worktree management — create isolated workspaces per task",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-skill-author",
+      "path": "workflow/roles/skill-author.md",
+      "description": "Create new apex skills with proper structure, frontmatter, and testing",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-compound-refresh",
+      "path": "workflow/roles/compound-refresh.md",
+      "description": "Review and refresh stale solution docs when new knowledge contradicts them",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-mobile-test",
+      "path": "workflow/roles/mobile-test.md",
+      "description": "Test mobile apps on iOS simulator or Android emulator",
+      "user-invocable": true
+    }
+  ],
+  "hooks": {
+    "session-start": "hooks/session-start"
+  }
+}

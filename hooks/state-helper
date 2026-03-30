@@ -1,0 +1,860 @@
+#!/usr/bin/env bash
+# Apex Protocol — State Helper
+# Source this file from stage skills to manage .apex/state.json.
+# Extended with task management, memory, worktrees, telemetry, and browser detection.
+#
+# Usage:
+#   source "$(dirname "$0")/../hooks/state-helper"
+#   apex_set_stage "brainstorm"
+#   apex_add_artifact "brainstorm" "docs/brainstorms/auth-requirements.md"
+#   apex_get_current_stage
+#   apex_get_artifacts "brainstorm"
+#   apex_read_state
+#
+# Task management (via task-helper):
+#   apex_task_create "Title" "Description" [DEP_IDS...]
+#   apex_task_assign T1
+#   apex_task_start T1
+#   apex_task_submit T1 "evidence"
+#   apex_task_verify T1 pass
+#   apex_task_list [--status open]
+#   apex_task_next
+#
+# Memory system:
+#   apex_memory_add "fact" 0.9 tag1 tag2
+#   apex_memory_list [--min-confidence 0.7]
+#   apex_memory_search "keyword"
+#   apex_memory_inject
+#   apex_memory_prune
+#
+# Worktree management:
+#   apex_worktree_create T1
+#   apex_worktree_enter T1
+#   apex_worktree_cleanup T1
+#   apex_worktree_list
+#
+# Telemetry:
+#   apex_telemetry_start "skill-name"
+#   apex_telemetry_end "success"
+#   apex_telemetry_log
+#
+# Browser detection:
+#   apex_browse_detect
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
+# Resolve state file location: prefer working directory, fall back to plugin root
+_apex_state_dir="${APEX_STATE_DIR:-.apex}"
+_apex_state_file="${_apex_state_dir}/state.json"
+
+# Artifact directories
+_apex_artifact_dir="docs"
+
+# Memory file
+_apex_memory_file="${_apex_state_dir}/memory.json"
+
+# Analytics directory
+_apex_analytics_dir="${_apex_state_dir}/analytics"
+_apex_usage_file="${_apex_analytics_dir}/usage.jsonl"
+
+# Worktree directory
+_apex_worktree_dir="${_apex_state_dir}/worktrees"
+
+# Telemetry session state (in-memory, per shell session)
+_apex_telemetry_skill=""
+_apex_telemetry_start_ts=""
+
+# Resolve script directory for sourcing sub-helpers
+_apex_hooks_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+_apex_ensure_state_dir() {
+    if [ ! -d "$_apex_state_dir" ]; then
+        mkdir -p "$_apex_state_dir"
+    fi
+}
+
+_apex_ensure_artifact_dirs() {
+    mkdir -p "${_apex_artifact_dir}/brainstorms" \
+             "${_apex_artifact_dir}/plans" \
+             "${_apex_artifact_dir}/execution" \
+             "${_apex_artifact_dir}/reviews" \
+             "${_apex_artifact_dir}/solutions" 2>/dev/null || true
+}
+
+_apex_iso_timestamp() {
+    date -u +"%Y-%m-%dT%H:%M:%SZ"
+}
+
+_apex_generate_session_id() {
+    local datestamp
+    datestamp=$(date +"%Y-%m-%d")
+    local rand
+    rand=$(LC_ALL=C tr -dc 'a-z0-9' < /dev/urandom | head -c 6 2>/dev/null || echo "000000")
+    printf 'apex-%s-%s' "$datestamp" "$rand"
+}
+
+_apex_init_state() {
+    _apex_ensure_state_dir
+    local now
+    now=$(_apex_iso_timestamp)
+    local session_id
+    session_id=$(_apex_generate_session_id)
+
+    cat > "$_apex_state_file" << INIT_EOF
+{
+  "current_stage": "idle",
+  "last_updated": "${now}",
+  "session_id": "${session_id}",
+  "artifacts": {
+    "brainstorm": [],
+    "plan": [],
+    "execute": [],
+    "review": [],
+    "solutions": []
+  },
+  "history": []
+}
+INIT_EOF
+}
+
+_apex_ensure_state() {
+    if [ ! -f "$_apex_state_file" ]; then
+        _apex_init_state
+    fi
+}
+
+# ===========================================================================
+# SECTION 1: Stage State API (original)
+# ===========================================================================
+
+# Read and output the full state JSON
+apex_read_state() {
+    _apex_ensure_state
+    cat "$_apex_state_file"
+}
+
+# Get the current stage name (stdout)
+apex_get_current_stage() {
+    _apex_ensure_state
+    python3 -c "
+import json
+with open('${_apex_state_file}') as f:
+    d = json.load(f)
+print(d.get('current_stage', 'unknown'))
+"
+}
+
+# Set the current stage and record history
+# Usage: apex_set_stage STAGE_NAME
+apex_set_stage() {
+    local new_stage="${1:?Usage: apex_set_stage STAGE_NAME}"
+    _apex_ensure_state
+
+    local now
+    now=$(_apex_iso_timestamp)
+
+    python3 -c "
+import json
+
+state_file = '${_apex_state_file}'
+new_stage = '${new_stage}'
+now = '${now}'
+
+with open(state_file) as f:
+    state = json.load(f)
+
+old_stage = state.get('current_stage', 'idle')
+
+# Close previous stage in history if it was active
+if old_stage != 'idle' and old_stage != new_stage:
+    for entry in reversed(state.get('history', [])):
+        if entry.get('stage') == old_stage and 'completed' not in entry:
+            entry['completed'] = now
+            break
+
+# Record new stage start in history
+state.setdefault('history', []).append({
+    'stage': new_stage,
+    'started': now
+})
+
+# Update current stage and timestamp
+state['current_stage'] = new_stage
+state['last_updated'] = now
+
+# Ensure artifacts dict has the new stage key
+state.setdefault('artifacts', {}).setdefault(new_stage, [])
+
+with open(state_file, 'w') as f:
+    json.dump(state, f, indent=2)
+
+print(f'Stage: {old_stage} -> {new_stage}')
+"
+}
+
+# Add an artifact to a stage
+# Usage: apex_add_artifact STAGE FILE_PATH
+apex_add_artifact() {
+    local stage="${1:?Usage: apex_add_artifact STAGE FILE_PATH}"
+    local file_path="${2:?Usage: apex_add_artifact STAGE FILE_PATH}"
+    _apex_ensure_state
+
+    local now
+    now=$(_apex_iso_timestamp)
+
+    python3 -c "
+import json
+
+state_file = '${_apex_state_file}'
+stage = '${stage}'
+file_path = '${file_path}'
+now = '${now}'
+
+with open(state_file) as f:
+    state = json.load(f)
+
+state.setdefault('artifacts', {}).setdefault(stage, [])
+
+# Avoid duplicates
+if file_path not in state['artifacts'][stage]:
+    state['artifacts'][stage].append(file_path)
+
+state['last_updated'] = now
+
+with open(state_file, 'w') as f:
+    json.dump(state, f, indent=2)
+
+print(f'Artifact added: {stage} <- {file_path}')
+"
+}
+
+# List artifacts for a stage (one per line on stdout)
+# Usage: apex_get_artifacts STAGE
+apex_get_artifacts() {
+    local stage="${1:?Usage: apex_get_artifacts STAGE}"
+    _apex_ensure_state
+
+    python3 -c "
+import json
+
+state_file = '${_apex_state_file}'
+stage = '${stage}'
+
+with open(state_file) as f:
+    state = json.load(f)
+
+artifacts = state.get('artifacts', {}).get(stage, [])
+for a in artifacts:
+    print(a)
+"
+}
+
+# Get a brief status summary (for injection or display)
+apex_status_summary() {
+    _apex_ensure_state
+
+    python3 -c "
+import json
+
+state_file = '${_apex_state_file}'
+
+with open(state_file) as f:
+    state = json.load(f)
+
+stage = state.get('current_stage', 'unknown')
+session = state.get('session_id', 'unknown')
+updated = state.get('last_updated', 'unknown')
+arts = state.get('artifacts', {})
+history = state.get('history', [])
+
+total_artifacts = sum(len(v) for v in arts.values())
+completed_stages = len([h for h in history if 'completed' in h])
+
+print(f'Session: {session}')
+print(f'Stage: {stage}')
+print(f'Updated: {updated}')
+print(f'Artifacts: {total_artifacts} total')
+print(f'History: {completed_stages} stages completed, {len(history)} total entries')
+"
+}
+
+# Discover upstream artifacts for a stage (recent .md files)
+# Usage: apex_find_upstream STAGE
+apex_find_upstream() {
+    local stage="${1:?Usage: apex_find_upstream STAGE}"
+    local dir=""
+    case "$stage" in
+        brainstorm) dir="${_apex_artifact_dir}/brainstorms" ;;
+        plan)       dir="${_apex_artifact_dir}/plans" ;;
+        execute)    dir="${_apex_artifact_dir}/execution" ;;
+        review)     dir="${_apex_artifact_dir}/reviews" ;;
+        solutions)  dir="${_apex_artifact_dir}/solutions" ;;
+    esac
+
+    if [ -n "$dir" ] && [ -d "$dir" ]; then
+        find "$dir" -name "*.md" -mtime -7 -type f 2>/dev/null | sort -r | head -5
+    fi
+}
+
+# Check if required upstream artifacts exist
+# Returns file list or "NO_UPSTREAM"
+apex_check_upstream() {
+    local required_stage="${1:?Usage: apex_check_upstream STAGE}"
+    local artifacts
+    artifacts="$(apex_find_upstream "$required_stage")"
+
+    if [ -z "$artifacts" ]; then
+        echo "NO_UPSTREAM"
+    else
+        echo "$artifacts"
+    fi
+}
+
+# Reset state to idle (for starting fresh)
+apex_reset_state() {
+    _apex_init_state
+    echo "State reset to idle."
+}
+
+# ===========================================================================
+# SECTION 2: Task State Machine (sourced from task-helper)
+# ===========================================================================
+
+if [ -f "${_apex_hooks_dir}/task-helper" ]; then
+    # shellcheck source=./task-helper
+    . "${_apex_hooks_dir}/task-helper"
+fi
+
+# ===========================================================================
+# SECTION 3: Memory System (from DeerFlow)
+# ===========================================================================
+
+_apex_init_memory() {
+    _apex_ensure_state_dir
+    if [ ! -f "$_apex_memory_file" ]; then
+        cat > "$_apex_memory_file" << 'MEM_EOF'
+{
+  "facts": [],
+  "next_id": 1
+}
+MEM_EOF
+    fi
+}
+
+_apex_ensure_memory() {
+    if [ ! -f "$_apex_memory_file" ]; then
+        _apex_init_memory
+    fi
+}
+
+# Add a fact with confidence score
+# Usage: apex_memory_add FACT CONFIDENCE [TAGS...]
+apex_memory_add() {
+    local fact="${1:?Usage: apex_memory_add FACT CONFIDENCE [TAGS...]}"
+    local confidence="${2:?Usage: apex_memory_add FACT CONFIDENCE [TAGS...]}"
+    shift 2
+    _apex_ensure_memory
+
+    # Collect remaining args as tags
+    local tags_json="[]"
+    if [ $# -gt 0 ]; then
+        tags_json=$(python3 -c "
+import json, sys
+tags = sys.argv[1:]
+print(json.dumps(tags))
+" "$@")
+    fi
+
+    local now
+    now=$(_apex_iso_timestamp)
+
+    python3 -c "
+import json, sys
+
+mem_file = sys.argv[1]
+fact = sys.argv[2]
+confidence = float(sys.argv[3])
+tags = json.loads(sys.argv[4])
+now = sys.argv[5]
+
+if not (0.0 <= confidence <= 1.0):
+    print('Error: confidence must be between 0.0 and 1.0', file=sys.stderr)
+    sys.exit(1)
+
+with open(mem_file) as f:
+    data = json.load(f)
+
+fact_id = 'F' + str(data['next_id'])
+data['next_id'] += 1
+
+entry = {
+    'id': fact_id,
+    'content': fact,
+    'confidence': confidence,
+    'tags': tags,
+    'source': 'session ' + now[:10],
+    'created_at': now
+}
+
+data['facts'].append(entry)
+
+with open(mem_file, 'w') as f:
+    json.dump(data, f, indent=2)
+
+print(f'Memory added: {fact_id} (confidence: {confidence})')
+" "$_apex_memory_file" "$fact" "$confidence" "$tags_json" "$now"
+}
+
+# List facts above a confidence threshold
+# Usage: apex_memory_list [--min-confidence 0.7]
+apex_memory_list() {
+    _apex_ensure_memory
+
+    local min_conf="0.0"
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --min-confidence)
+                min_conf="${2:?Usage: apex_memory_list [--min-confidence THRESHOLD]}"
+                shift 2
+                ;;
+            *)
+                echo "Unknown option: $1" >&2
+                return 1
+                ;;
+        esac
+    done
+
+    python3 -c "
+import json, sys
+
+mem_file = sys.argv[1]
+min_conf = float(sys.argv[2])
+
+with open(mem_file) as f:
+    data = json.load(f)
+
+facts = [f for f in data.get('facts', []) if f['confidence'] >= min_conf]
+
+if not facts:
+    print('No facts found above threshold.')
+    sys.exit(0)
+
+for f in facts:
+    tags = ', '.join(f.get('tags', [])) or '-'
+    print(f'{f[\"id\"]}  [{f[\"confidence\"]:.1f}]  {f[\"content\"]}')
+    print(f'       tags: {tags}  |  source: {f.get(\"source\", \"unknown\")}')
+
+print(f'\nTotal: {len(facts)} fact(s)')
+" "$_apex_memory_file" "$min_conf"
+}
+
+# Search facts by keyword (case-insensitive match on content and tags)
+# Usage: apex_memory_search QUERY
+apex_memory_search() {
+    local query="${1:?Usage: apex_memory_search QUERY}"
+    _apex_ensure_memory
+
+    python3 -c "
+import json, sys
+
+mem_file = sys.argv[1]
+query = sys.argv[2].lower()
+
+with open(mem_file) as f:
+    data = json.load(f)
+
+matches = []
+for f in data.get('facts', []):
+    text = f['content'].lower()
+    tag_text = ' '.join(f.get('tags', [])).lower()
+    if query in text or query in tag_text:
+        matches.append(f)
+
+if not matches:
+    print(f'No facts matching \"{sys.argv[2]}\".')
+    sys.exit(0)
+
+for f in matches:
+    tags = ', '.join(f.get('tags', [])) or '-'
+    print(f'{f[\"id\"]}  [{f[\"confidence\"]:.1f}]  {f[\"content\"]}')
+    print(f'       tags: {tags}')
+
+print(f'\nFound: {len(matches)} match(es)')
+" "$_apex_memory_file" "$query"
+}
+
+# Remove a fact by ID
+# Usage: apex_memory_remove FACT_ID
+apex_memory_remove() {
+    local fact_id="${1:?Usage: apex_memory_remove FACT_ID}"
+    _apex_ensure_memory
+
+    python3 -c "
+import json, sys
+
+mem_file = sys.argv[1]
+fact_id = sys.argv[2]
+
+with open(mem_file) as f:
+    data = json.load(f)
+
+original_count = len(data.get('facts', []))
+data['facts'] = [f for f in data.get('facts', []) if f['id'] != fact_id]
+
+if len(data['facts']) == original_count:
+    print(f'Error: fact {fact_id} not found', file=sys.stderr)
+    sys.exit(1)
+
+with open(mem_file, 'w') as f:
+    json.dump(data, f, indent=2)
+
+print(f'Removed: {fact_id}')
+" "$_apex_memory_file" "$fact_id"
+}
+
+# Output facts formatted for context injection into prompts
+# Usage: apex_memory_inject
+apex_memory_inject() {
+    _apex_ensure_memory
+
+    python3 -c "
+import json, sys
+
+mem_file = sys.argv[1]
+
+with open(mem_file) as f:
+    data = json.load(f)
+
+facts = sorted(data.get('facts', []), key=lambda x: x['confidence'], reverse=True)
+
+if not facts:
+    sys.exit(0)
+
+print('<apex-memory>')
+for f in facts:
+    conf_label = 'high' if f['confidence'] >= 0.8 else ('med' if f['confidence'] >= 0.5 else 'low')
+    tags = ', '.join(f.get('tags', []))
+    tag_str = f' [{tags}]' if tags else ''
+    print(f'- ({conf_label}) {f[\"content\"]}{tag_str}')
+print('</apex-memory>')
+" "$_apex_memory_file"
+}
+
+# Prune low-confidence facts and cap total at 100
+# Usage: apex_memory_prune
+apex_memory_prune() {
+    _apex_ensure_memory
+
+    python3 -c "
+import json, sys
+
+mem_file = sys.argv[1]
+
+with open(mem_file) as f:
+    data = json.load(f)
+
+original = len(data.get('facts', []))
+
+# Remove facts below 0.5 confidence
+data['facts'] = [f for f in data.get('facts', []) if f['confidence'] >= 0.5]
+pruned_low = original - len(data['facts'])
+
+# Cap at 100 facts (keep highest confidence)
+if len(data['facts']) > 100:
+    data['facts'] = sorted(data['facts'], key=lambda x: x['confidence'], reverse=True)[:100]
+    pruned_cap = len(data['facts']) - 100
+else:
+    pruned_cap = 0
+
+with open(mem_file, 'w') as f:
+    json.dump(data, f, indent=2)
+
+total_pruned = pruned_low + pruned_cap
+if total_pruned > 0:
+    print(f'Pruned {total_pruned} fact(s): {pruned_low} below threshold, {pruned_cap} over cap')
+else:
+    print(f'No pruning needed ({len(data[\"facts\"])} facts, all >= 0.5 confidence)')
+print(f'Remaining: {len(data[\"facts\"])} fact(s)')
+" "$_apex_memory_file"
+}
+
+# ===========================================================================
+# SECTION 4: Worktree Management (from Symphony)
+# ===========================================================================
+
+# Create a git worktree for a task
+# Usage: apex_worktree_create TASK_ID
+apex_worktree_create() {
+    local task_id="${1:?Usage: apex_worktree_create TASK_ID}"
+    local worktree_path="${_apex_worktree_dir}/${task_id}"
+
+    # Verify we are in a git repo
+    if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        echo "Error: not inside a git repository" >&2
+        return 1
+    fi
+
+    if [ -d "$worktree_path" ]; then
+        echo "Error: worktree for ${task_id} already exists at ${worktree_path}" >&2
+        return 1
+    fi
+
+    mkdir -p "$_apex_worktree_dir"
+
+    local branch_name="apex/${task_id}"
+    git worktree add -b "$branch_name" "$worktree_path" HEAD 2>&1
+    local rc=$?
+
+    if [ $rc -eq 0 ]; then
+        echo "Worktree created: ${worktree_path} (branch: ${branch_name})"
+    else
+        echo "Error: failed to create worktree" >&2
+        return 1
+    fi
+}
+
+# Print the worktree path for a task (for use with cd)
+# Usage: apex_worktree_enter TASK_ID
+apex_worktree_enter() {
+    local task_id="${1:?Usage: apex_worktree_enter TASK_ID}"
+    local worktree_path="${_apex_worktree_dir}/${task_id}"
+
+    if [ ! -d "$worktree_path" ]; then
+        echo "Error: no worktree for ${task_id} at ${worktree_path}" >&2
+        return 1
+    fi
+
+    # Print the path — caller uses: cd "$(apex_worktree_enter T1)"
+    printf '%s' "$worktree_path"
+}
+
+# Remove a worktree after task completion
+# Usage: apex_worktree_cleanup TASK_ID
+apex_worktree_cleanup() {
+    local task_id="${1:?Usage: apex_worktree_cleanup TASK_ID}"
+    local worktree_path="${_apex_worktree_dir}/${task_id}"
+
+    if [ ! -d "$worktree_path" ]; then
+        echo "No worktree found for ${task_id}."
+        return 0
+    fi
+
+    git worktree remove "$worktree_path" --force 2>&1
+    local rc=$?
+
+    if [ $rc -eq 0 ]; then
+        # Also delete the branch if it exists
+        local branch_name="apex/${task_id}"
+        git branch -d "$branch_name" 2>/dev/null || true
+        echo "Worktree removed: ${worktree_path}"
+    else
+        echo "Error: failed to remove worktree at ${worktree_path}" >&2
+        return 1
+    fi
+}
+
+# List all active worktrees managed by apex
+# Usage: apex_worktree_list
+apex_worktree_list() {
+    if [ ! -d "$_apex_worktree_dir" ]; then
+        echo "No worktrees."
+        return 0
+    fi
+
+    local count=0
+    for dir in "${_apex_worktree_dir}"/*/; do
+        if [ -d "$dir" ]; then
+            local task_id
+            task_id=$(basename "$dir")
+            local branch=""
+            if git -C "$dir" rev-parse --abbrev-ref HEAD >/dev/null 2>&1; then
+                branch=$(git -C "$dir" rev-parse --abbrev-ref HEAD 2>/dev/null)
+            fi
+            echo "${task_id}  ${dir}  (branch: ${branch:-unknown})"
+            count=$((count + 1))
+        fi
+    done
+
+    if [ "$count" -eq 0 ]; then
+        echo "No worktrees."
+    else
+        echo ""
+        echo "Total: ${count} worktree(s)"
+    fi
+}
+
+# ===========================================================================
+# SECTION 5: Telemetry (from gstack)
+# ===========================================================================
+
+# Record the start of a skill execution
+# Usage: apex_telemetry_start SKILL_NAME
+apex_telemetry_start() {
+    local skill_name="${1:?Usage: apex_telemetry_start SKILL_NAME}"
+    _apex_telemetry_skill="$skill_name"
+    _apex_telemetry_start_ts=$(date +%s)
+}
+
+# Record the end of a skill execution and compute duration
+# Usage: apex_telemetry_end OUTCOME
+# OUTCOME: success | error | abort
+apex_telemetry_end() {
+    local outcome="${1:?Usage: apex_telemetry_end OUTCOME}"
+
+    if [ -z "$_apex_telemetry_skill" ] || [ -z "$_apex_telemetry_start_ts" ]; then
+        echo "Error: no telemetry session active (call apex_telemetry_start first)" >&2
+        return 1
+    fi
+
+    local end_ts
+    end_ts=$(date +%s)
+    local duration_s=$((end_ts - _apex_telemetry_start_ts))
+    local now
+    now=$(_apex_iso_timestamp)
+
+    # Ensure analytics directory exists
+    mkdir -p "$_apex_analytics_dir"
+
+    # Append JSONL record
+    python3 -c "
+import json, sys
+
+record = {
+    'skill': sys.argv[1],
+    'duration_s': int(sys.argv[2]),
+    'outcome': sys.argv[3],
+    'ts': sys.argv[4]
+}
+print(json.dumps(record))
+" "$_apex_telemetry_skill" "$duration_s" "$outcome" "$now" >> "$_apex_usage_file"
+
+    echo "Telemetry: ${_apex_telemetry_skill} ${outcome} (${duration_s}s)"
+
+    # Reset session state
+    _apex_telemetry_skill=""
+    _apex_telemetry_start_ts=""
+}
+
+# Append a raw telemetry record (for external callers)
+# Usage: apex_telemetry_log
+# Reads $_apex_telemetry_skill, duration, outcome from environment or prints last entry
+apex_telemetry_log() {
+    if [ ! -f "$_apex_usage_file" ]; then
+        echo "No telemetry data yet."
+        return 0
+    fi
+
+    echo "=== Telemetry Log (${_apex_usage_file}) ==="
+    python3 -c "
+import json, sys
+
+usage_file = sys.argv[1]
+entries = []
+with open(usage_file) as f:
+    for line in f:
+        line = line.strip()
+        if line:
+            entries.append(json.loads(line))
+
+if not entries:
+    print('No entries.')
+    sys.exit(0)
+
+total_s = 0
+outcomes = {}
+skills = {}
+for e in entries:
+    total_s += e.get('duration_s', 0)
+    o = e.get('outcome', 'unknown')
+    outcomes[o] = outcomes.get(o, 0) + 1
+    s = e.get('skill', 'unknown')
+    skills[s] = skills.get(s, 0) + 1
+
+print(f'Entries: {len(entries)}')
+print(f'Total time: {total_s}s ({total_s // 60}m {total_s % 60}s)')
+print(f'Outcomes: {outcomes}')
+print(f'Skills: {skills}')
+print()
+print('Last 10 entries:')
+for e in entries[-10:]:
+    print(f'  {e.get(\"ts\", \"?\")}  {e.get(\"skill\", \"?\"):<20}  {e.get(\"outcome\", \"?\"):<8}  {e.get(\"duration_s\", 0)}s')
+" "$_apex_usage_file"
+}
+
+# ===========================================================================
+# SECTION 6: Browser Detection
+# ===========================================================================
+
+# Detect available browser automation tool
+# Sets APEX_BROWSE_CMD and APEX_BROWSE_TYPE
+# Usage: apex_browse_detect
+apex_browse_detect() {
+    APEX_BROWSE_CMD=""
+    APEX_BROWSE_TYPE="none"
+
+    # Check 1: gstack browse binary
+    if command -v gstack >/dev/null 2>&1; then
+        # Verify gstack has browse subcommand
+        if gstack browse --help >/dev/null 2>&1; then
+            APEX_BROWSE_CMD="gstack browse"
+            APEX_BROWSE_TYPE="gstack"
+            echo "Browser: gstack browse (full automation)"
+            return 0
+        fi
+    fi
+
+    # Check 2: puppeteer / node with puppeteer
+    if command -v npx >/dev/null 2>&1; then
+        # Check if puppeteer is available (don't actually install it)
+        if npx --no-install puppeteer --version >/dev/null 2>&1; then
+            APEX_BROWSE_CMD="npx puppeteer"
+            APEX_BROWSE_TYPE="puppeteer"
+            echo "Browser: puppeteer via npx (headless automation)"
+            return 0
+        fi
+    fi
+
+    # Check 3: playwright
+    if command -v npx >/dev/null 2>&1; then
+        if npx --no-install playwright --version >/dev/null 2>&1; then
+            APEX_BROWSE_CMD="npx playwright"
+            APEX_BROWSE_TYPE="playwright"
+            echo "Browser: playwright via npx (headless automation)"
+            return 0
+        fi
+    fi
+
+    # Check 4: curl as fallback (fetch-only, no JS rendering)
+    if command -v curl >/dev/null 2>&1; then
+        APEX_BROWSE_CMD="curl"
+        APEX_BROWSE_TYPE="curl"
+        echo "Browser: curl (fetch-only, no JS rendering)"
+        return 0
+    fi
+
+    echo "Browser: none detected"
+    return 1
+}
+
+# ===========================================================================
+# SECTION 7: Public Aliases
+# ===========================================================================
+
+# Public alias used by skill preambles to ensure artifact directories exist.
+# Maps to the internal _apex_ensure_artifact_dirs helper.
+apex_ensure_dirs() {
+    _apex_ensure_state_dir
+    _apex_ensure_artifact_dirs
+}
+
+# ---------------------------------------------------------------------------
+# Auto-setup on source
+# ---------------------------------------------------------------------------
+_apex_ensure_state_dir
+_apex_ensure_artifact_dirs

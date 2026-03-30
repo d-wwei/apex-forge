@@ -1,0 +1,206 @@
+#!/usr/bin/env bash
+# Apex Protocol — SessionStart hook
+# Injects the execution discipline into every Claude Code / Cursor session.
+# Pattern follows superpowers (proven, production-tested).
+
+set -euo pipefail
+
+# Determine plugin root directory
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# ---------------------------------------------------------------------------
+# JSON escaping — exact superpowers implementation (handles all special chars)
+# ---------------------------------------------------------------------------
+escape_for_json() {
+    local s="$1"
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    s="${s//$'\n'/\\n}"
+    s="${s//$'\r'/\\r}"
+    s="${s//$'\t'/\\t}"
+    printf '%s' "$s"
+}
+
+# ---------------------------------------------------------------------------
+# Try to use the compiled binary for fast state retrieval
+# ---------------------------------------------------------------------------
+APEX_BINARY=""
+for bin_path in "${PLUGIN_ROOT}/dist/apex-forge" "$(command -v apex-forge 2>/dev/null)"; do
+  if [ -x "$bin_path" ]; then
+    APEX_BINARY="$bin_path"
+    break
+  fi
+done
+
+if [ -n "$APEX_BINARY" ]; then
+  # Fast path: use compiled binary
+  state_context=$("$APEX_BINARY" status --json 2>/dev/null | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    parts = []
+    parts.append(f\"Stage: {d.get('stage', 'idle')}\")
+    parts.append(f\"Tasks: {d.get('task_summary', 'none')}\")
+    parts.append(f\"Memory: {d.get('memory_count', 0)} facts\")
+    print('\n'.join(parts))
+except:
+    print('State: unavailable')
+" 2>/dev/null || echo "State: unavailable")
+fi
+
+# ---------------------------------------------------------------------------
+# 1. Build the core protocol injection (concise, under 2000 tokens)
+# ---------------------------------------------------------------------------
+read -r -d '' CORE_PROTOCOL << 'PROTOCOL_EOF' || true
+<apex-protocol>
+
+## Apex Protocol — Active Execution Discipline
+
+This protocol is ALWAYS ACTIVE. There is no opt-in.
+
+### The 1% Rule
+If there is even a 1% chance this protocol applies to the current task, it applies. The protocol activates BEFORE generating any response. You do not get to decide whether to follow it.
+
+### Complexity Router
+Every task enters the router before any work begins:
+- **Tier 1 (Single Pass)**: Self-contained. One action → Verification Gate → done.
+- **Tier 2 (Round-Based)**: Multi-step. PDCA rounds (clarify → explore → hypothesis → plan → execute → verify → harden). Max 5 rounds.
+- **Tier 3 (Wave-Based)**: Project-scale. Crosses sessions. Persistent state in .apex/state.json.
+
+### Hard Gates
+
+**Phase Discipline (Brainstorm → Plan → Execute)**:
+- Brainstorm (WHAT): No code, no file paths. Requirements and scope only.
+- Plan (HOW): Exact file paths, function signatures, test scenarios. No implementation code.
+- Execute (DO): Follow the plan. Tests first. No design decisions during execution.
+- VIOLATION = immediate stop and return to correct phase.
+
+**Verification Gate (runs before ANY success claim)**:
+1. Identify what command/test PROVES the claim.
+2. Run it. Fresh. Now.
+3. Read the FULL output — not a summary, not the first line.
+4. Does the output confirm the claim? Yes or No. Not "probably."
+5. Only if Yes, make the claim.
+Skip any step = lying, not verifying.
+
+**TDD Iron Law**: No production code without a failing test first. Write test → RED (confirm right reason) → GREEN → Refactor.
+
+### Evidence Grading
+- E0 (guess) → E1 (indirect) → E2 (direct) → E3 (multi-source) → E4 (validated+reproduced)
+- Minimum for action: E2. Minimum for success claim: E3. E0/E1 = hypothesis only.
+
+### Escalation Ladder
+- L1 (2nd failure): Fundamentally different approach, not tweaks.
+- L2 (3rd failure): 3 distinct testable hypotheses.
+- L3 (4th failure): 7-point recovery checklist.
+- L4 (5th failure): Minimal reproduction + escalate to human.
+
+### Completion Status (every task ends with exactly one)
+- **DONE**: All verified at E3+, Verification Gate passed.
+- **DONE_WITH_CONCERNS**: Completed with flagged issues (list each).
+- **BLOCKED**: Cannot proceed. State what was tried, what is needed.
+- **NEEDS_CONTEXT**: Missing info. State exactly what and why.
+
+### Anti-Patterns (Hard Stops)
+1. "Done" without proof → Run Verification Gate now.
+2. Repeated micro-tweaks → Invoke Escalation Ladder.
+3. Advice instead of execution → Execute the action.
+4. Waiting for user → Take initiative.
+5. Premature surrender → Try 3 different approaches first.
+6. Assumption laundering → Check evidence grade.
+7. Phase leaking → Return to correct phase.
+
+### Proactive Routing Map
+| User Signal | Trigger Stage |
+|---|---|
+| "build X" / "implement X" / "add feature" | Router → Plan → Execute |
+| "fix bug" / "debug" / "not working" | Router → Explore → Hypothesis → Execute |
+| "what should we build" / "requirements" | Brainstorm phase |
+| "how should we build" / "architecture" | Plan phase |
+| "review this" / "check this" | Multi-Persona Review |
+| "why did this fail" / "it broke again" | Escalation Ladder |
+
+### Available Commands
+- `/apex-brainstorm` — Start brainstorm phase (WHAT)
+- `/apex-plan` — Start plan phase (HOW)
+- `/apex-execute` — Start execute phase (DO)
+- `/apex-review` — Multi-persona review
+- `/apex-verify` — Run verification gate
+- `/apex-status` — Show current state
+- `/apex-solution` — Capture knowledge for reuse
+
+PROTOCOL_EOF
+
+# ---------------------------------------------------------------------------
+# 2. Read current state from .apex/state.json (if it exists)
+# ---------------------------------------------------------------------------
+state_context=""
+# Check working directory first, then common project locations
+for state_file in ".apex/state.json" "${PLUGIN_ROOT}/.apex/state.json"; do
+    if [ -f "$state_file" ]; then
+        current_stage=$(python3 -c "import json,sys; d=json.load(open('$state_file')); print(d.get('current_stage','unknown'))" 2>/dev/null || echo "unknown")
+        last_updated=$(python3 -c "import json,sys; d=json.load(open('$state_file')); print(d.get('last_updated','unknown'))" 2>/dev/null || echo "unknown")
+        # Get artifact counts per stage
+        artifact_summary=$(python3 -c "
+import json, sys
+d = json.load(open('$state_file'))
+arts = d.get('artifacts', {})
+parts = []
+for stage, files in arts.items():
+    if files:
+        parts.append(f'{stage}: {len(files)} artifact(s)')
+print(', '.join(parts) if parts else 'none')
+" 2>/dev/null || echo "none")
+
+        state_context="\n\n### Current State\n- Stage: ${current_stage}\n- Last updated: ${last_updated}\n- Artifacts: ${artifact_summary}"
+        break
+    fi
+done
+
+# ---------------------------------------------------------------------------
+# 3. Scan for existing artifacts in docs/
+# ---------------------------------------------------------------------------
+artifact_scan=""
+for docs_dir in "docs" "${PLUGIN_ROOT}/docs"; do
+    if [ -d "$docs_dir" ]; then
+        brainstorms=""
+        plans=""
+        solutions=""
+        [ -d "${docs_dir}/brainstorms" ] && brainstorms=$(ls "${docs_dir}/brainstorms/"*.md 2>/dev/null | head -5 | xargs -I{} basename {} 2>/dev/null || true)
+        [ -d "${docs_dir}/plans" ] && plans=$(ls "${docs_dir}/plans/"*.md 2>/dev/null | head -5 | xargs -I{} basename {} 2>/dev/null || true)
+        [ -d "${docs_dir}/solutions" ] && solutions=$(ls "${docs_dir}/solutions/"*.md 2>/dev/null | head -5 | xargs -I{} basename {} 2>/dev/null || true)
+
+        if [ -n "$brainstorms" ] || [ -n "$plans" ] || [ -n "$solutions" ]; then
+            artifact_scan="\n\n### Existing Artifacts"
+            [ -n "$brainstorms" ] && artifact_scan="${artifact_scan}\n- Brainstorms: ${brainstorms}"
+            [ -n "$plans" ] && artifact_scan="${artifact_scan}\n- Plans: ${plans}"
+            [ -n "$solutions" ] && artifact_scan="${artifact_scan}\n- Solutions: ${solutions}"
+        fi
+        break
+    fi
+done
+
+# ---------------------------------------------------------------------------
+# 4. Assemble final context
+# ---------------------------------------------------------------------------
+full_context="${CORE_PROTOCOL}${state_context}${artifact_scan}\n\n</apex-protocol>"
+
+session_context=$(escape_for_json "$full_context")
+
+# ---------------------------------------------------------------------------
+# 5. Output JSON — platform-aware (Claude Code vs Cursor)
+# ---------------------------------------------------------------------------
+# Uses printf instead of heredoc to avoid bash 5.3+ heredoc expansion hang.
+if [ -n "${CURSOR_PLUGIN_ROOT:-}" ]; then
+    # Cursor — emit additional_context
+    printf '{\n  "additional_context": "%s"\n}\n' "$session_context"
+elif [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
+    # Claude Code — emit hookSpecificOutput
+    printf '{\n  "hookSpecificOutput": {\n    "hookEventName": "SessionStart",\n    "additionalContext": "%s"\n  }\n}\n' "$session_context"
+else
+    # Fallback — emit additional_context
+    printf '{\n  "additional_context": "%s"\n}\n' "$session_context"
+fi
+
+exit 0

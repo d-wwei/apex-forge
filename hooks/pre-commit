@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Apex Protocol — pre-commit hook
+# Automatically curates memory from recent activity before each commit.
+# Approximates deer-flow's session-end auto-curation.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+APEX_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Only run if apex binary exists
+APEX_BIN=""
+if [ -x "$APEX_ROOT/dist/apex" ]; then
+  APEX_BIN="$APEX_ROOT/dist/apex"
+elif command -v apex >/dev/null 2>&1; then
+  APEX_BIN="apex"
+fi
+
+if [ -z "$APEX_BIN" ]; then
+  exit 0  # No binary, skip silently
+fi
+
+# Run deterministic curation (fast, no API call)
+"$APEX_BIN" memory curate 2>/dev/null || true
+
+# Update telemetry
+"$APEX_BIN" telemetry end success 2>/dev/null || true
+
+exit 0

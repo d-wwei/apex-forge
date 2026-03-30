@@ -1,0 +1,16 @@
+#apex-indicator {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 999999;
+  background: linear-gradient(90deg, #f0c040, #ff8f00, #f0c040);
+  background-size: 200% 100%;
+  animation: apex-shimmer 2s ease-in-out infinite;
+}
+@keyframes apex-shimmer {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}

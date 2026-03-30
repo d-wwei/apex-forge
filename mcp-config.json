@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "apex-forge": {
+      "command": "./dist/apex-forge-mcp",
+      "args": ["--role", "admin"],
+      "env": {}
+    }
+  }
+}

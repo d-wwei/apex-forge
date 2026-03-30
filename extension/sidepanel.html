@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, system-ui, sans-serif; font-size: 13px; background: #1a1a2e; color: #e0e0e0; }
+    .tabs { display: flex; border-bottom: 1px solid #333; }
+    .tab { flex: 1; padding: 8px; text-align: center; cursor: pointer; color: #888; }
+    .tab.active { color: #f0c040; border-bottom: 2px solid #f0c040; }
+    .panel { display: none; padding: 8px; overflow-y: auto; height: calc(100vh - 80px); }
+    .panel.active { display: block; }
+    .event { padding: 6px 8px; border-bottom: 1px solid #222; font-family: monospace; font-size: 11px; }
+    .event .cmd { color: #4fc3f7; }
+    .event .time { color: #888; font-size: 10px; }
+    .event .ok { color: #66bb6a; }
+    .event .err { color: #ef5350; }
+    .event .dur { color: #ffd54f; }
+    .status { padding: 8px; text-align: center; font-size: 11px; }
+    .status .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+    .dot.connected { background: #66bb6a; }
+    .dot.disconnected { background: #ef5350; }
+    .ref-list { font-family: monospace; font-size: 11px; }
+    .ref-item { padding: 4px 8px; border-bottom: 1px solid #222; }
+    .ref-id { color: #f0c040; }
+    .ref-role { color: #4fc3f7; }
+  </style>
+</head>
+<body>
+  <div class="tabs">
+    <div class="tab active" data-panel="activity">Activity</div>
+    <div class="tab" data-panel="refs">Refs</div>
+  </div>
+  <div class="panel active" id="activity">
+    <div class="status"><span class="dot disconnected" id="status-dot"></span><span id="status-text">Connecting...</span></div>
+    <div id="events"></div>
+  </div>
+  <div class="panel" id="refs">
+    <div class="ref-list" id="ref-list">No refs yet. Run a snapshot command.</div>
+  </div>
+  <script src="sidepanel.js"></script>
+</body>
+</html>

@@ -1,0 +1,529 @@
+#!/usr/bin/env bash
+# Apex Protocol — Task Helper
+# Source this file from state-helper to manage .apex/tasks.json.
+#
+# Task State Machine:
+#   open -> assigned -> in_progress -> to_verify -> done
+#   (any state) -> blocked
+#   assigned -> open (release)
+#   to_verify -> in_progress (verify fail)
+#
+# Usage:
+#   source "$(dirname "$0")/task-helper"
+#   apex_task_create "Implement auth" "Add JWT auth middleware"
+#   apex_task_assign T1
+#   apex_task_start T1
+#   apex_task_submit T1 "All tests pass"
+#   apex_task_verify T1 pass
+#   apex_task_list --status open
+#   apex_task_next
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
+_apex_tasks_dir="${APEX_STATE_DIR:-.apex}"
+_apex_tasks_file="${_apex_tasks_dir}/tasks.json"
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+_apex_ensure_tasks_dir() {
+    if [ ! -d "$_apex_tasks_dir" ]; then
+        mkdir -p "$_apex_tasks_dir"
+    fi
+}
+
+_apex_init_tasks() {
+    _apex_ensure_tasks_dir
+    if [ ! -f "$_apex_tasks_file" ]; then
+        cat > "$_apex_tasks_file" << 'TASKS_EOF'
+{
+  "tasks": [],
+  "next_id": 1
+}
+TASKS_EOF
+    fi
+}
+
+_apex_ensure_tasks() {
+    if [ ! -f "$_apex_tasks_file" ]; then
+        _apex_init_tasks
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# Public API — Task State Machine
+# ---------------------------------------------------------------------------
+
+# Create a new task
+# Usage: apex_task_create TITLE DESCRIPTION [DEPENDS_ON_IDS...]
+apex_task_create() {
+    local title="${1:?Usage: apex_task_create TITLE DESCRIPTION [DEPENDS_ON_IDS...]}"
+    local description="${2:?Usage: apex_task_create TITLE DESCRIPTION [DEPENDS_ON_IDS...]}"
+    shift 2
+    _apex_ensure_tasks
+
+    # Collect remaining args as dependency IDs
+    local deps_json="[]"
+    if [ $# -gt 0 ]; then
+        deps_json=$(python3 -c "
+import json, sys
+deps = sys.argv[1:]
+print(json.dumps(deps))
+" "$@")
+    fi
+
+    local now
+    now=$(_apex_iso_timestamp)
+
+    python3 -c "
+import json, sys
+
+tasks_file = sys.argv[1]
+title = sys.argv[2]
+description = sys.argv[3]
+deps = json.loads(sys.argv[4])
+now = sys.argv[5]
+
+with open(tasks_file) as f:
+    data = json.load(f)
+
+task_id = 'T' + str(data['next_id'])
+data['next_id'] += 1
+
+task = {
+    'id': task_id,
+    'title': title,
+    'description': description,
+    'status': 'open',
+    'depends_on': deps,
+    'blocked_by': [],
+    'evidence': [],
+    'created_at': now,
+    'updated_at': now
+}
+
+# Check if any dependency is not done — add warning
+warnings = []
+existing_ids = {t['id'] for t in data['tasks']}
+for dep in deps:
+    if dep not in existing_ids:
+        warnings.append(f'Warning: dependency {dep} does not exist')
+    else:
+        dep_task = next(t for t in data['tasks'] if t['id'] == dep)
+        if dep_task['status'] != 'done':
+            warnings.append(f'Note: dependency {dep} is not done (status: {dep_task[\"status\"]})')
+
+data['tasks'].append(task)
+
+with open(tasks_file, 'w') as f:
+    json.dump(data, f, indent=2)
+
+print(f'Created task {task_id}: {title}')
+for w in warnings:
+    print(w)
+" "$_apex_tasks_file" "$title" "$description" "$deps_json" "$now"
+}
+
+# Assign a task (open -> assigned)
+# Usage: apex_task_assign TASK_ID
+apex_task_assign() {
+    local task_id="${1:?Usage: apex_task_assign TASK_ID}"
+    _apex_ensure_tasks
+
+    local now
+    now=$(_apex_iso_timestamp)
+
+    python3 -c "
+import json, sys
+
+tasks_file = sys.argv[1]
+task_id = sys.argv[2]
+now = sys.argv[3]
+
+with open(tasks_file) as f:
+    data = json.load(f)
+
+task = next((t for t in data['tasks'] if t['id'] == task_id), None)
+if not task:
+    print(f'Error: task {task_id} not found', file=sys.stderr)
+    sys.exit(1)
+
+if task['status'] != 'open':
+    print(f'Error: cannot assign {task_id} — status is \"{task[\"status\"]}\" (must be \"open\")', file=sys.stderr)
+    sys.exit(1)
+
+# Warn about incomplete dependencies
+for dep_id in task.get('depends_on', []):
+    dep = next((t for t in data['tasks'] if t['id'] == dep_id), None)
+    if dep and dep['status'] != 'done':
+        print(f'Warning: dependency {dep_id} is not done (status: {dep[\"status\"]})')
+
+task['status'] = 'assigned'
+task['updated_at'] = now
+
+with open(tasks_file, 'w') as f:
+    json.dump(data, f, indent=2)
+
+print(f'{task_id}: open -> assigned')
+" "$_apex_tasks_file" "$task_id" "$now"
+}
+
+# Start working on a task (assigned -> in_progress)
+# Usage: apex_task_start TASK_ID
+apex_task_start() {
+    local task_id="${1:?Usage: apex_task_start TASK_ID}"
+    _apex_ensure_tasks
+
+    local now
+    now=$(_apex_iso_timestamp)
+
+    python3 -c "
+import json, sys
+
+tasks_file = sys.argv[1]
+task_id = sys.argv[2]
+now = sys.argv[3]
+
+with open(tasks_file) as f:
+    data = json.load(f)
+
+task = next((t for t in data['tasks'] if t['id'] == task_id), None)
+if not task:
+    print(f'Error: task {task_id} not found', file=sys.stderr)
+    sys.exit(1)
+
+if task['status'] != 'assigned':
+    print(f'Error: cannot start {task_id} — status is \"{task[\"status\"]}\" (must be \"assigned\")', file=sys.stderr)
+    sys.exit(1)
+
+# Warn about incomplete dependencies
+for dep_id in task.get('depends_on', []):
+    dep = next((t for t in data['tasks'] if t['id'] == dep_id), None)
+    if dep and dep['status'] != 'done':
+        print(f'Warning: dependency {dep_id} is not done (status: {dep[\"status\"]})')
+
+task['status'] = 'in_progress'
+task['updated_at'] = now
+
+with open(tasks_file, 'w') as f:
+    json.dump(data, f, indent=2)
+
+print(f'{task_id}: assigned -> in_progress')
+" "$_apex_tasks_file" "$task_id" "$now"
+}
+
+# Submit a task for verification (in_progress -> to_verify)
+# Usage: apex_task_submit TASK_ID EVIDENCE
+apex_task_submit() {
+    local task_id="${1:?Usage: apex_task_submit TASK_ID EVIDENCE}"
+    local evidence="${2:?Usage: apex_task_submit TASK_ID EVIDENCE}"
+    _apex_ensure_tasks
+
+    local now
+    now=$(_apex_iso_timestamp)
+
+    python3 -c "
+import json, sys
+
+tasks_file = sys.argv[1]
+task_id = sys.argv[2]
+evidence = sys.argv[3]
+now = sys.argv[4]
+
+with open(tasks_file) as f:
+    data = json.load(f)
+
+task = next((t for t in data['tasks'] if t['id'] == task_id), None)
+if not task:
+    print(f'Error: task {task_id} not found', file=sys.stderr)
+    sys.exit(1)
+
+if task['status'] != 'in_progress':
+    print(f'Error: cannot submit {task_id} — status is \"{task[\"status\"]}\" (must be \"in_progress\")', file=sys.stderr)
+    sys.exit(1)
+
+task['evidence'].append({
+    'content': evidence,
+    'submitted_at': now
+})
+task['status'] = 'to_verify'
+task['updated_at'] = now
+
+with open(tasks_file, 'w') as f:
+    json.dump(data, f, indent=2)
+
+print(f'{task_id}: in_progress -> to_verify (evidence recorded)')
+" "$_apex_tasks_file" "$task_id" "$evidence" "$now"
+}
+
+# Verify a task (to_verify -> done or to_verify -> in_progress)
+# Usage: apex_task_verify TASK_ID [pass|fail]
+apex_task_verify() {
+    local task_id="${1:?Usage: apex_task_verify TASK_ID [pass|fail]}"
+    local result="${2:-pass}"
+    _apex_ensure_tasks
+
+    local now
+    now=$(_apex_iso_timestamp)
+
+    python3 -c "
+import json, sys
+
+tasks_file = sys.argv[1]
+task_id = sys.argv[2]
+result = sys.argv[3]
+now = sys.argv[4]
+
+if result not in ('pass', 'fail'):
+    print(f'Error: result must be \"pass\" or \"fail\", got \"{result}\"', file=sys.stderr)
+    sys.exit(1)
+
+with open(tasks_file) as f:
+    data = json.load(f)
+
+task = next((t for t in data['tasks'] if t['id'] == task_id), None)
+if not task:
+    print(f'Error: task {task_id} not found', file=sys.stderr)
+    sys.exit(1)
+
+if task['status'] != 'to_verify':
+    print(f'Error: cannot verify {task_id} — status is \"{task[\"status\"]}\" (must be \"to_verify\")', file=sys.stderr)
+    sys.exit(1)
+
+if result == 'pass':
+    task['status'] = 'done'
+    task['completed_at'] = now
+    print(f'{task_id}: to_verify -> done (verified)')
+else:
+    task['status'] = 'in_progress'
+    print(f'{task_id}: to_verify -> in_progress (verification failed, rework needed)')
+
+task['updated_at'] = now
+
+with open(tasks_file, 'w') as f:
+    json.dump(data, f, indent=2)
+" "$_apex_tasks_file" "$task_id" "$result" "$now"
+}
+
+# Block a task (any -> blocked)
+# Usage: apex_task_block TASK_ID REASON
+apex_task_block() {
+    local task_id="${1:?Usage: apex_task_block TASK_ID REASON}"
+    local reason="${2:?Usage: apex_task_block TASK_ID REASON}"
+    _apex_ensure_tasks
+
+    local now
+    now=$(_apex_iso_timestamp)
+
+    python3 -c "
+import json, sys
+
+tasks_file = sys.argv[1]
+task_id = sys.argv[2]
+reason = sys.argv[3]
+now = sys.argv[4]
+
+with open(tasks_file) as f:
+    data = json.load(f)
+
+task = next((t for t in data['tasks'] if t['id'] == task_id), None)
+if not task:
+    print(f'Error: task {task_id} not found', file=sys.stderr)
+    sys.exit(1)
+
+if task['status'] == 'done':
+    print(f'Error: cannot block {task_id} — task is already done', file=sys.stderr)
+    sys.exit(1)
+
+old_status = task['status']
+task['status'] = 'blocked'
+task['blocked_by'].append({
+    'reason': reason,
+    'blocked_at': now,
+    'previous_status': old_status
+})
+task['updated_at'] = now
+
+with open(tasks_file, 'w') as f:
+    json.dump(data, f, indent=2)
+
+print(f'{task_id}: {old_status} -> blocked ({reason})')
+" "$_apex_tasks_file" "$task_id" "$reason" "$now"
+}
+
+# Release a task back to open (assigned -> open)
+# Usage: apex_task_release TASK_ID
+apex_task_release() {
+    local task_id="${1:?Usage: apex_task_release TASK_ID}"
+    _apex_ensure_tasks
+
+    local now
+    now=$(_apex_iso_timestamp)
+
+    python3 -c "
+import json, sys
+
+tasks_file = sys.argv[1]
+task_id = sys.argv[2]
+now = sys.argv[3]
+
+with open(tasks_file) as f:
+    data = json.load(f)
+
+task = next((t for t in data['tasks'] if t['id'] == task_id), None)
+if not task:
+    print(f'Error: task {task_id} not found', file=sys.stderr)
+    sys.exit(1)
+
+if task['status'] != 'assigned':
+    print(f'Error: cannot release {task_id} — status is \"{task[\"status\"]}\" (must be \"assigned\")', file=sys.stderr)
+    sys.exit(1)
+
+task['status'] = 'open'
+task['updated_at'] = now
+
+with open(tasks_file, 'w') as f:
+    json.dump(data, f, indent=2)
+
+print(f'{task_id}: assigned -> open (released)')
+" "$_apex_tasks_file" "$task_id" "$now"
+}
+
+# List tasks with optional status filter
+# Usage: apex_task_list [--status STATUS]
+apex_task_list() {
+    _apex_ensure_tasks
+
+    local filter_status=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --status)
+                filter_status="${2:?Usage: apex_task_list [--status STATUS]}"
+                shift 2
+                ;;
+            *)
+                echo "Unknown option: $1" >&2
+                return 1
+                ;;
+        esac
+    done
+
+    python3 -c "
+import json, sys
+
+tasks_file = sys.argv[1]
+filter_status = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] else ''
+
+with open(tasks_file) as f:
+    data = json.load(f)
+
+tasks = data.get('tasks', [])
+if filter_status:
+    tasks = [t for t in tasks if t['status'] == filter_status]
+
+if not tasks:
+    print('No tasks found.')
+    sys.exit(0)
+
+# Column-aligned output
+print(f'{'ID':<6} {'Status':<14} {'Title':<40} {'Deps':<12}')
+print('-' * 72)
+for t in tasks:
+    deps = ','.join(t.get('depends_on', [])) or '-'
+    title = t['title'][:38] + '..' if len(t['title']) > 40 else t['title']
+    print(f'{t[\"id\"]:<6} {t[\"status\"]:<14} {title:<40} {deps:<12}')
+
+print(f'\nTotal: {len(tasks)} task(s)')
+" "$_apex_tasks_file" "$filter_status"
+}
+
+# Get details for one task
+# Usage: apex_task_get TASK_ID
+apex_task_get() {
+    local task_id="${1:?Usage: apex_task_get TASK_ID}"
+    _apex_ensure_tasks
+
+    python3 -c "
+import json, sys
+
+tasks_file = sys.argv[1]
+task_id = sys.argv[2]
+
+with open(tasks_file) as f:
+    data = json.load(f)
+
+task = next((t for t in data['tasks'] if t['id'] == task_id), None)
+if not task:
+    print(f'Error: task {task_id} not found', file=sys.stderr)
+    sys.exit(1)
+
+print(f'ID:          {task[\"id\"]}')
+print(f'Title:       {task[\"title\"]}')
+print(f'Status:      {task[\"status\"]}')
+print(f'Description: {task[\"description\"]}')
+print(f'Depends on:  {', '.join(task.get('depends_on', [])) or 'none'}')
+print(f'Created:     {task[\"created_at\"]}')
+print(f'Updated:     {task[\"updated_at\"]}')
+if task.get('completed_at'):
+    print(f'Completed:   {task[\"completed_at\"]}')
+
+blocked = task.get('blocked_by', [])
+if blocked:
+    print(f'Blocked by:')
+    for b in blocked:
+        print(f'  - {b[\"reason\"]} (at {b[\"blocked_at\"]})')
+
+evidence = task.get('evidence', [])
+if evidence:
+    print(f'Evidence:')
+    for e in evidence:
+        print(f'  - [{e[\"submitted_at\"]}] {e[\"content\"]}')
+" "$_apex_tasks_file" "$task_id"
+}
+
+# Find next unblocked open task (respects dependency order)
+# Usage: apex_task_next
+apex_task_next() {
+    _apex_ensure_tasks
+
+    python3 -c "
+import json, sys
+
+tasks_file = sys.argv[1]
+
+with open(tasks_file) as f:
+    data = json.load(f)
+
+tasks = data.get('tasks', [])
+done_ids = {t['id'] for t in tasks if t['status'] == 'done'}
+
+candidates = []
+for t in tasks:
+    if t['status'] != 'open':
+        continue
+    # Check all dependencies are done
+    deps = t.get('depends_on', [])
+    unmet = [d for d in deps if d not in done_ids]
+    if not unmet:
+        candidates.append(t)
+
+if not candidates:
+    print('No unblocked open tasks available.')
+    sys.exit(1)
+
+# Return the first candidate (lowest ID = oldest)
+best = candidates[0]
+print(f'{best[\"id\"]}: {best[\"title\"]}')
+print(f'  Description: {best[\"description\"]}')
+deps_str = ', '.join(best.get('depends_on', [])) or 'none'
+print(f'  Dependencies: {deps_str} (all met)')
+" "$_apex_tasks_file"
+}
+
+# ---------------------------------------------------------------------------
+# Auto-setup on source
+# ---------------------------------------------------------------------------
+_apex_ensure_tasks_dir

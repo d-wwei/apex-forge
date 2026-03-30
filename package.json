@@ -1,0 +1,22 @@
+{
+  "name": "apex-forge",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "bun build --compile src/cli.ts --outfile dist/apex-forge",
+    "build:browse": "bun build --compile src/browse/cli.ts --outfile dist/apex-forge-browse --external playwright --external playwright-core",
+    "build:mcp": "bun build --compile src/mcp/server.ts --outfile dist/apex-forge-mcp --external playwright --external playwright-core --external @modelcontextprotocol/sdk",
+    "build:all": "bun run build && bun run build:browse && bun run build:mcp",
+    "dev": "bun run src/cli.ts",
+    "dev:browse": "bun run src/browse/cli.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.80.0",
+    "@modelcontextprotocol/sdk": "^1.28.0",
+    "playwright": "^1.58.2"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}

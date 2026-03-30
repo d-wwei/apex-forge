@@ -1,0 +1,112 @@
+{
+  "name": "apex-protocol",
+  "version": "0.1.0",
+  "description": "Unified execution framework for AI coding agents. Three layers: execution discipline, workflow pipeline, multi-agent orchestration.",
+  "skills": [
+    {
+      "name": "apex",
+      "path": "protocol/SKILL.md",
+      "description": "Core execution protocol — auto-activates on every session"
+    },
+    {
+      "name": "apex-round",
+      "path": "protocol/round-based-execution.md",
+      "description": "PDCA round-based execution — structured iteration for Tier 2 tasks"
+    },
+    {
+      "name": "apex-wave",
+      "path": "protocol/wave-based-delivery.md",
+      "description": "Wave-based delivery — project-scale cross-session work for Tier 3 tasks"
+    },
+    {
+      "name": "apex-brainstorm",
+      "path": "workflow/stages/brainstorm.md",
+      "description": "Requirements exploration with hard gate (no code before approval)"
+    },
+    {
+      "name": "apex-plan",
+      "path": "workflow/stages/plan.md",
+      "description": "Convert requirements into execution plan with file paths, tasks, and tests"
+    },
+    {
+      "name": "apex-execute",
+      "path": "workflow/stages/execute.md",
+      "description": "TDD-first implementation with dispatch strategy based on task complexity"
+    },
+    {
+      "name": "apex-review",
+      "path": "workflow/stages/review.md",
+      "description": "Multi-persona quality gate — security, correctness, spec compliance"
+    },
+    {
+      "name": "apex-ship",
+      "path": "workflow/stages/ship.md",
+      "description": "Package and deliver — tests, version bump, changelog, commit, PR"
+    },
+    {
+      "name": "apex-compound",
+      "path": "workflow/stages/compound.md",
+      "description": "Knowledge extraction — capture solutions for future reuse"
+    },
+    {
+      "name": "apex-verify",
+      "path": "workflow/stages/verify.md",
+      "description": "Evidence gate — no success claims without proof"
+    },
+    {
+      "name": "apex-design-review",
+      "path": "workflow/roles/design-review.md",
+      "description": "Visual QA and design polish — screenshot-driven fix-verify loops"
+    },
+    {
+      "name": "apex-security-audit",
+      "path": "workflow/roles/security-audit.md",
+      "description": "Chief Security Officer mode — infrastructure-first security audit"
+    },
+    {
+      "name": "apex-plan-ceo-review",
+      "path": "workflow/roles/plan-ceo-review.md",
+      "description": "Strategic plan review — CEO/founder evaluating ambition and scope"
+    },
+    {
+      "name": "apex-plan-eng-review",
+      "path": "workflow/roles/plan-eng-review.md",
+      "description": "Engineering architecture review — senior eng manager locking in execution"
+    },
+    {
+      "name": "apex-browse",
+      "path": "workflow/roles/browse.md",
+      "description": "Browser interaction — navigate, read, interact, screenshot"
+    },
+    {
+      "name": "apex-qa",
+      "path": "workflow/roles/qa.md",
+      "description": "Systematic QA testing with tiered depth, browser-aware verification, and bug-fix loop"
+    },
+    {
+      "name": "apex-investigate",
+      "path": "workflow/roles/investigate.md",
+      "description": "Systematic debugging with root-cause discipline — no fixes without understanding why"
+    },
+    {
+      "name": "apex-code-review",
+      "path": "workflow/roles/code-review.md",
+      "description": "Multi-pass code review — correctness, security, performance, maintainability"
+    },
+    {
+      "name": "apex-office-hours",
+      "path": "workflow/roles/office-hours.md",
+      "description": "Guided learning and explanation — teach concepts in the context of the codebase"
+    },
+    {
+      "name": "apex-retro",
+      "path": "workflow/roles/retro.md",
+      "description": "Retrospective analysis — extract lessons, patterns, and improvements from completed work"
+    },
+    {
+      "name": "apex-canary",
+      "path": "workflow/roles/canary.md",
+      "description": "Post-deploy canary monitoring — screenshots, error detection, performance regression checks"
+    }
+  ]
+}

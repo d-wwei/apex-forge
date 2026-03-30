@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Apex Protocol — setup script
+# Detects platform and creates appropriate symlinks/manifests
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+VERSION=$(cat "$SCRIPT_DIR/VERSION" 2>/dev/null || echo "0.1.0")
+
+echo "apex-protocol v$VERSION — setup"
+echo "================================"
+
+# Detect platforms
+PLATFORMS_FOUND=()
+
+# Claude Code (global)
+if [ -d "$HOME/.claude/skills" ]; then
+  PLATFORMS_FOUND+=("claude-global")
+fi
+
+# Claude Code (local)
+if [ -d ".claude/skills" ] && [ "$SCRIPT_DIR" != "$(cd .claude/skills/apex-protocol 2>/dev/null && pwd)" ]; then
+  PLATFORMS_FOUND+=("claude-local")
+fi
+
+# Cursor
+if [ -d ".cursor-plugin" ]; then
+  PLATFORMS_FOUND+=("cursor")
+fi
+
+# Codex / Factory
+if [ -d ".agents/skills" ]; then
+  PLATFORMS_FOUND+=("codex")
+fi
+
+echo ""
+echo "Detected platforms: ${PLATFORMS_FOUND[*]:-none}"
+echo ""
+
+# Create skill manifests
+create_claude_manifest() {
+  local target_dir="$1"
+  if [ ! -L "$target_dir/apex-protocol" ] && [ ! -d "$target_dir/apex-protocol" ]; then
+    ln -sf "$SCRIPT_DIR" "$target_dir/apex-protocol"
+    echo "  Linked: $target_dir/apex-protocol -> $SCRIPT_DIR"
+  else
+    echo "  Already exists: $target_dir/apex-protocol"
+  fi
+}
+
+# Setup for each platform
+for platform in "${PLATFORMS_FOUND[@]}"; do
+  case "$platform" in
+    claude-global)
+      echo "Setting up Claude Code (global)..."
+      create_claude_manifest "$HOME/.claude/skills"
+      ;;
+    claude-local)
+      echo "Setting up Claude Code (local)..."
+      create_claude_manifest ".claude/skills"
+      ;;
+    cursor)
+      echo "Setting up Cursor..."
+      if [ ! -L ".cursor-plugin/apex-protocol" ]; then
+        ln -sf "$SCRIPT_DIR" ".cursor-plugin/apex-protocol"
+        echo "  Linked: .cursor-plugin/apex-protocol"
+      fi
+      ;;
+    codex)
+      echo "Setting up Codex/Factory..."
+      if [ ! -L ".agents/skills/apex-protocol" ]; then
+        ln -sf "$SCRIPT_DIR" ".agents/skills/apex-protocol"
+        echo "  Linked: .agents/skills/apex-protocol"
+      fi
+      ;;
+  esac
+done
+
+# Create default config if needed
+if [ ! -f ".apex/config.yaml" ]; then
+  mkdir -p .apex
+  cat > .apex/config.yaml << 'YAML'
+# Apex Protocol configuration
+# See README.md for all options
+
+default_tier: auto
+proactive: true
+compound_on_resolve: true
+max_concurrent_agents: 3
+autonomy: balanced
+YAML
+  echo ""
+  echo "Created .apex/config.yaml with defaults"
+fi
+
+# Build TypeScript binaries if Bun is available
+if command -v bun >/dev/null 2>&1; then
+  echo ""
+  echo "Building TypeScript runtime..."
+  cd "$SCRIPT_DIR"
+  bun install --frozen-lockfile 2>/dev/null || bun install
+  bun run build:all 2>&1 | tail -3
+
+  if [ -x "$SCRIPT_DIR/dist/apex-forge" ]; then
+    echo "  apex CLI:     $SCRIPT_DIR/dist/apex-forge"
+  fi
+  if [ -x "$SCRIPT_DIR/dist/apex-forge-browse" ]; then
+    echo "  apex-browse:  $SCRIPT_DIR/dist/apex-forge-browse"
+  fi
+  if [ -x "$SCRIPT_DIR/dist/apex-forge-mcp" ]; then
+    echo "  apex-mcp:     $SCRIPT_DIR/dist/apex-forge-mcp"
+  fi
+
+  # Install Playwright browsers if needed
+  if [ -x "$SCRIPT_DIR/dist/apex-forge-browse" ] && ! bunx playwright install --dry-run chromium >/dev/null 2>&1; then
+    echo ""
+    echo "Installing Chromium for browser testing..."
+    bunx playwright install chromium
+  fi
+else
+  echo ""
+  echo "Note: Bun not found. TypeScript binaries not built."
+  echo "  Install Bun: curl -fsSL https://bun.sh/install | bash"
+  echo "  Then run: cd $SCRIPT_DIR && bun run build:all"
+fi
+
+# Create docs directories
+mkdir -p docs/brainstorms docs/plans docs/solutions docs/ideation
+
+echo ""
+echo "Setup complete."
+echo ""
+echo "The protocol layer auto-activates on every session."
+echo "Run '/apex brainstorm' to start a workflow."

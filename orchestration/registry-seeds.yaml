@@ -1,0 +1,1332 @@
+# Apex Forge — Agent Template Registry
+# 115 templates across 12 categories
+# Used by the orchestrator for capability-based task routing
+version: "0.1.0"
+categories:
+  - code-operations
+  - testing
+  - architecture
+  - devops-infrastructure
+  - security
+  - performance
+  - documentation
+  - design-frontend
+  - data-backend
+  - agent-orchestration
+  - incident-response
+  - project-management
+
+templates:
+
+  # ============================================================================
+  # 1. CODE OPERATIONS (15 templates)
+  # ============================================================================
+
+  - id: code-review
+    name: Code Review
+    category: code-operations
+    triggers: ["review this", "check my diff", "pre-landing review", "review PR", "look over my changes", "code review"]
+    description: Review code changes for quality, correctness, style, and spec compliance.
+    inputs: [git_diff, plan_file, style_guide, acceptance_criteria]
+    outputs: [findings_report, severity_ratings, verdict, suggested_fixes]
+    tools_needed: [git, grep, read, bash]
+    model_hint: capable
+    estimated_tokens: 5000
+
+  - id: bug-fix
+    name: Bug Fix
+    category: code-operations
+    triggers: ["fix this bug", "debug", "not working", "broken", "error", "crash", "exception", "failing"]
+    description: Diagnose and fix a bug with root cause analysis and regression test.
+    inputs: [error_description, stack_trace, reproduction_steps, affected_files]
+    outputs: [root_cause, fix_diff, regression_test, verification_result]
+    tools_needed: [git, bash, read, edit, grep]
+    model_hint: capable
+    estimated_tokens: 8000
+
+  - id: feature-build
+    name: Feature Build
+    category: code-operations
+    triggers: ["build this feature", "implement", "add support for", "new feature", "create a", "build me"]
+    description: Implement a new feature from spec through tests to verification.
+    inputs: [feature_spec, acceptance_criteria, file_list, architecture_context]
+    outputs: [implementation_diff, tests, verification_result, documentation_update]
+    tools_needed: [git, bash, read, edit, write]
+    model_hint: capable
+    estimated_tokens: 15000
+
+  - id: refactor
+    name: Refactor
+    category: code-operations
+    triggers: ["refactor", "restructure", "simplify this", "improve readability", "make this cleaner"]
+    description: Restructure code for clarity, maintainability, or performance without changing behavior.
+    inputs: [target_files, refactor_goal, constraints, test_suite_path]
+    outputs: [refactored_diff, test_results, before_after_comparison]
+    tools_needed: [git, bash, read, edit]
+    model_hint: capable
+    estimated_tokens: 10000
+
+  - id: code-cleanup
+    name: Code Cleanup
+    category: code-operations
+    triggers: ["clean up", "tidy", "lint fix", "format code", "style violations", "fix warnings"]
+    description: Fix linting errors, formatting issues, and minor code hygiene problems.
+    inputs: [target_files, lint_config, style_rules]
+    outputs: [cleanup_diff, lint_report_before, lint_report_after]
+    tools_needed: [bash, read, edit]
+    model_hint: fast
+    estimated_tokens: 3000
+
+  - id: dependency-update
+    name: Dependency Update
+    category: code-operations
+    triggers: ["update dependencies", "upgrade", "bump versions", "outdated packages", "npm update", "pip upgrade"]
+    description: Update project dependencies with compatibility checks and test verification.
+    inputs: [package_manifest, target_versions, breaking_change_notes]
+    outputs: [updated_manifest, compatibility_report, test_results, migration_notes]
+    tools_needed: [bash, read, edit]
+    model_hint: balanced
+    estimated_tokens: 5000
+
+  - id: migration-write
+    name: Migration Script Write
+    category: code-operations
+    triggers: ["write migration", "migration script", "upgrade path", "version migration", "breaking change migration"]
+    description: Write automated migration scripts for schema, config, or API version changes.
+    inputs: [source_version, target_version, change_manifest, rollback_requirements]
+    outputs: [migration_script, rollback_script, validation_checks, execution_guide]
+    tools_needed: [bash, read, write]
+    model_hint: capable
+    estimated_tokens: 8000
+
+  - id: type-annotation
+    name: Type Annotation
+    category: code-operations
+    triggers: ["add types", "type annotations", "typecheck", "fix type errors", "add typescript types", "type safety"]
+    description: Add or fix type annotations to improve type safety and IDE support.
+    inputs: [target_files, type_system, strictness_level, existing_type_definitions]
+    outputs: [annotated_diff, type_coverage_report, type_error_fixes]
+    tools_needed: [bash, read, edit, grep]
+    model_hint: balanced
+    estimated_tokens: 6000
+
+  - id: dead-code-removal
+    name: Dead Code Removal
+    category: code-operations
+    triggers: ["remove dead code", "unused code", "unreachable code", "find unused", "prune unused exports"]
+    description: Identify and safely remove unreferenced code, unused imports, and dead branches.
+    inputs: [target_directory, entry_points, test_suite_path]
+    outputs: [dead_code_report, removal_diff, test_results, size_reduction_summary]
+    tools_needed: [bash, read, edit, grep]
+    model_hint: balanced
+    estimated_tokens: 6000
+
+  - id: extract-function
+    name: Extract Function
+    category: code-operations
+    triggers: ["extract function", "extract method", "pull this out", "make this reusable", "extract into helper"]
+    description: Extract inline logic into a named, testable, reusable function.
+    inputs: [source_file, line_range, function_name, parameter_hints]
+    outputs: [refactored_diff, new_function_signature, updated_call_sites, tests]
+    tools_needed: [read, edit, bash]
+    model_hint: balanced
+    estimated_tokens: 4000
+
+  - id: inline-function
+    name: Inline Function
+    category: code-operations
+    triggers: ["inline this", "inline function", "remove indirection", "flatten this call", "unwrap function"]
+    description: Inline a trivial or single-use function back into its call site.
+    inputs: [source_file, function_name, call_sites]
+    outputs: [inlined_diff, removed_function_list, test_results]
+    tools_needed: [read, edit, grep, bash]
+    model_hint: fast
+    estimated_tokens: 3000
+
+  - id: rename-symbol
+    name: Rename Symbol
+    category: code-operations
+    triggers: ["rename this", "rename variable", "rename function", "rename class", "change name of"]
+    description: Safely rename a symbol across all references in the codebase.
+    inputs: [old_name, new_name, scope, file_pattern]
+    outputs: [rename_diff, affected_files_list, test_results]
+    tools_needed: [grep, read, edit, bash]
+    model_hint: fast
+    estimated_tokens: 3000
+
+  - id: move-file
+    name: Move File
+    category: code-operations
+    triggers: ["move this file", "relocate", "reorganize files", "move module", "change file path"]
+    description: Move a file to a new location and update all imports and references.
+    inputs: [source_path, destination_path, import_style]
+    outputs: [move_diff, updated_imports_list, test_results]
+    tools_needed: [bash, grep, read, edit]
+    model_hint: balanced
+    estimated_tokens: 4000
+
+  - id: split-file
+    name: Split File
+    category: code-operations
+    triggers: ["split this file", "file too large", "break up this module", "separate concerns", "decompose file"]
+    description: Split a large file into smaller, cohesive modules with correct cross-references.
+    inputs: [source_file, split_strategy, naming_convention]
+    outputs: [new_files_list, updated_imports, index_file, test_results]
+    tools_needed: [read, write, edit, bash, grep]
+    model_hint: capable
+    estimated_tokens: 8000
+
+  - id: merge-files
+    name: Merge Files
+    category: code-operations
+    triggers: ["merge these files", "combine files", "consolidate modules", "join files", "unify these"]
+    description: Merge multiple related files into a single cohesive module.
+    inputs: [source_files, target_file, conflict_resolution_strategy]
+    outputs: [merged_file, updated_imports, removed_files_list, test_results]
+    tools_needed: [read, write, edit, bash, grep]
+    model_hint: balanced
+    estimated_tokens: 6000
+
+  # ============================================================================
+  # 2. TESTING (12 templates)
+  # ============================================================================
+
+  - id: test-write-unit
+    name: Unit Test Write
+    category: testing
+    triggers: ["write unit tests", "add unit tests", "unit test this", "test this function", "test this class"]
+    description: Write focused unit tests for individual functions, methods, or classes.
+    inputs: [target_files, test_framework, coverage_goals, edge_cases]
+    outputs: [test_files, coverage_report, test_results]
+    tools_needed: [bash, read, write]
+    model_hint: balanced
+    estimated_tokens: 6000
+
+  - id: test-write-integration
+    name: Integration Test Write
+    category: testing
+    triggers: ["write integration tests", "integration test", "test the flow", "test end to end flow", "test API"]
+    description: Write integration tests covering multi-component interactions and data flows.
+    inputs: [target_flow, service_dependencies, test_database_config, fixtures]
+    outputs: [test_files, docker_compose_test, setup_teardown_scripts, test_results]
+    tools_needed: [bash, read, write, edit]
+    model_hint: capable
+    estimated_tokens: 8000
+
+  - id: test-write-e2e
+    name: E2E Test Write
+    category: testing
+    triggers: ["write e2e tests", "end to end test", "browser test", "playwright test", "cypress test", "selenium test"]
+    description: Write end-to-end tests simulating real user journeys through the application.
+    inputs: [user_flows, page_objects, test_environment_url, auth_fixtures]
+    outputs: [test_files, page_object_updates, test_config, screenshot_baselines]
+    tools_needed: [bash, read, write]
+    model_hint: capable
+    estimated_tokens: 10000
+
+  - id: test-fix-flaky
+    name: Flaky Test Fix
+    category: testing
+    triggers: ["flaky test", "intermittent failure", "test sometimes fails", "non-deterministic test", "race condition in test"]
+    description: Diagnose and fix tests that pass inconsistently due to timing, state, or ordering issues.
+    inputs: [flaky_test_file, failure_logs, failure_frequency, test_environment]
+    outputs: [root_cause, fix_diff, stability_verification, retry_count_before_after]
+    tools_needed: [bash, read, edit, grep]
+    model_hint: capable
+    estimated_tokens: 7000
+
+  - id: test-coverage-boost
+    name: Test Coverage Boost
+    category: testing
+    triggers: ["increase coverage", "coverage too low", "uncovered code", "boost test coverage", "coverage report shows gaps"]
+    description: Analyze coverage gaps and write targeted tests to hit uncovered branches and lines.
+    inputs: [coverage_report, target_coverage_percentage, priority_files]
+    outputs: [new_test_files, updated_coverage_report, coverage_delta_summary]
+    tools_needed: [bash, read, write, grep]
+    model_hint: balanced
+    estimated_tokens: 8000
+
+  - id: test-data-factory
+    name: Test Data Factory
+    category: testing
+    triggers: ["test factory", "test fixtures", "generate test data", "factory setup", "seed test data", "faker setup"]
+    description: Build reusable test data factories and fixture generators for consistent test setup.
+    inputs: [data_models, relationship_map, factory_library, sample_scenarios]
+    outputs: [factory_files, fixture_files, usage_examples, documentation]
+    tools_needed: [read, write, bash]
+    model_hint: balanced
+    estimated_tokens: 5000
+
+  - id: test-mock-setup
+    name: Test Mock Setup
+    category: testing
+    triggers: ["mock setup", "stub this", "mock external service", "test double", "fake this dependency"]
+    description: Create mocks, stubs, and fakes for external dependencies and services.
+    inputs: [dependency_interfaces, mock_library, response_scenarios, error_cases]
+    outputs: [mock_files, mock_config, usage_examples, cleanup_helpers]
+    tools_needed: [read, write, bash]
+    model_hint: balanced
+    estimated_tokens: 5000
+
+  - id: test-performance
+    name: Performance Test Write
+    category: testing
+    triggers: ["performance test", "load test", "stress test", "benchmark test", "write k6 test", "write locust test"]
+    description: Write load and performance tests with realistic traffic patterns and assertions.
+    inputs: [target_endpoints, expected_load_profile, sla_thresholds, test_tool]
+    outputs: [test_scripts, load_profile_config, threshold_definitions, run_instructions]
+    tools_needed: [bash, read, write]
+    model_hint: balanced
+    estimated_tokens: 6000
+
+  - id: test-accessibility
+    name: Accessibility Test Write
+    category: testing
+    triggers: ["accessibility test", "a11y test", "axe test", "screen reader test", "WCAG compliance test"]
+    description: Write automated accessibility tests checking WCAG compliance and screen reader compatibility.
+    inputs: [page_urls, wcag_level, component_list, known_issues]
+    outputs: [test_files, violation_report, remediation_suggestions, compliance_summary]
+    tools_needed: [bash, read, write]
+    model_hint: balanced
+    estimated_tokens: 5000
+
+  - id: test-snapshot-update
+    name: Snapshot Test Update
+    category: testing
+    triggers: ["update snapshots", "snapshot mismatch", "regenerate snapshots", "snapshot test broken", "visual regression"]
+    description: Review, validate, and update snapshot tests after intentional UI or output changes.
+    inputs: [snapshot_diff, change_reason, affected_components]
+    outputs: [updated_snapshots, change_validation_report, visual_diff_summary]
+    tools_needed: [bash, read, edit]
+    model_hint: fast
+    estimated_tokens: 3000
+
+  - id: test-regression
+    name: Regression Test Write
+    category: testing
+    triggers: ["regression test", "prevent this from happening again", "write test for this bug", "cover this edge case"]
+    description: Write targeted regression tests that reproduce a fixed bug to prevent recurrence.
+    inputs: [bug_description, reproduction_steps, fix_diff, affected_files]
+    outputs: [regression_test_files, test_results, coverage_of_fix]
+    tools_needed: [bash, read, write]
+    model_hint: balanced
+    estimated_tokens: 5000
+
+  - id: test-security
+    name: Security Test Write
+    category: testing
+    triggers: ["security test", "pen test automation", "write OWASP tests", "SQL injection test", "XSS test"]
+    description: Write automated security tests for injection, auth bypass, and common vulnerability patterns.
+    inputs: [target_endpoints, auth_model, threat_categories, payload_library]
+    outputs: [test_files, vulnerability_coverage_map, false_positive_notes, run_instructions]
+    tools_needed: [bash, read, write]
+    model_hint: capable
+    estimated_tokens: 8000
+
+  # ============================================================================
+  # 3. ARCHITECTURE (10 templates)
+  # ============================================================================
+
+  - id: api-design
+    name: API Design
+    category: architecture
+    triggers: ["design API", "API spec", "endpoint design", "schema design", "REST API", "API contract"]
+    description: Design API endpoints, request/response schemas, and versioning strategy.
+    inputs: [requirements, existing_api, conventions, consumer_needs]
+    outputs: [api_spec, schema_definitions, example_requests, breaking_change_analysis]
+    tools_needed: [read, write]
+    model_hint: capable
+    estimated_tokens: 7000
+
+  - id: data-model-design
+    name: Data Model Design
+    category: architecture
+    triggers: ["design data model", "schema design", "database schema", "ERD", "entity relationship", "data structure"]
+    description: Design database schemas, entity relationships, and data access patterns.
+    inputs: [domain_requirements, query_patterns, scale_expectations, existing_models]
+    outputs: [schema_definition, erd_diagram, migration_plan, index_strategy, access_pattern_analysis]
+    tools_needed: [read, write]
+    model_hint: capable
+    estimated_tokens: 8000
+
+  - id: system-architecture
+    name: System Architecture Design
+    category: architecture
+    triggers: ["system architecture", "design the system", "architecture diagram", "how should we structure", "high-level design"]
+    description: Design overall system architecture including service boundaries, data flow, and deployment topology.
+    inputs: [functional_requirements, non_functional_requirements, constraints, team_size, existing_infrastructure]
+    outputs: [architecture_document, component_diagram, data_flow_diagram, decision_records, risk_analysis]
+    tools_needed: [read, write]
+    model_hint: capable
+    estimated_tokens: 12000
+
+  - id: component-architecture
+    name: Component Architecture Design
+    category: architecture
+    triggers: ["component architecture", "module design", "component structure", "how to organize components", "component hierarchy"]
+    description: Design the internal component structure, prop interfaces, and composition patterns.
+    inputs: [feature_requirements, design_system, existing_components, state_requirements]
+    outputs: [component_tree, interface_definitions, state_flow_diagram, composition_examples]
+    tools_needed: [read, write]
+    model_hint: capable
+    estimated_tokens: 7000
+
+  - id: event-system-design
+    name: Event System Design
+    category: architecture
+    triggers: ["event system", "pub sub", "event driven", "message queue design", "event bus", "CQRS"]
+    description: Design event-driven communication patterns, message schemas, and delivery guarantees.
+    inputs: [event_sources, consumers, ordering_requirements, delivery_guarantees, throughput_expectations]
+    outputs: [event_catalog, schema_definitions, topology_diagram, retry_strategy, dead_letter_policy]
+    tools_needed: [read, write]
+    model_hint: capable
+    estimated_tokens: 8000
+
+  - id: caching-strategy
+    name: Caching Strategy Design
+    category: architecture
+    triggers: ["caching strategy", "cache design", "what to cache", "cache invalidation", "cache layer", "redis design"]
+    description: Design multi-layer caching with invalidation policies, TTLs, and consistency trade-offs.
+    inputs: [access_patterns, data_freshness_requirements, infrastructure_constraints, hot_data_analysis]
+    outputs: [caching_architecture, invalidation_strategy, ttl_configuration, cache_key_schema, monitoring_plan]
+    tools_needed: [read, write]
+    model_hint: capable
+    estimated_tokens: 6000
+
+  - id: auth-system-design
+    name: Auth System Design
+    category: architecture
+    triggers: ["auth design", "authentication system", "authorization model", "RBAC design", "OAuth setup", "SSO design"]
+    description: Design authentication and authorization systems including identity, roles, and permissions.
+    inputs: [user_types, permission_requirements, integration_targets, compliance_requirements]
+    outputs: [auth_architecture, role_permission_matrix, token_strategy, session_management_plan, security_review]
+    tools_needed: [read, write]
+    model_hint: capable
+    estimated_tokens: 9000
+
+  - id: error-handling-strategy
+    name: Error Handling Strategy
+    category: architecture
+    triggers: ["error handling", "error strategy", "how to handle errors", "error boundaries", "exception strategy", "error codes"]
+    description: Design consistent error handling, error codes, recovery patterns, and user-facing messages.
+    inputs: [error_categories, service_boundaries, user_facing_requirements, monitoring_integration]
+    outputs: [error_code_catalog, handling_patterns, recovery_strategies, client_error_format, logging_standards]
+    tools_needed: [read, write]
+    model_hint: balanced
+    estimated_tokens: 6000
+
+  - id: logging-strategy
+    name: Logging Strategy Design
+    category: architecture
+    triggers: ["logging strategy", "structured logging", "log format", "observability design", "tracing setup", "log levels"]
+    description: Design structured logging, correlation IDs, log levels, and observability integration.
+    inputs: [service_inventory, compliance_requirements, log_aggregation_tool, retention_policy]
+    outputs: [logging_standards, log_schema, correlation_strategy, sampling_rules, dashboard_specs]
+    tools_needed: [read, write]
+    model_hint: balanced
+    estimated_tokens: 5000
+
+  - id: state-management-design
+    name: State Management Design
+    category: architecture
+    triggers: ["state management", "global state", "store design", "state architecture", "redux design", "zustand setup"]
+    description: Design client-side state architecture including stores, selectors, and sync strategies.
+    inputs: [feature_requirements, data_sources, offline_requirements, framework]
+    outputs: [state_tree_design, store_definitions, selector_patterns, sync_strategy, migration_plan]
+    tools_needed: [read, write]
+    model_hint: capable
+    estimated_tokens: 7000
+
+  # ============================================================================
+  # 4. DEVOPS & INFRASTRUCTURE (12 templates)
+  # ============================================================================
+
+  - id: deploy-setup
+    name: Deployment Setup
+    category: devops-infrastructure
+    triggers: ["deploy setup", "deployment pipeline", "ship it", "release process", "push to prod", "go live"]
+    description: Configure deployment pipeline with pre-flight checks, rollback, and verification.
+    inputs: [environment, deploy_config, pre_deploy_checklist, target_platform]
+    outputs: [deploy_config_files, deploy_script, rollback_plan, verification_script]
+    tools_needed: [bash, write, read]
+    model_hint: balanced
+    estimated_tokens: 6000
+
+  - id: ci-pipeline
+    name: CI Pipeline Setup
+    category: devops-infrastructure
+    triggers: ["CI pipeline", "GitHub Actions", "CI setup", "continuous integration", "build pipeline", "CI/CD"]
+    description: Create or optimize continuous integration pipelines with test, lint, build, and deploy stages.
+    inputs: [project_type, test_commands, deploy_targets, branch_strategy, secret_names]
+    outputs: [pipeline_config, workflow_files, caching_config, notification_setup]
+    tools_needed: [read, write, bash]
+    model_hint: balanced
+    estimated_tokens: 5000
+
+  - id: docker-compose
+    name: Docker Compose Setup
+    category: devops-infrastructure
+    triggers: ["docker compose", "docker setup", "containerize", "docker file", "local dev environment", "docker dev"]
+    description: Create Docker Compose configurations for local development and testing environments.
+    inputs: [services, dependency_graph, volume_requirements, port_mappings, environment_variables]
+    outputs: [docker_compose_yaml, dockerfiles, env_example, startup_script, health_check_config]
+    tools_needed: [read, write, bash]
+    model_hint: balanced
+    estimated_tokens: 5000
+
+  - id: kubernetes-manifest
+    name: Kubernetes Manifest
+    category: devops-infrastructure
+    triggers: ["kubernetes", "k8s manifest", "helm chart", "k8s deploy", "pod config", "kustomize"]
+    description: Write Kubernetes manifests, Helm charts, or Kustomize overlays for service deployment.
+    inputs: [service_spec, resource_limits, scaling_policy, network_policy, secret_references]
+    outputs: [manifest_files, helm_values, kustomize_overlays, namespace_config, rbac_rules]
+    tools_needed: [read, write]
+    model_hint: balanced
+    estimated_tokens: 7000
+
+  - id: monitoring-setup
+    name: Monitoring Setup
+    category: devops-infrastructure
+    triggers: ["monitoring setup", "set up metrics", "prometheus config", "grafana dashboard", "datadog setup", "observability"]
+    description: Configure monitoring stack with metrics collection, dashboards, and health checks.
+    inputs: [services, key_metrics, sla_targets, monitoring_tool, existing_infrastructure]
+    outputs: [monitoring_config, dashboard_definitions, health_check_endpoints, metric_schemas]
+    tools_needed: [read, write, bash]
+    model_hint: balanced
+    estimated_tokens: 6000
+
+  - id: alerting-rules
+    name: Alerting Rules Setup
+    category: devops-infrastructure
+    triggers: ["alerting rules", "set up alerts", "pagerduty config", "alert thresholds", "on-call setup", "alert fatigue"]
+    description: Define alerting rules, escalation policies, and on-call routing with noise reduction.
+    inputs: [sla_targets, service_dependencies, on_call_schedule, notification_channels, existing_alerts]
+    outputs: [alert_rules, escalation_policy, runbook_links, silence_rules, alert_grouping_config]
+    tools_needed: [read, write]
+    model_hint: balanced
+    estimated_tokens: 5000
+
+  - id: backup-strategy
+    name: Backup Strategy
+    category: devops-infrastructure
+    triggers: ["backup strategy", "disaster recovery", "backup config", "data backup", "recovery plan", "RPO RTO"]
+    description: Design backup schedules, retention policies, and disaster recovery procedures.
+    inputs: [data_stores, rpo_rto_targets, compliance_requirements, storage_budget]
+    outputs: [backup_schedule, retention_policy, recovery_runbook, backup_verification_script, cost_estimate]
+    tools_needed: [read, write]
+    model_hint: balanced
+    estimated_tokens: 5000
+
+  - id: load-balancer-config
+    name: Load Balancer Configuration
+    category: devops-infrastructure
+    triggers: ["load balancer", "nginx config", "reverse proxy", "traffic routing", "SSL termination", "CDN setup"]
+    description: Configure load balancers, reverse proxies, SSL termination, and traffic routing rules.
+    inputs: [backend_services, domain_names, ssl_certificates, routing_rules, rate_limit_policy]
+    outputs: [lb_config, ssl_setup_script, routing_rules, health_check_config, cdn_config]
+    tools_needed: [read, write, bash]
+    model_hint: balanced
+    estimated_tokens: 5000
+
+  - id: env-management
+    name: Environment Management
+    category: devops-infrastructure
+    triggers: ["environment management", "env config", "environment variables", "config management", "dotenv setup", "env per stage"]
+    description: Set up environment configuration management across dev, staging, and production.
+    inputs: [environment_list, config_variables, secret_names, deployment_tool]
+    outputs: [env_templates, config_schema, validation_script, env_documentation, secret_mapping]
+    tools_needed: [read, write, bash]
+    model_hint: fast
+    estimated_tokens: 4000
+
+  - id: secret-rotation
+    name: Secret Rotation Setup
+    category: devops-infrastructure
+    triggers: ["rotate secrets", "secret rotation", "credential rotation", "key rotation", "password rotation", "certificate renewal"]
+    description: Design and implement automated secret rotation procedures with zero-downtime.
+    inputs: [secret_inventory, rotation_schedule, vault_config, service_dependencies]
+    outputs: [rotation_scripts, schedule_config, rollback_procedure, validation_checks, notification_setup]
+    tools_needed: [bash, read, write]
+    model_hint: balanced
+    estimated_tokens: 6000
+
+  - id: infrastructure-as-code
+    name: Infrastructure as Code
+    category: devops-infrastructure
+    triggers: ["terraform", "infrastructure as code", "IaC", "CloudFormation", "pulumi", "provision infrastructure"]
+    description: Write infrastructure-as-code definitions for cloud resources and networking.
+    inputs: [resource_requirements, cloud_provider, networking_topology, compliance_constraints]
+    outputs: [iac_modules, variable_definitions, state_config, plan_output, cost_estimate]
+    tools_needed: [read, write, bash]
+    model_hint: capable
+    estimated_tokens: 9000
+
+  - id: rollback-plan
+    name: Rollback Plan
+    category: devops-infrastructure
+    triggers: ["rollback plan", "how to rollback", "revert deployment", "undo release", "emergency rollback"]
+    description: Create a tested rollback plan for a specific deployment with data migration considerations.
+    inputs: [deployment_manifest, database_changes, feature_flags, traffic_routing]
+    outputs: [rollback_steps, data_rollback_script, verification_checklist, communication_template, estimated_downtime]
+    tools_needed: [read, write]
+    model_hint: balanced
+    estimated_tokens: 5000
+
+  # ============================================================================
+  # 5. SECURITY (10 templates)
+  # ============================================================================
+
+  - id: security-audit
+    name: Security Audit
+    category: security
+    triggers: ["security audit", "security review", "audit security", "security assessment", "check for vulnerabilities"]
+    description: Comprehensive security audit covering OWASP Top 10, auth flows, and data handling.
+    inputs: [target_files, threat_model, compliance_framework, known_vulnerabilities]
+    outputs: [vulnerability_report, severity_ratings, remediation_plan, compliance_checklist]
+    tools_needed: [bash, grep, read]
+    model_hint: capable
+    estimated_tokens: 10000
+
+  - id: penetration-test-review
+    name: Penetration Test Review
+    category: security
+    triggers: ["pen test review", "penetration test results", "review pen test", "pentest findings", "offensive security report"]
+    description: Review penetration test findings, validate severity, and plan remediation priorities.
+    inputs: [pentest_report, affected_systems, business_context, existing_mitigations]
+    outputs: [validated_findings, priority_matrix, remediation_roadmap, false_positive_notes, retest_plan]
+    tools_needed: [read, grep]
+    model_hint: capable
+    estimated_tokens: 8000
+
+  - id: dependency-vulnerability-scan
+    name: Dependency Vulnerability Scan
+    category: security
+    triggers: ["dependency scan", "npm audit", "snyk scan", "CVE check", "vulnerable dependency", "supply chain security"]
+    description: Scan dependencies for known vulnerabilities and produce an upgrade or patch plan.
+    inputs: [package_manifest, lock_file, severity_threshold, ignore_list]
+    outputs: [vulnerability_list, severity_breakdown, upgrade_plan, patch_alternatives, risk_acceptance_notes]
+    tools_needed: [bash, read]
+    model_hint: balanced
+    estimated_tokens: 5000
+
+  - id: secret-scan
+    name: Secret Scan
+    category: security
+    triggers: ["scan for secrets", "leaked credentials", "secret in code", "git secrets", "credential leak", "API key in source"]
+    description: Scan codebase and git history for accidentally committed secrets, keys, and tokens.
+    inputs: [target_directory, git_history_depth, known_patterns, allowlist]
+    outputs: [findings_report, affected_commits, remediation_steps, pre_commit_hook_config]
+    tools_needed: [bash, grep, read]
+    model_hint: balanced
+    estimated_tokens: 5000
+
+  - id: auth-flow-audit
+    name: Auth Flow Audit
+    category: security
+    triggers: ["audit auth flow", "authentication review", "login security", "session security", "token security"]
+    description: Audit authentication and session management for vulnerabilities and best-practice gaps.
+    inputs: [auth_implementation_files, token_config, session_config, password_policy]
+    outputs: [finding_report, session_fixation_check, token_validation_review, recommendation_list]
+    tools_needed: [read, grep]
+    model_hint: capable
+    estimated_tokens: 7000
+
+  - id: input-validation-review
+    name: Input Validation Review
+    category: security
+    triggers: ["input validation", "sanitization review", "injection check", "validate inputs", "untrusted input"]
+    description: Review all input handling for injection, overflow, and encoding vulnerabilities.
+    inputs: [entry_points, input_schemas, sanitization_functions, database_queries]
+    outputs: [vulnerability_map, unvalidated_inputs_list, fix_recommendations, validation_helper_code]
+    tools_needed: [read, grep]
+    model_hint: capable
+    estimated_tokens: 7000
+
+  - id: csrf-protection
+    name: CSRF Protection Setup
+    category: security
+    triggers: ["CSRF protection", "cross-site request forgery", "CSRF token", "anti-CSRF", "form security"]
+    description: Implement CSRF protection with token generation, validation, and SameSite cookie policies.
+    inputs: [framework, form_endpoints, cookie_config, api_endpoints]
+    outputs: [csrf_middleware, token_implementation, cookie_policy_update, test_cases]
+    tools_needed: [read, edit, write, bash]
+    model_hint: balanced
+    estimated_tokens: 5000
+
+  - id: rate-limiting
+    name: Rate Limiting Setup
+    category: security
+    triggers: ["rate limiting", "throttling", "abuse prevention", "API rate limit", "DDoS protection", "brute force protection"]
+    description: Implement rate limiting with per-endpoint policies, token bucket configs, and bypass rules.
+    inputs: [endpoint_inventory, traffic_baselines, rate_limit_tiers, storage_backend]
+    outputs: [rate_limit_middleware, policy_config, bypass_rules, monitoring_integration, response_headers]
+    tools_needed: [read, write, edit, bash]
+    model_hint: balanced
+    estimated_tokens: 6000
+
+  - id: cors-configuration
+    name: CORS Configuration
+    category: security
+    triggers: ["CORS config", "cross-origin", "CORS error", "allowed origins", "CORS policy", "preflight request"]
+    description: Configure Cross-Origin Resource Sharing policies with least-privilege origin allowlists.
+    inputs: [allowed_origins, api_endpoints, credential_requirements, preflight_caching]
+    outputs: [cors_config, middleware_setup, test_cases, documentation]
+    tools_needed: [read, edit, bash]
+    model_hint: fast
+    estimated_tokens: 3000
+
+  - id: security-headers
+    name: Security Headers Setup
+    category: security
+    triggers: ["security headers", "CSP", "content security policy", "HSTS", "X-Frame-Options", "header hardening"]
+    description: Configure HTTP security headers including CSP, HSTS, X-Frame-Options, and referrer policy.
+    inputs: [application_type, inline_script_sources, frame_requirements, reporting_endpoint]
+    outputs: [header_config, csp_policy, hsts_config, reporting_setup, test_verification]
+    tools_needed: [read, edit, bash]
+    model_hint: fast
+    estimated_tokens: 4000
+
+  # ============================================================================
+  # 6. PERFORMANCE (8 templates)
+  # ============================================================================
+
+  - id: performance-profile
+    name: Performance Profiling
+    category: performance
+    triggers: ["profile performance", "too slow", "performance bottleneck", "where is it slow", "flame graph", "performance trace"]
+    description: Profile application performance, identify bottlenecks, and produce actionable optimization targets.
+    inputs: [bottleneck_description, profiling_data, target_metrics, environment]
+    outputs: [bottleneck_analysis, hotspot_list, optimization_recommendations, benchmark_baseline]
+    tools_needed: [bash, read, grep]
+    model_hint: capable
+    estimated_tokens: 8000
+
+  - id: bundle-size-audit
+    name: Bundle Size Audit
+    category: performance
+    triggers: ["bundle size", "bundle too large", "tree shaking", "code splitting", "webpack analyze", "bundle audit"]
+    description: Analyze JavaScript bundle composition and produce a concrete size reduction plan.
+    inputs: [bundle_stats, size_budget, entry_points, current_splitting_config]
+    outputs: [size_breakdown, top_offenders, splitting_recommendations, lazy_load_candidates, projected_savings]
+    tools_needed: [bash, read]
+    model_hint: balanced
+    estimated_tokens: 6000
+
+  - id: query-optimization
+    name: Query Optimization
+    category: performance
+    triggers: ["slow query", "optimize query", "query performance", "N+1 query", "database slow", "explain analyze"]
+    description: Analyze and optimize slow database queries with indexing, restructuring, and caching recommendations.
+    inputs: [slow_queries, explain_plans, table_schemas, query_frequency, data_volume]
+    outputs: [optimized_queries, index_recommendations, query_plan_comparison, estimated_improvement]
+    tools_needed: [bash, read, edit]
+    model_hint: capable
+    estimated_tokens: 7000
+
+  - id: caching-implementation
+    name: Caching Implementation
+    category: performance
+    triggers: ["implement caching", "add cache", "redis cache", "cache this endpoint", "memoize", "cache layer"]
+    description: Implement application-level caching with proper invalidation, TTLs, and cache-aside patterns.
+    inputs: [target_endpoints, cache_backend, invalidation_events, ttl_requirements]
+    outputs: [cache_implementation, invalidation_logic, cache_warming_script, monitoring_hooks, test_cases]
+    tools_needed: [read, edit, write, bash]
+    model_hint: balanced
+    estimated_tokens: 6000
+
+  - id: lazy-loading
+    name: Lazy Loading Implementation
+    category: performance
+    triggers: ["lazy loading", "code splitting", "dynamic import", "defer loading", "on-demand loading", "route splitting"]
+    description: Implement lazy loading for routes, components, images, and heavy dependencies.
+    inputs: [route_map, component_tree, critical_path, loading_state_designs]
+    outputs: [lazy_load_implementation, loading_indicators, prefetch_hints, performance_comparison]
+    tools_needed: [read, edit, bash]
+    model_hint: balanced
+    estimated_tokens: 5000
+
+  - id: image-optimization
+    name: Image Optimization
+    category: performance
+    triggers: ["optimize images", "image too large", "responsive images", "WebP conversion", "image compression", "srcset"]
+    description: Optimize image delivery with format conversion, responsive sizing, and CDN integration.
+    inputs: [image_inventory, format_support, viewport_breakpoints, quality_requirements]
+    outputs: [optimization_script, responsive_image_markup, cdn_config, size_savings_report]
+    tools_needed: [bash, read, edit]
+    model_hint: fast
+    estimated_tokens: 4000
+
+  - id: api-latency-reduction
+    name: API Latency Reduction
+    category: performance
+    triggers: ["API too slow", "reduce latency", "API response time", "slow endpoint", "p99 latency", "TTFB too high"]
+    description: Analyze and reduce API response latency through query optimization, caching, and payload reduction.
+    inputs: [slow_endpoints, latency_percentiles, request_traces, payload_sizes]
+    outputs: [optimization_plan, implementation_diff, before_after_benchmarks, monitoring_config]
+    tools_needed: [bash, read, edit, grep]
+    model_hint: capable
+    estimated_tokens: 8000
+
+  - id: memory-leak-detection
+    name: Memory Leak Detection
+    category: performance
+    triggers: ["memory leak", "OOM", "out of memory", "memory growing", "heap snapshot", "memory keeps increasing"]
+    description: Detect and fix memory leaks using heap analysis, allocation tracking, and reference auditing.
+    inputs: [memory_profiles, heap_snapshots, leak_symptoms, service_runtime_info]
+    outputs: [leak_sources, fix_diff, heap_comparison, prevention_patterns, monitoring_config]
+    tools_needed: [bash, read, edit, grep]
+    model_hint: capable
+    estimated_tokens: 8000
+
+  # ============================================================================
+  # 7. DOCUMENTATION (8 templates)
+  # ============================================================================
+
+  - id: readme-write
+    name: README Write
+    category: documentation
+    triggers: ["write readme", "create README", "project README", "readme for this project", "getting started doc"]
+    description: Generate a comprehensive README from codebase analysis with setup, usage, and contribution sections.
+    inputs: [project_structure, tech_stack, setup_commands, key_features]
+    outputs: [readme_file, badge_config, table_of_contents]
+    tools_needed: [read, write, bash]
+    model_hint: balanced
+    estimated_tokens: 5000
+
+  - id: api-docs-generate
+    name: API Documentation Generate
+    category: documentation
+    triggers: ["generate API docs", "document API", "OpenAPI spec", "Swagger docs", "API reference", "endpoint documentation"]
+    description: Generate API reference documentation from code, including request/response examples and error codes.
+    inputs: [api_source_files, framework, existing_openapi_spec, authentication_info]
+    outputs: [openapi_spec, markdown_docs, example_collection, error_code_reference]
+    tools_needed: [read, write, bash, grep]
+    model_hint: balanced
+    estimated_tokens: 7000
+
+  - id: architecture-doc
+    name: Architecture Document Write
+    category: documentation
+    triggers: ["architecture doc", "document architecture", "system design doc", "architecture overview", "technical design document"]
+    description: Write architecture documentation with diagrams, decision rationale, and component descriptions.
+    inputs: [codebase_structure, key_decisions, system_boundaries, deployment_topology]
+    outputs: [architecture_document, component_diagrams, data_flow_descriptions, decision_log]
+    tools_needed: [read, write, grep]
+    model_hint: capable
+    estimated_tokens: 8000
+
+  - id: changelog-update
+    name: Changelog Update
+    category: documentation
+    triggers: ["update changelog", "write changelog", "release notes", "what changed", "version notes"]
+    description: Generate changelog entries from git history with categorized changes and migration notes.
+    inputs: [git_log_range, version_number, breaking_changes, deprecations]
+    outputs: [changelog_entry, release_notes, migration_notes]
+    tools_needed: [bash, read, edit]
+    model_hint: fast
+    estimated_tokens: 3000
+
+  - id: migration-guide
+    name: Migration Guide Write
+    category: documentation
+    triggers: ["migration guide", "upgrade guide", "how to migrate", "breaking changes guide", "version upgrade doc"]
+    description: Write step-by-step migration guides for breaking changes between versions.
+    inputs: [breaking_changes, api_diff, deprecated_features, new_equivalents]
+    outputs: [migration_guide, code_examples, compatibility_matrix, automated_codemod_script]
+    tools_needed: [read, write]
+    model_hint: capable
+    estimated_tokens: 7000
+
+  - id: onboarding-guide
+    name: Onboarding Guide Write
+    category: documentation
+    triggers: ["onboarding guide", "new developer guide", "getting started", "setup walkthrough", "developer handbook"]
+    description: Generate developer onboarding materials from codebase analysis with setup and common tasks.
+    inputs: [project_structure, key_concepts, setup_requirements, common_workflows]
+    outputs: [onboarding_doc, architecture_overview, common_tasks_guide, troubleshooting_faq]
+    tools_needed: [read, write, bash]
+    model_hint: balanced
+    estimated_tokens: 6000
+
+  - id: runbook-write
+    name: Runbook Write
+    category: documentation
+    triggers: ["write runbook", "operations runbook", "incident runbook", "on-call guide", "operational playbook"]
+    description: Write operational runbooks with step-by-step troubleshooting and recovery procedures.
+    inputs: [service_name, common_failure_modes, monitoring_dashboards, escalation_contacts]
+    outputs: [runbook_document, decision_trees, command_reference, escalation_matrix]
+    tools_needed: [read, write]
+    model_hint: balanced
+    estimated_tokens: 6000
+
+  - id: adr-write
+    name: Architecture Decision Record Write
+    category: documentation
+    triggers: ["write ADR", "architecture decision record", "document decision", "record why we chose", "decision log entry"]
+    description: Write Architecture Decision Records capturing context, options considered, and rationale.
+    inputs: [decision_topic, context, options_considered, constraints, stakeholders]
+    outputs: [adr_document, status, consequences, related_adrs]
+    tools_needed: [read, write]
+    model_hint: balanced
+    estimated_tokens: 4000
+
+  # ============================================================================
+  # 8. DESIGN & FRONTEND (10 templates)
+  # ============================================================================
+
+  - id: ui-component-build
+    name: UI Component Build
+    category: design-frontend
+    triggers: ["build component", "create UI component", "new component", "component for", "build a button", "build a card"]
+    description: Build a reusable UI component with props, variants, accessibility, and tests.
+    inputs: [component_spec, design_tokens, variant_list, accessibility_requirements]
+    outputs: [component_files, storybook_story, test_file, documentation]
+    tools_needed: [read, write, bash]
+    model_hint: balanced
+    estimated_tokens: 6000
+
+  - id: responsive-layout
+    name: Responsive Layout Implementation
+    category: design-frontend
+    triggers: ["responsive layout", "mobile layout", "responsive design", "breakpoint setup", "fluid grid", "media queries"]
+    description: Implement responsive layouts with breakpoints, fluid grids, and mobile-first approach.
+    inputs: [design_specs, breakpoints, container_queries, content_priority]
+    outputs: [layout_implementation, breakpoint_tests, responsive_preview_config]
+    tools_needed: [read, write, edit, bash]
+    model_hint: balanced
+    estimated_tokens: 6000
+
+  - id: accessibility-audit
+    name: Accessibility Audit
+    category: design-frontend
+    triggers: ["accessibility audit", "a11y audit", "WCAG check", "screen reader check", "keyboard navigation", "aria check"]
+    description: Audit UI for WCAG compliance, keyboard navigation, screen reader support, and color contrast.
+    inputs: [page_urls, component_list, wcag_target_level, assistive_technology_list]
+    outputs: [violation_report, severity_ratings, fix_recommendations, compliance_score]
+    tools_needed: [bash, read, grep]
+    model_hint: capable
+    estimated_tokens: 7000
+
+  - id: design-system-setup
+    name: Design System Setup
+    category: design-frontend
+    triggers: ["design system", "component library", "design tokens", "style guide setup", "UI kit", "setup storybook"]
+    description: Set up a design system with tokens, component structure, documentation, and Storybook.
+    inputs: [brand_guidelines, color_palette, typography_scale, spacing_scale, framework]
+    outputs: [token_files, component_scaffolds, storybook_config, documentation_template, theming_setup]
+    tools_needed: [read, write, bash]
+    model_hint: capable
+    estimated_tokens: 10000
+
+  - id: animation-implementation
+    name: Animation Implementation
+    category: design-frontend
+    triggers: ["animation", "transition", "animate this", "motion design", "framer motion", "CSS animation", "micro-interaction"]
+    description: Implement UI animations with appropriate timing, easing, and reduced-motion support.
+    inputs: [animation_spec, trigger_events, duration_guidelines, reduced_motion_requirement]
+    outputs: [animation_code, timing_config, reduced_motion_fallback, performance_notes]
+    tools_needed: [read, edit, write]
+    model_hint: balanced
+    estimated_tokens: 5000
+
+  - id: form-builder
+    name: Form Builder
+    category: design-frontend
+    triggers: ["build form", "create form", "form validation", "multi-step form", "form with validation", "complex form"]
+    description: Build forms with validation, error handling, multi-step flows, and accessibility.
+    inputs: [field_definitions, validation_rules, submission_endpoint, multi_step_config]
+    outputs: [form_components, validation_schema, error_messages, submission_handler, test_cases]
+    tools_needed: [read, write, bash]
+    model_hint: balanced
+    estimated_tokens: 7000
+
+  - id: data-visualization
+    name: Data Visualization Build
+    category: design-frontend
+    triggers: ["build chart", "data visualization", "dashboard chart", "graph component", "D3 chart", "recharts"]
+    description: Build data visualization components with interactivity, responsiveness, and accessibility.
+    inputs: [data_shape, chart_type, interaction_requirements, responsive_breakpoints]
+    outputs: [chart_component, data_adapter, interaction_handlers, responsive_config, accessibility_labels]
+    tools_needed: [read, write, bash]
+    model_hint: balanced
+    estimated_tokens: 7000
+
+  - id: theme-system
+    name: Theme System Setup
+    category: design-frontend
+    triggers: ["theme system", "dark mode", "theming", "theme switcher", "color modes", "theme tokens"]
+    description: Implement a theme system with light/dark modes, CSS custom properties, and runtime switching.
+    inputs: [color_palettes, mode_list, persistence_strategy, framework]
+    outputs: [theme_config, css_variables, theme_provider, switcher_component, migration_guide]
+    tools_needed: [read, write, edit, bash]
+    model_hint: balanced
+    estimated_tokens: 6000
+
+  - id: icon-system
+    name: Icon System Setup
+    category: design-frontend
+    triggers: ["icon system", "icon library", "SVG icons", "icon component", "icon sprite", "iconography setup"]
+    description: Set up an icon system with SVG optimization, tree-shaking, and a unified icon component.
+    inputs: [icon_source, naming_convention, size_scale, color_strategy]
+    outputs: [icon_component, svg_optimization_script, icon_catalog, usage_examples, build_config]
+    tools_needed: [read, write, bash]
+    model_hint: balanced
+    estimated_tokens: 5000
+
+  - id: typography-setup
+    name: Typography System Setup
+    category: design-frontend
+    triggers: ["typography setup", "font system", "type scale", "font loading", "web fonts", "text styles"]
+    description: Set up typography system with type scale, font loading strategy, and text style components.
+    inputs: [font_families, type_scale, loading_strategy, fallback_fonts]
+    outputs: [typography_tokens, font_loading_config, text_components, font_display_settings, performance_notes]
+    tools_needed: [read, write, bash]
+    model_hint: fast
+    estimated_tokens: 4000
+
+  # ============================================================================
+  # 9. DATA & BACKEND (10 templates)
+  # ============================================================================
+
+  - id: database-migration
+    name: Database Migration
+    category: data-backend
+    triggers: ["database migration", "schema migration", "alter table", "add column", "database change", "migration script"]
+    description: Plan and implement database schema migrations with rollback safety and zero-downtime strategy.
+    inputs: [current_schema, target_schema, data_volume_estimate, downtime_tolerance]
+    outputs: [migration_script, rollback_script, validation_queries, downtime_estimate, data_backfill_plan]
+    tools_needed: [bash, read, write]
+    model_hint: capable
+    estimated_tokens: 8000
+
+  - id: data-pipeline
+    name: Data Pipeline Build
+    category: data-backend
+    triggers: ["data pipeline", "ETL", "data flow", "data processing", "batch job", "stream processing"]
+    description: Build data pipelines with extraction, transformation, loading, error handling, and monitoring.
+    inputs: [data_sources, transformation_rules, destination, schedule, error_handling_policy]
+    outputs: [pipeline_code, config_files, error_handlers, monitoring_hooks, idempotency_checks]
+    tools_needed: [read, write, bash]
+    model_hint: capable
+    estimated_tokens: 9000
+
+  - id: api-endpoint
+    name: API Endpoint Build
+    category: data-backend
+    triggers: ["build endpoint", "new API endpoint", "create route", "REST endpoint", "API route", "controller action"]
+    description: Build a complete API endpoint with validation, auth, error handling, and tests.
+    inputs: [endpoint_spec, request_schema, response_schema, auth_requirements, rate_limit]
+    outputs: [controller_code, validation_middleware, test_file, openapi_fragment, error_responses]
+    tools_needed: [read, write, edit, bash]
+    model_hint: balanced
+    estimated_tokens: 6000
+
+  - id: graphql-schema
+    name: GraphQL Schema Build
+    category: data-backend
+    triggers: ["GraphQL schema", "add GraphQL type", "GraphQL resolver", "GraphQL mutation", "schema definition"]
+    description: Design and implement GraphQL types, resolvers, mutations, and subscriptions.
+    inputs: [domain_model, query_requirements, mutation_list, subscription_events, auth_directives]
+    outputs: [schema_definition, resolvers, dataloader_setup, test_queries, documentation]
+    tools_needed: [read, write, edit, bash]
+    model_hint: capable
+    estimated_tokens: 8000
+
+  - id: webhook-handler
+    name: Webhook Handler Build
+    category: data-backend
+    triggers: ["webhook handler", "receive webhook", "webhook endpoint", "incoming webhook", "webhook verification"]
+    description: Build webhook receivers with signature verification, idempotency, and retry handling.
+    inputs: [webhook_source, payload_schema, signature_algorithm, retry_policy]
+    outputs: [handler_code, signature_verification, idempotency_layer, dead_letter_config, test_payloads]
+    tools_needed: [read, write, bash]
+    model_hint: balanced
+    estimated_tokens: 6000
+
+  - id: queue-worker
+    name: Queue Worker Build
+    category: data-backend
+    triggers: ["queue worker", "background job", "job processor", "message consumer", "async worker", "task queue"]
+    description: Build queue consumers with concurrency control, error handling, and dead-letter processing.
+    inputs: [message_schema, processing_logic, concurrency_limit, retry_policy, dlq_config]
+    outputs: [worker_code, retry_logic, dlq_handler, health_check, monitoring_integration]
+    tools_needed: [read, write, bash]
+    model_hint: balanced
+    estimated_tokens: 6000
+
+  - id: cron-job
+    name: Cron Job Build
+    category: data-backend
+    triggers: ["cron job", "scheduled task", "periodic job", "recurring task", "scheduler setup", "timed job"]
+    description: Build scheduled jobs with locking, overlap prevention, failure alerting, and run logging.
+    inputs: [schedule_expression, task_logic, lock_strategy, timeout_limit]
+    outputs: [job_code, lock_implementation, logging_setup, alert_config, run_history_table]
+    tools_needed: [read, write, bash]
+    model_hint: balanced
+    estimated_tokens: 5000
+
+  - id: seed-data
+    name: Seed Data Setup
+    category: data-backend
+    triggers: ["seed data", "populate database", "initial data", "seed script", "bootstrap data", "demo data"]
+    description: Create seed data scripts for development, testing, and demo environments.
+    inputs: [data_models, relationship_graph, environment_variants, volume_targets]
+    outputs: [seed_scripts, environment_configs, idempotency_checks, cleanup_script]
+    tools_needed: [read, write, bash]
+    model_hint: balanced
+    estimated_tokens: 5000
+
+  - id: data-export
+    name: Data Export Build
+    category: data-backend
+    triggers: ["data export", "export to CSV", "bulk export", "data download", "generate report export", "export API"]
+    description: Build data export functionality with format options, streaming, and access controls.
+    inputs: [data_source, export_formats, filter_criteria, access_control, size_limits]
+    outputs: [export_handler, streaming_logic, format_converters, access_middleware, progress_tracking]
+    tools_needed: [read, write, bash]
+    model_hint: balanced
+    estimated_tokens: 6000
+
+  - id: data-import
+    name: Data Import Build
+    category: data-backend
+    triggers: ["data import", "CSV import", "bulk upload", "import from file", "batch insert", "data ingestion"]
+    description: Build data import with validation, deduplication, error reporting, and progress tracking.
+    inputs: [import_format, validation_rules, dedup_strategy, error_threshold, target_schema]
+    outputs: [import_handler, validation_pipeline, error_report_format, progress_tracker, rollback_support]
+    tools_needed: [read, write, bash]
+    model_hint: balanced
+    estimated_tokens: 7000
+
+  # ============================================================================
+  # 10. AGENT ORCHESTRATION (10 templates)
+  # ============================================================================
+
+  - id: coordinator-agent
+    name: Coordinator Agent
+    category: agent-orchestration
+    triggers: ["coordinate agents", "orchestrate tasks", "plan execution", "multi-agent task", "split this into subtasks"]
+    description: Decompose complex tasks into subtasks, assign to specialist agents, and merge results.
+    inputs: [task_description, available_agents, constraint_list, priority_order]
+    outputs: [execution_plan, agent_assignments, dependency_graph, merge_strategy, progress_tracker]
+    tools_needed: [read, write, bash]
+    model_hint: capable
+    estimated_tokens: 10000
+
+  - id: researcher-agent
+    name: Researcher Agent
+    category: agent-orchestration
+    triggers: ["research this", "investigate", "find information about", "gather context", "deep dive into"]
+    description: Gather, cross-reference, and synthesize information from code, docs, and external sources.
+    inputs: [research_question, source_list, depth_limit, output_format]
+    outputs: [research_report, source_citations, confidence_ratings, open_questions]
+    tools_needed: [read, grep, bash, web_search]
+    model_hint: capable
+    estimated_tokens: 12000
+
+  - id: implementer-agent
+    name: Implementer Agent
+    category: agent-orchestration
+    triggers: ["implement this plan", "execute the spec", "build from plan", "code this up", "turn plan into code"]
+    description: Execute an implementation plan by writing code, tests, and configuration step by step.
+    inputs: [implementation_plan, acceptance_criteria, style_guide, file_structure]
+    outputs: [implementation_diff, test_files, config_changes, verification_results]
+    tools_needed: [read, write, edit, bash, git]
+    model_hint: capable
+    estimated_tokens: 15000
+
+  - id: reviewer-agent
+    name: Reviewer Agent
+    category: agent-orchestration
+    triggers: ["review this work", "quality check", "review agent output", "validate implementation", "check this result"]
+    description: Review agent-produced work for correctness, completeness, and quality standards.
+    inputs: [work_artifact, acceptance_criteria, quality_rubric, original_spec]
+    outputs: [review_report, pass_fail_verdict, issues_list, improvement_suggestions]
+    tools_needed: [read, grep, bash]
+    model_hint: capable
+    estimated_tokens: 8000
+
+  - id: tester-agent
+    name: Tester Agent
+    category: agent-orchestration
+    triggers: ["test this implementation", "verify the changes", "run tests and report", "QA this", "validate behavior"]
+    description: Run comprehensive tests against new implementation and report results with failure analysis.
+    inputs: [test_commands, expected_outcomes, test_environment, coverage_threshold]
+    outputs: [test_results, failure_analysis, coverage_report, edge_cases_found, regression_check]
+    tools_needed: [bash, read, grep]
+    model_hint: balanced
+    estimated_tokens: 6000
+
+  - id: documenter-agent
+    name: Documenter Agent
+    category: agent-orchestration
+    triggers: ["document this work", "write docs for changes", "update documentation", "auto-document", "generate docs"]
+    description: Generate documentation for code changes, API updates, and architectural decisions.
+    inputs: [change_diff, existing_docs, audience, documentation_style]
+    outputs: [documentation_updates, changelog_entry, api_doc_updates, migration_notes]
+    tools_needed: [read, write, grep]
+    model_hint: balanced
+    estimated_tokens: 6000
+
+  - id: monitor-agent
+    name: Monitor Agent
+    category: agent-orchestration
+    triggers: ["monitor this", "watch for changes", "track progress", "check status periodically", "keep an eye on"]
+    description: Continuously monitor a process, service, or metric and report anomalies or completion.
+    inputs: [monitoring_target, check_interval, alert_thresholds, report_format]
+    outputs: [status_reports, anomaly_alerts, trend_analysis, completion_notification]
+    tools_needed: [bash, read]
+    model_hint: fast
+    estimated_tokens: 3000
+
+  - id: dispatcher-agent
+    name: Dispatcher Agent
+    category: agent-orchestration
+    triggers: ["dispatch task", "route this", "find the right agent", "auto-assign", "classify and dispatch"]
+    description: Classify incoming tasks and route them to the best-matched specialist agent template.
+    inputs: [task_description, agent_registry, context_hints, urgency_level]
+    outputs: [selected_template, routing_rationale, input_preparation, fallback_options]
+    tools_needed: [read]
+    model_hint: fast
+    estimated_tokens: 2000
+
+  - id: validator-agent
+    name: Validator Agent
+    category: agent-orchestration
+    triggers: ["validate output", "check constraints", "verify requirements", "acceptance test", "does this meet spec"]
+    description: Validate agent output against formal requirements, constraints, and acceptance criteria.
+    inputs: [output_artifact, requirements_spec, constraint_list, validation_rules]
+    outputs: [validation_report, pass_fail_per_requirement, constraint_violations, remediation_hints]
+    tools_needed: [read, bash, grep]
+    model_hint: balanced
+    estimated_tokens: 5000
+
+  - id: synthesizer-agent
+    name: Synthesizer Agent
+    category: agent-orchestration
+    triggers: ["combine results", "merge outputs", "synthesize findings", "consolidate reports", "unify agent results"]
+    description: Merge and reconcile outputs from multiple agents into a coherent final deliverable.
+    inputs: [agent_outputs, merge_strategy, conflict_resolution, output_format]
+    outputs: [synthesized_output, conflict_log, source_attribution, quality_assessment]
+    tools_needed: [read, write]
+    model_hint: capable
+    estimated_tokens: 8000
+
+  # ============================================================================
+  # 11. INCIDENT RESPONSE (5 templates)
+  # ============================================================================
+
+  - id: incident-triage
+    name: Incident Triage
+    category: incident-response
+    triggers: ["incident", "outage", "production down", "P0", "P1", "site is down", "users can't access"]
+    description: Rapidly assess incident scope, severity, and affected systems to prioritize response.
+    inputs: [error_logs, monitoring_alerts, user_reports, service_dependency_map]
+    outputs: [severity_classification, affected_systems, blast_radius, immediate_actions, communication_draft]
+    tools_needed: [bash, read, grep]
+    model_hint: fast
+    estimated_tokens: 5000
+
+  - id: root-cause-analysis
+    name: Root Cause Analysis
+    category: incident-response
+    triggers: ["root cause", "why did this happen", "RCA", "what caused this", "5 whys", "investigate the incident"]
+    description: Perform structured root cause analysis using timeline reconstruction and fault tree analysis.
+    inputs: [incident_timeline, logs, metrics, deployment_history, change_log]
+    outputs: [root_cause_report, contributing_factors, timeline_reconstruction, evidence_chain]
+    tools_needed: [bash, read, grep]
+    model_hint: capable
+    estimated_tokens: 10000
+
+  - id: hotfix-deploy
+    name: Hotfix Deploy
+    category: incident-response
+    triggers: ["hotfix", "emergency fix", "patch now", "emergency deploy", "push hotfix", "critical fix"]
+    description: Fast-track a minimal fix through accelerated testing and deployment with rollback readiness.
+    inputs: [bug_description, fix_diff, affected_services, rollback_trigger]
+    outputs: [hotfix_branch, accelerated_test_results, deploy_commands, rollback_commands, verification_steps]
+    tools_needed: [git, bash, read, edit]
+    model_hint: balanced
+    estimated_tokens: 6000
+
+  - id: postmortem-write
+    name: Postmortem Write
+    category: incident-response
+    triggers: ["write postmortem", "incident review", "blameless postmortem", "post-incident review", "incident report"]
+    description: Write a blameless postmortem with timeline, root cause, impact analysis, and action items.
+    inputs: [incident_timeline, root_cause, impact_metrics, response_actions, participants]
+    outputs: [postmortem_document, action_items, process_improvements, follow_up_schedule]
+    tools_needed: [read, write]
+    model_hint: capable
+    estimated_tokens: 7000
+
+  - id: incident-communication
+    name: Incident Communication
+    category: incident-response
+    triggers: ["status page update", "incident update", "customer communication", "stakeholder update", "incident email"]
+    description: Draft clear, honest incident communications for internal teams, customers, and status pages.
+    inputs: [incident_summary, current_status, eta_to_resolution, affected_users, audience]
+    outputs: [status_page_update, customer_email, internal_slack_message, executive_summary]
+    tools_needed: [read, write]
+    model_hint: fast
+    estimated_tokens: 3000
+
+  # ============================================================================
+  # 12. PROJECT MANAGEMENT (5 templates)
+  # ============================================================================
+
+  - id: sprint-planning
+    name: Sprint Planning
+    category: project-management
+    triggers: ["sprint planning", "plan the sprint", "next sprint", "sprint backlog", "capacity planning"]
+    description: Prioritize backlog, estimate effort, balance capacity, and produce a sprint commitment.
+    inputs: [backlog_items, team_capacity, sprint_goals, carry_over_items, dependency_constraints]
+    outputs: [sprint_backlog, capacity_allocation, risk_items, sprint_goal_statement, dependency_map]
+    tools_needed: [read, write]
+    model_hint: balanced
+    estimated_tokens: 6000
+
+  - id: retrospective
+    name: Retrospective Facilitation
+    category: project-management
+    triggers: ["retrospective", "retro", "what went well", "lessons learned", "sprint review", "team feedback"]
+    description: Facilitate a structured retrospective and produce categorized insights with action items.
+    inputs: [sprint_metrics, team_feedback, previous_action_items, sprint_goal_achievement]
+    outputs: [retrospective_summary, categorized_insights, action_items, trend_analysis]
+    tools_needed: [read, write]
+    model_hint: balanced
+    estimated_tokens: 5000
+
+  - id: roadmap-update
+    name: Roadmap Update
+    category: project-management
+    triggers: ["update roadmap", "roadmap review", "quarterly planning", "milestone update", "timeline adjustment"]
+    description: Update project roadmap based on progress, new requirements, and changed priorities.
+    inputs: [current_roadmap, completed_milestones, new_requirements, changed_priorities, resource_changes]
+    outputs: [updated_roadmap, milestone_adjustments, risk_register_update, stakeholder_summary]
+    tools_needed: [read, write]
+    model_hint: balanced
+    estimated_tokens: 6000
+
+  - id: dependency-tracking
+    name: Dependency Tracking
+    category: project-management
+    triggers: ["track dependencies", "dependency map", "blocked by", "cross-team dependency", "external dependency"]
+    description: Map, track, and escalate project dependencies across teams and external services.
+    inputs: [project_tasks, team_boundaries, external_services, current_blockers]
+    outputs: [dependency_graph, critical_path, blocker_list, escalation_recommendations, mitigation_options]
+    tools_needed: [read, write]
+    model_hint: balanced
+    estimated_tokens: 5000
+
+  - id: risk-assessment
+    name: Risk Assessment
+    category: project-management
+    triggers: ["risk assessment", "identify risks", "risk register", "what could go wrong", "risk analysis", "project risks"]
+    description: Identify, score, and plan mitigations for project risks across technical, schedule, and resource dimensions.
+    inputs: [project_plan, team_constraints, technical_unknowns, external_dependencies]
+    outputs: [risk_register, probability_impact_matrix, mitigation_plans, contingency_triggers, review_schedule]
+    tools_needed: [read, write]
+    model_hint: capable
+    estimated_tokens: 6000
