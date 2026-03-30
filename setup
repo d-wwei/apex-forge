@@ -7,7 +7,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VERSION=$(cat "$SCRIPT_DIR/VERSION" 2>/dev/null || echo "0.1.0")
 
-echo "apex-protocol v$VERSION — setup"
+echo "apex-forge v$VERSION — setup"
 echo "================================"
 
 # Detect platforms
@@ -19,7 +19,7 @@ if [ -d "$HOME/.claude/skills" ]; then
 fi
 
 # Claude Code (local)
-if [ -d ".claude/skills" ] && [ "$SCRIPT_DIR" != "$(cd .claude/skills/apex-protocol 2>/dev/null && pwd)" ]; then
+if [ -d ".claude/skills" ] && [ "$SCRIPT_DIR" != "$(cd .claude/skills/apex-forge 2>/dev/null && pwd)" ]; then
   PLATFORMS_FOUND+=("claude-local")
 fi
 
@@ -33,6 +33,11 @@ if [ -d ".agents/skills" ]; then
   PLATFORMS_FOUND+=("codex")
 fi
 
+# Antigravity
+if [ -d ".agent/skills" ]; then
+  PLATFORMS_FOUND+=("antigravity")
+fi
+
 echo ""
 echo "Detected platforms: ${PLATFORMS_FOUND[*]:-none}"
 echo ""
@@ -40,11 +45,11 @@ echo ""
 # Create skill manifests
 create_claude_manifest() {
   local target_dir="$1"
-  if [ ! -L "$target_dir/apex-protocol" ] && [ ! -d "$target_dir/apex-protocol" ]; then
-    ln -sf "$SCRIPT_DIR" "$target_dir/apex-protocol"
-    echo "  Linked: $target_dir/apex-protocol -> $SCRIPT_DIR"
+  if [ ! -L "$target_dir/apex-forge" ] && [ ! -d "$target_dir/apex-forge" ]; then
+    ln -sf "$SCRIPT_DIR" "$target_dir/apex-forge"
+    echo "  Linked: $target_dir/apex-forge -> $SCRIPT_DIR"
   else
-    echo "  Already exists: $target_dir/apex-protocol"
+    echo "  Already exists: $target_dir/apex-forge"
   fi
 }
 
@@ -61,16 +66,26 @@ for platform in "${PLATFORMS_FOUND[@]}"; do
       ;;
     cursor)
       echo "Setting up Cursor..."
-      if [ ! -L ".cursor-plugin/apex-protocol" ]; then
-        ln -sf "$SCRIPT_DIR" ".cursor-plugin/apex-protocol"
-        echo "  Linked: .cursor-plugin/apex-protocol"
+      if [ ! -L ".cursor-plugin/apex-forge" ]; then
+        ln -sf "$SCRIPT_DIR" ".cursor-plugin/apex-forge"
+        echo "  Linked: .cursor-plugin/apex-forge"
       fi
       ;;
     codex)
       echo "Setting up Codex/Factory..."
-      if [ ! -L ".agents/skills/apex-protocol" ]; then
-        ln -sf "$SCRIPT_DIR" ".agents/skills/apex-protocol"
-        echo "  Linked: .agents/skills/apex-protocol"
+      if [ ! -L ".agents/skills/apex-forge" ]; then
+        ln -sf "$SCRIPT_DIR" ".agents/skills/apex-forge"
+        echo "  Linked: .agents/skills/apex-forge"
+      fi
+      ;;
+    antigravity)
+      echo "Setting up Antigravity..."
+      if command -v "$SCRIPT_DIR/dist/apex-forge" >/dev/null 2>&1 || [ -x "$SCRIPT_DIR/dist/apex-forge" ]; then
+        "$SCRIPT_DIR/dist/apex-forge" convert --platform antigravity --output ".agent/skills" 2>/dev/null
+        echo "  Converted skills to .agent/skills/"
+      else
+        ln -sf "$SCRIPT_DIR" ".agent/skills/apex-forge"
+        echo "  Linked: .agent/skills/apex-forge (run build first for full conversion)"
       fi
       ;;
   esac

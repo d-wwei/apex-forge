@@ -158,6 +158,61 @@ const PLATFORMS: Record<string, PlatformConfig> = {
     },
   },
 
+  antigravity: {
+    dir: ".agent/skills",
+    transform: (skill: SkillMeta) => {
+      // Antigravity (Google) — uses .agent/skills/ with SKILL.md
+      // Powered by Gemini, uses generic tool phrasing
+      let content = skill.content;
+      content = content.replace(/use the Bash tool/g, "run this command");
+      content = content.replace(/use the Read tool/g, "read the file");
+      content = content.replace(/use the Write tool/g, "write the file");
+      content = content.replace(/use the Edit tool/g, "edit the file");
+      content = content.replace(/use the Agent tool/g, "delegate to a sub-agent");
+      content = content.replace(/use the Grep tool/g, "search for");
+      content = content.replace(/use the Glob tool/g, "find files matching");
+      // Antigravity-specific: reference MCP tools for binary operations
+      content = content.replace(
+        /apex-forge task /g,
+        "apex-forge task "  // keep as shell command — Antigravity agents can run shell
+      );
+      return content;
+    },
+    manifest_template: (skills: SkillMeta[]) => {
+      // Antigravity uses .agent/ structure with config.yml + skills/ + agents/ + rules/
+      const skillList = skills.map((s) => {
+        const slug = s.name.replace(/^apex-forge-/, "");
+        return `## ${s.name}\n- Slug: \`${slug}\`\n- Path: \`.agent/skills/${s.name}/SKILL.md\`\n- ${s.description}`;
+      });
+      return [
+        "# Apex Forge Skills for Antigravity",
+        "",
+        `${skills.length} skills available. Each skill is a folder with a SKILL.md file.`,
+        "",
+        "## Installation",
+        "",
+        "1. Copy the `.agent/skills/` directory to your project root",
+        "2. In Antigravity: Settings → Customizations → Skill Custom Paths → add `.agent/skills/`",
+        "3. Refresh to load skills",
+        "",
+        "## MCP Integration",
+        "",
+        "Apex Forge also provides an MCP server for task management, memory, and browser tools:",
+        "```yaml",
+        "# .agent/config.yml",
+        "mcp_servers:",
+        "  apex-forge:",
+        `    command: "${process.cwd()}/dist/apex-forge-mcp"`,
+        '    args: ["--role", "admin"]',
+        "```",
+        "",
+        "## Available Skills",
+        "",
+        ...skillList,
+      ].join("\n");
+    },
+  },
+
   windsurf: {
     dir: ".windsurf/skills",
     transform: (skill: SkillMeta) => {
@@ -261,6 +316,7 @@ function convertSkills(
   // Write platform manifest
   const manifestContent = config.manifest_template(skills);
   const isJsonManifest = platform === "cursor" || platform === "windsurf";
+  // Antigravity uses AGENTS.md by convention, consistent with its .agent/ structure
   const manifestFilename = isJsonManifest ? "manifest.json" : "AGENTS.md";
   writeFileSync(join(targetDir, manifestFilename), manifestContent);
 

@@ -60,6 +60,19 @@ Apex Forge 把这三件事合进一个框架。
 | Web 仪表盘 | 看板视图 + 活动流 + 实时 SSE 数据推送 |
 | 4 个共识协议 | Raft、BFT、Gossip、CRDT — 用于多 agent 分布式协调 |
 | 跨平台转换器 | 一键转换到 Cursor / Codex / Factory / Gemini / Windsurf |
+
+### Antigravity
+
+```bash
+# 方式 1：转换 skill 到 Antigravity 格式
+git clone https://github.com/d-wwei/apex-forge.git
+cd apex-forge && bun install && bun run build:all
+./dist/apex-forge convert --platform antigravity --output /path/to/project/.agent/skills
+
+# 方式 2：自动检测（在有 .agent/ 目录的项目根目录运行）
+./setup
+```
+
 | Docker 沙箱 | 不受信代码隔离执行，超时 + 内存限制 + 网络控制 |
 | GitHub 集成 | issue 读写、PR 创建、CI 状态检查 |
 
@@ -131,6 +144,19 @@ echo ".claude/skills/apex-forge" >> .gitignore
 git clone https://github.com/user/apex-forge.git .cursor-plugin/apex-forge
 
 # Codex / Factory Droid
+
+### Antigravity
+
+```bash
+# 方式 1：转换 skill 到 Antigravity 格式
+git clone https://github.com/d-wwei/apex-forge.git
+cd apex-forge && bun install && bun run build:all
+./dist/apex-forge convert --platform antigravity --output /path/to/project/.agent/skills
+
+# 方式 2：自动检测（在有 .agent/ 目录的项目根目录运行）
+./setup
+```
+
 git clone https://github.com/user/apex-forge.git .agents/skills/apex-forge
 
 # 自动检测并安装
@@ -329,6 +355,19 @@ apex-forge/
     roles/                          <- 34 个角色 skill
   orchestration/                    <- 多 agent 架构规范 + 10 个编排模式
   platforms/                        <- Cursor / Codex / Factory 适配
+
+### Antigravity
+
+```bash
+# 方式 1：转换 skill 到 Antigravity 格式
+git clone https://github.com/d-wwei/apex-forge.git
+cd apex-forge && bun install && bun run build:all
+./dist/apex-forge convert --platform antigravity --output /path/to/project/.agent/skills
+
+# 方式 2：自动检测（在有 .agent/ 目录的项目根目录运行）
+./setup
+```
+
   templates/                        <- 子 agent 提示词模板
 ```
 
