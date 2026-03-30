@@ -158,6 +158,51 @@ const PLATFORMS: Record<string, PlatformConfig> = {
     },
   },
 
+  opencode: {
+    dir: ".opencode/skills",
+    transform: (skill: SkillMeta) => {
+      // OpenCode — CLI agent platform, uses .opencode/skills/ with SKILL.md
+      // Has native `skill` tool for discovery. Tool names are lowercase equivalents.
+      let content = skill.content;
+      content = content.replace(/use the Bash tool/g, "run this command");
+      content = content.replace(/use the Read tool/g, "read the file");
+      content = content.replace(/use the Write tool/g, "write the file");
+      content = content.replace(/use the Edit tool/g, "edit the file");
+      content = content.replace(/use the Agent tool/g, "spawn a subagent");
+      content = content.replace(/use the Grep tool/g, "search for");
+      content = content.replace(/use the Glob tool/g, "find files matching");
+      // OpenCode uses `todowrite` instead of `TodoWrite`
+      content = content.replace(/TodoWrite/g, "todowrite");
+      return content;
+    },
+    manifest_template: (skills: SkillMeta[]) => {
+      return [
+        "# Apex Forge Skills for OpenCode",
+        "",
+        `${skills.length} skills available. Load with: \`use skill tool to load apex-forge-brainstorm\``,
+        "",
+        "## Installation",
+        "",
+        "**Option 1: Direct copy**",
+        "```bash",
+        "cp -r .opencode/skills/apex-forge-* /path/to/project/.opencode/skills/",
+        "```",
+        "",
+        "**Option 2: Plugin (recommended)**",
+        "Add to `opencode.json`:",
+        "```json",
+        '{  "plugin": ["apex-forge@git+https://github.com/d-wwei/apex-forge.git"]  }',
+        "```",
+        "",
+        "## Available Skills",
+        "",
+        ...skills.map(
+          (s) => `- **${s.name}**: ${s.description}`
+        ),
+      ].join("\n");
+    },
+  },
+
   antigravity: {
     dir: ".agent/skills",
     transform: (skill: SkillMeta) => {
