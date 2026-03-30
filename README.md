@@ -2,7 +2,9 @@
 
 [中文文档](README.zh-CN.md)
 
-An agent development platform that bundles execution discipline, workflow automation, browser testing, multi-agent orchestration, and knowledge management into one installable package. Remixed from 8 open-source projects.
+An execution framework for AI coding agents. 43 skills, three complexity tiers, one install. Remixed from 8 open-source projects.
+
+---
 
 ## Why
 
@@ -10,43 +12,232 @@ AI coding agents are unreliable. They guess instead of verifying. They skip test
 
 Apex Forge fixes this by enforcing discipline at the protocol level, not by hoping the agent behaves.
 
+---
+
 ## Quick Start
 
 ```bash
-git clone https://github.com/user/apex-forge.git ~/.claude/skills/apex-forge
+git clone https://github.com/d-wwei/apex-forge.git ~/.claude/skills/apex-forge
 cd ~/.claude/skills/apex-forge
 bun install && bun run build:all
 bunx playwright install chromium
 ./dist/apex-forge init
 ```
 
+Or just tell the AI: `"initialize apex forge"`
+
 You now have 3 binaries (`apex-forge`, `apex-forge-browse`, `apex-forge-mcp`), 43 skills, and a protocol that auto-injects on every session.
 
-## What You Get
+After init, your project gets an `.apex/` directory:
 
-You can **enforce execution discipline** -- the protocol auto-injects on session start via hooks. No code ships without tests. No success claims without evidence. No implementation before design approval.
+```
+.apex/
+  state.json      -- current stage and session state
+  tasks.json      -- task list and state machine
+  memory.json     -- memory store (persists across sessions)
+  analytics/      -- usage data
+  screenshots/    -- browser screenshots
+```
 
-You can **run a full development pipeline** -- brainstorm, plan, execute, review, ship, capture knowledge, verify. Each stage checks that upstream work exists before running.
-
-You can **route tasks by complexity** -- simple fixes get one verification cycle, multi-step work gets PDCA rounds, project-scale work gets persistent cross-session waves.
-
-You can **review code from 18 perspectives** -- 3 always-on reviewers (security, correctness, spec compliance), 9 conditional specialists, 5 framework-specific experts, and 1 adversarial reviewer.
-
-You can **automate browser testing** -- headless Chromium with 59 commands, a Chrome extension with Side Panel, cookie import for authenticated sessions.
-
-You can **manage tasks with enforced state transitions** -- `open -> assigned -> in_progress -> to_verify -> done`. No skipping steps. Dependencies, worktree isolation, and auto-assignment included.
-
-You can **build persistent memory** -- facts stored with confidence scores (0.0-1.0), tagged and searchable. Low-confidence entries get pruned automatically. High-confidence facts inject into session context.
-
-You can **orchestrate multiple agents** -- 4 consensus protocols (Raft, BFT, Gossip, CRDT), 115 agent templates, role-based tool gating, cost-aware routing.
-
-You can **track everything** -- telemetry records skill execution timing and outcomes. A web dashboard shows Kanban board, activity stream, and performance data.
-
-You can **convert to other platforms** -- export your setup to Cursor, Codex, Factory, Gemini, or Windsurf format with one command.
+Already in `.gitignore`. Won't be committed.
 
 ---
 
-## Skills (43 total)
+## Usage
+
+Every scenario below shows two ways to work: talk to the AI in natural language, or run a command directly. Mix and match.
+
+### Build a Feature
+
+**Tell the AI:** `"I want to add user auth with JWT"`
+
+**Or drive each stage manually:**
+
+```bash
+# 1. Requirements exploration (hard gate: no code gets written here)
+/apex-forge-brainstorm
+# -> produces docs/brainstorms/auth-requirements.md
+
+# 2. Implementation plan (file paths, function signatures, test scenarios)
+/apex-forge-plan
+# -> produces docs/plans/auth-plan.md
+
+# 3. TDD execution (tests first, complex tasks auto-split to sub-agents)
+/apex-forge-execute
+
+# 4. Quality review (18 perspectives: security, correctness, framework-specific)
+/apex-forge-review
+
+# 5. Ship (run tests -> version bump -> CHANGELOG -> commit -> PR)
+/apex-forge-ship
+
+# 6. Knowledge capture (written to docs/solutions/ for future reuse)
+/apex-forge-compound
+```
+
+You don't need to remember the order. After each stage, the AI suggests the next one.
+
+| You say | Stage triggered | Command |
+|---------|----------------|---------|
+| "Help me explore the requirements" | Requirements | `/apex-forge-brainstorm` |
+| "Create an implementation plan" | Planning | `/apex-forge-plan` |
+| "Start coding" | Execution | `/apex-forge-execute` |
+| "Review my changes" | Review | `/apex-forge-review` |
+| "Ready to ship" | Ship | `/apex-forge-ship` |
+| "Save what we learned" | Knowledge capture | `/apex-forge-compound` |
+
+### Fix a Bug
+
+**Tell the AI:** `"Login returns 401 but the token is valid"`
+
+**Or run:** `/apex-forge-investigate`
+
+The investigation follows a fixed sequence: reproduce the issue, add logging at code boundaries, form 3 hypotheses and test each, confirm root cause, then fix with a regression test. Rule: no fix without root cause.
+
+### Code Review
+
+**Tell the AI:** `"Review my changes"`
+
+**Or run:** `/apex-forge-code-review`
+
+Reads `git diff`, checks from 18 perspectives. Changes to `.tsx` files activate the React reviewer. Changes to `.py` activate Python. Verdict: `SHIP` / `SHIP_WITH_FIXES` / `BLOCK`.
+
+### QA Testing
+
+**Tell the AI:** `"Test this page"`
+
+**Or run:** `/apex-forge-qa`
+
+Three depths: Quick (critical issues only), Standard (+medium), Exhaustive (full coverage). If a browser is available, it opens the page, takes screenshots, interacts, and verifies.
+
+### Security Audit
+
+**Tell the AI:** `"Run a security check"`
+
+**Or run:** `/apex-forge-security-audit`
+
+Checks in order: leaked secrets, dependency vulnerabilities, CI/CD security, OWASP Top 10, auth/authz.
+
+### More Scenarios
+
+| You say | Command | What happens |
+|---------|---------|-------------|
+| "Is this plan ambitious enough?" | `/apex-forge-ceo-review` | CEO/founder perspective on scope |
+| "Is the architecture right?" | `/apex-forge-eng-review` | Engineering review: data, API, performance, deployment |
+| "Does the design look good?" | `/apex-forge-design-review` | Visual QA with screenshot comparison |
+| "Review this week" | `/apex-forge-retro` | Git stats + team retrospective |
+| "Open the dashboard" | `apex-forge dashboard` | Web Kanban + activity stream + analytics |
+| "Run this code safely" | `apex-forge sandbox js "..."` | Docker-sandboxed execution |
+| "Import GitHub issues" | `apex-forge issues import` | Import as Apex tasks |
+| "Create a new skill" | `/apex-forge-skill-author` | Guided skill authoring |
+| "Show me 3 design directions" | `/apex-forge-design-shotgun` | 3 visual approaches for one requirement |
+| "Full plan review" | `/apex-forge-autoplan` | Auto-run CEO + engineering + design reviews |
+
+> Complete CLI reference: [Usage Guide](docs/USAGE-GUIDE.zh-CN.md)
+
+---
+
+## Task Management
+
+Tell the AI `"create a task: implement user auth"`, or use the CLI:
+
+```bash
+# Create
+apex-forge task create "Implement user auth" "JWT middleware + refresh tokens"
+apex-forge task create "Write auth tests" "Integration tests" T1    # T1 is a dependency
+
+# View
+apex-forge task list                        # all tasks
+apex-forge task list --status open          # only open
+apex-forge task next                        # next unblocked task
+apex-forge task get T1                      # details
+
+# State transitions (enforced -- no skipping steps)
+apex-forge task assign T1                   # open -> assigned
+apex-forge task start T1                    # assigned -> in_progress
+apex-forge task submit T1 "Tests passing"   # in_progress -> to_verify
+apex-forge task verify T1 pass              # to_verify -> done
+apex-forge task verify T1 fail              # to_verify -> in_progress (redo)
+apex-forge task block T1 "Waiting for API key"
+apex-forge task release T1                  # assigned -> open (unclaim)
+```
+
+---
+
+## Memory System
+
+Tell the AI `"remember: auth uses JWT RS256"`, or use the CLI:
+
+```bash
+# Store (confidence 0.0-1.0 + tags)
+apex-forge memory add "Auth uses JWT RS256" 0.9 auth jwt
+apex-forge memory add "Database is PostgreSQL 16" 0.85 db
+
+# Query
+apex-forge memory list                      # all facts
+apex-forge memory list --min 0.8            # high-confidence only
+apex-forge memory search "JWT"              # keyword search
+
+# Maintain
+apex-forge memory curate                    # auto-extract from git/tasks/solutions
+apex-forge memory prune                     # clean low-quality (<0.5) entries
+
+# In-session curation (AI reviews the current session)
+/apex-forge-memory-curate
+```
+
+High-confidence facts auto-inject into session context. Low-confidence entries get pruned automatically.
+
+---
+
+## Browser
+
+Tell the AI `"open https://my-app.com and check it"`, or use the CLI:
+
+```bash
+# Navigate
+apex-forge-browse goto https://your-app.com
+apex-forge-browse text                      # read page text
+apex-forge-browse links                     # list all links
+
+# Interact (snapshot first to see elements, then use @e refs)
+apex-forge-browse snapshot -i               # list interactive elements -> @e1, @e2, ...
+apex-forge-browse click @e3                 # click
+apex-forge-browse fill @e5 "test@test.com"  # fill input
+
+# Screenshot
+apex-forge-browse screenshot /tmp/page.png
+apex-forge-browse responsive /tmp/layout    # auto-capture mobile/tablet/desktop
+
+# Inspect
+apex-forge-browse console --errors          # JS errors
+apex-forge-browse is visible ".modal"       # element visibility check
+apex-forge-browse perf                      # page load performance
+
+# Cookies (for testing authenticated pages)
+apex-forge-browse cookie-import-browser     # import from real Chrome
+
+# Visible mode (real Chrome window + side panel showing AI actions)
+apex-forge-browse connect
+apex-forge-browse disconnect                # switch back to headless
+```
+
+---
+
+## Dashboard
+
+Tell the AI `"open the dashboard"`, or:
+
+```bash
+apex-forge dashboard                        # default port 3456
+apex-forge dashboard --port 8080            # custom port
+```
+
+Five panels: task Kanban (5-column drag-and-drop), pipeline state (current stage + artifacts), activity stream (real-time skill execution), memory panel (facts sorted by confidence), and analytics (skill usage, average time, success rate).
+
+---
+
+## All 43 Skills
 
 ### Protocol (3)
 
@@ -148,79 +339,109 @@ You can **convert to other platforms** -- export your setup to Cursor, Codex, Fa
 
 ---
 
-## CLI Commands
+## CLI Reference
 
-The `apex-forge` binary handles state, tasks, memory, and infrastructure:
+Key commands. For the full list, run `apex-forge help`.
 
+```bash
+# Project
+apex-forge init                              # initialize .apex/ in current project
+apex-forge status                            # pipeline state, active tasks, memory stats
+apex-forge recover                           # fix stale state after crashes
+
+# Tasks
+apex-forge task create TITLE [DESC] [DEPS]   # create a task
+apex-forge task list [--status STATUS]        # list tasks
+apex-forge task next                         # next unblocked task
+apex-forge task assign|start|submit|verify|block|release ID
+
+# Memory
+apex-forge memory add CONTENT SCORE TAGS     # store a fact
+apex-forge memory list [--min SCORE]         # list facts
+apex-forge memory search QUERY               # keyword search
+apex-forge memory curate                     # auto-extract knowledge
+apex-forge memory prune                      # clean low-quality entries
+
+# Browser
+apex-forge-browse goto URL                   # navigate
+apex-forge-browse snapshot -i                # list interactive elements
+apex-forge-browse click|fill|screenshot      # interact
+apex-forge-browse connect|disconnect         # visible/headless mode toggle
+
+# Dashboard
+apex-forge dashboard [--port PORT]           # web UI
+
+# Orchestration
+apex-forge orchestrate [--dry-run] [--once]  # multi-agent task dispatch
+
+# Other
+apex-forge telemetry report                  # skill usage stats
+apex-forge worktree create|list|cleanup      # git worktree management
+apex-forge sandbox js|python|bash CODE       # sandboxed execution
+apex-forge issues list|import|view           # GitHub issue sync
+apex-forge convert --platform PLATFORM       # export to Cursor/Codex/Gemini/Windsurf/Factory
+apex-forge consensus test-all                # run all consensus protocol tests
 ```
-apex-forge init                              Initialize .apex/ in current project
-apex-forge status                            Show pipeline state, active tasks, memory stats
-apex-forge dashboard                         Launch web dashboard (Kanban, activity, telemetry)
-apex-forge recover                           Fix stale state after crashes
 
-apex-forge task create TITLE                 Create a task
-apex-forge task assign ID [AGENT]            Assign a task
-apex-forge task start ID                     Move task to in_progress
-apex-forge task submit ID                    Move task to to_verify
-apex-forge task verify ID                    Move task to done
-apex-forge task block ID REASON              Block a task
-apex-forge task release ID                   Release assignment back to open
-apex-forge task list [--status STATUS]        List tasks
-apex-forge task next                         Show next unblocked task
+> Complete CLI reference: [Usage Guide](docs/USAGE-GUIDE.zh-CN.md)
 
-apex-forge memory add CONTENT [--tags T]     Store a fact with confidence score
-apex-forge memory list [--tag TAG]           List stored facts
-apex-forge memory search QUERY               Search facts by keyword
-apex-forge memory remove ID                  Delete a fact
-apex-forge memory inject                     Format facts for context injection
-apex-forge memory prune                      Remove low-confidence facts, cap at 100
-apex-forge memory curate                     Interactive review and scoring
-apex-forge memory extract-llm                Extract facts from LLM conversation
+---
 
-apex-forge telemetry start SKILL             Begin timing a skill run
-apex-forge telemetry end ID [OUTCOME]        Record completion
-apex-forge telemetry report                  Show usage stats
-apex-forge telemetry sync                    Upload to dashboard
+## Core Concepts
 
-apex-forge worktree create BRANCH            Create isolated git worktree
-apex-forge worktree list                     List active worktrees
-apex-forge worktree cleanup                  Remove merged worktrees
+### Complexity Router
 
-apex-forge consensus test                    Run Raft consensus test
-apex-forge consensus test-bft                Run BFT consensus test
-apex-forge consensus test-gossip             Run Gossip protocol test
-apex-forge consensus test-crdt               Run CRDT convergence test
-apex-forge consensus test-all                Run all consensus tests
+Not every task needs the full ceremony:
 
-apex-forge design generate PROMPT            Generate UI design with AI
-apex-forge design variants PROMPT            Generate multiple design variants
-apex-forge design compare A B                Compare two designs
-apex-forge design list                       List saved designs
+| Tier | When | Flow |
+|------|------|------|
+| **Tier 1** (single pass) | Simple fixes | Do it, verify, done |
+| **Tier 2** (rounds) | Multi-step work | PDCA rounds with named types, max 5 rounds |
+| **Tier 3** (waves) | Project-scale | Cross-session waves, persistent state in `.apex/state.json` |
 
-apex-forge sandbox javascript CODE           Run JS in sandbox
-apex-forge sandbox python CODE               Run Python in sandbox
-apex-forge sandbox bash CODE                 Run Bash in sandbox
+The AI auto-detects which tier fits. You can override with `default_tier` in config.
 
-apex-forge issues list                       List GitHub issues
-apex-forge issues import ISSUE_NUM           Import issue as task
-apex-forge issues view ISSUE_NUM             View issue details
-apex-forge issues status TASK_ID STATUS      Sync task status to GitHub
+### Escalation Ladder
 
-apex-forge trace start NAME                  Begin an observability span
-apex-forge trace end ID                      End a span
-apex-forge trace active                      Show active spans
-apex-forge trace list                        List completed spans
-apex-forge trace view ID                     View span details
+Failure automatically raises the strictness level:
 
-apex-forge convert --platform cursor         Convert config for Cursor
-apex-forge convert --platform codex          Convert config for Codex
-apex-forge convert --platform factory        Convert config for Factory
-apex-forge convert --platform gemini         Convert config for Gemini
-apex-forge convert --platform windsurf       Convert config for Windsurf
+| Level | Trigger | Requirement |
+|-------|---------|-------------|
+| L0 | Normal | Standard protocol |
+| L1 | 2nd failure | Fundamentally different approach |
+| L2 | 3rd failure | 3 testable hypotheses |
+| L3 | 4th failure | 7-point recovery checklist |
+| L4 | 5th failure | Minimal reproduction, hand off to human |
 
-apex-forge orchestrate [--dry-run] [--once]  Run multi-agent task dispatcher
-apex-forge serve [--role admin|developer|pm] Start MCP server with role-based tools
-```
+### Evidence Grading
+
+| Grade | Meaning | Minimum for |
+|-------|---------|-------------|
+| E0 | Guess | Hypothesis only |
+| E1 | Indirect evidence | Hypothesis only |
+| E2 | Direct evidence | Taking action |
+| E3 | Multi-source verified | Claiming success |
+| E4 | Verified + reproduced | Highest confidence |
+
+### Verification Gate
+
+Five steps before claiming "done":
+
+1. Identify what command would **prove** the claim
+2. Run it **now** (not old results)
+3. Read the **full** output
+4. Does the output confirm the claim? **Yes or no**
+5. Only "yes" counts as done
+
+Skip any step and it's not verification, it's guessing.
+
+### TDD Iron Rule
+
+No production code without a failing test. Write test, RED (confirm it fails for the right reason), GREEN, refactor. 14 rationalizations are pre-blocked.
+
+### Knowledge Compounding
+
+Every solved problem gets written to `docs/solutions/`. Overlap detection prevents duplicates. Stale docs get auto-refreshed. Over time, the system gets cheaper to run.
 
 ---
 
@@ -231,7 +452,7 @@ Prerequisites: [Bun](https://bun.sh) 1.3+
 ### Claude Code (global -- recommended)
 
 ```bash
-git clone https://github.com/user/apex-forge.git ~/.claude/skills/apex-forge
+git clone https://github.com/d-wwei/apex-forge.git ~/.claude/skills/apex-forge
 cd ~/.claude/skills/apex-forge
 bun install && bun run build:all
 bunx playwright install chromium
@@ -242,7 +463,7 @@ The protocol auto-activates on every session via the `hooks/session-start` hook.
 ### Claude Code (project-local)
 
 ```bash
-git clone https://github.com/user/apex-forge.git .claude/skills/apex-forge
+git clone https://github.com/d-wwei/apex-forge.git .claude/skills/apex-forge
 cd .claude/skills/apex-forge
 bun install && bun run build:all
 echo ".claude/skills/apex-forge" >> .gitignore
@@ -251,21 +472,21 @@ echo ".claude/skills/apex-forge" >> .gitignore
 ### Cursor
 
 ```bash
-git clone https://github.com/user/apex-forge.git .cursor-plugin/apex-forge
+git clone https://github.com/d-wwei/apex-forge.git .cursor-plugin/apex-forge
 cd .cursor-plugin/apex-forge && bun install && bun run build:all
 ```
 
 ### Codex / Factory
 
 ```bash
-git clone https://github.com/user/apex-forge.git .agents/skills/apex-forge
+git clone https://github.com/d-wwei/apex-forge.git .agents/skills/apex-forge
 cd .agents/skills/apex-forge && bun install && bun run build:all
 ```
 
 ### Gemini / Windsurf
 
 ```bash
-git clone https://github.com/user/apex-forge.git apex-forge
+git clone https://github.com/d-wwei/apex-forge.git apex-forge
 cd apex-forge && bun install && bun run build:all
 ./dist/apex-forge convert --platform gemini   # or --platform windsurf
 ```
@@ -344,25 +565,6 @@ apex-forge/
 
 ---
 
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for full details.
-
-Short version:
-
-1. Fork and clone
-2. `bun install`
-3. Make changes
-4. `bun test` -- all tests must pass
-5. `bun run build:all` -- all 3 binaries must compile
-6. Submit PR
-
-To add a new skill: create `workflow/roles/my-skill.md` with YAML frontmatter, register it in `.claude-plugin`, or use `/apex-forge-skill-author`.
-
-To add a CLI command: add handler in `src/commands/`, wire it in `src/cli.ts`, add tests in `src/__tests__/`, rebuild.
-
----
-
 ## Provenance
 
 Every pattern traces to a specific source project.
@@ -379,6 +581,31 @@ Every pattern traces to a specific source project.
 | Ledger pattern, skills registry, cost-aware routing | [ruflo](https://github.com/ruvnet/ruflo) | MIT |
 
 Full attribution: [docs/PROVENANCE.md](docs/PROVENANCE.md)
+
+---
+
+## Troubleshooting
+
+**Commands don't appear?**
+```bash
+ls -la ~/.claude/skills/apex-forge          # check symlink
+ln -sf /path/to/apex-forge ~/.claude/skills/apex-forge  # re-link
+```
+
+**Browser errors?**
+```bash
+cd ~/.claude/skills/apex-forge && bunx playwright install chromium
+```
+
+**Dashboard won't open?**
+```bash
+apex-forge dashboard --port 3456 && open http://localhost:3456
+```
+
+**State corruption?**
+```bash
+apex-forge recover                          # auto-fix
+```
 
 ---
 
