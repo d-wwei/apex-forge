@@ -9,39 +9,56 @@
 
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { DaemonInfo, CommandResult } from "../../browse/types.js";
-import { readJSON } from "../../utils/json.js";
+import * as fs from "fs";
 
 // ---------------------------------------------------------------------------
 // Daemon communication
 // ---------------------------------------------------------------------------
 
+interface ServerState {
+  pid: number;
+  port: number;
+  token: string;
+  startedAt: string;
+  mode?: string;
+}
+
 const BROWSE_JSON = ".apex/browse.json";
 
-async function ensureDaemon(): Promise<DaemonInfo> {
-  const info = await readJSON<DaemonInfo | null>(BROWSE_JSON, null);
+function readState(): ServerState | null {
+  try {
+    const data = fs.readFileSync(BROWSE_JSON, "utf-8");
+    return JSON.parse(data);
+  } catch {
+    return null;
+  }
+}
+
+async function ensureDaemon(): Promise<ServerState> {
+  const info = readState();
   if (!info) {
     throw new Error(
-      "apex-browse daemon is not running. Start it with: apex-browse start",
+      "apex-browse daemon is not running. Start it with: apex-browse goto <url>",
     );
   }
-  // Quick health check
+  // Quick health check (no auth required on /health)
   try {
     const resp = await fetch(`http://127.0.0.1:${info.port}/health`, {
-      headers: { Authorization: `Bearer ${info.token}` },
       signal: AbortSignal.timeout(3000),
     });
     if (!resp.ok) throw new Error("unhealthy");
+    const health = await resp.json() as any;
+    if (health.status !== "healthy") throw new Error("unhealthy");
   } catch {
     throw new Error(
-      "apex-browse daemon is not responding. Restart with: apex-browse start",
+      "apex-browse daemon is not responding. Restart with: apex-browse goto <url>",
     );
   }
   return info;
 }
 
 async function sendCommand(
-  info: DaemonInfo,
+  info: ServerState,
   command: string,
   args: string[],
 ): Promise<string> {
@@ -55,11 +72,18 @@ async function sendCommand(
     signal: AbortSignal.timeout(30000),
   });
 
-  const result: CommandResult = await resp.json();
-  if (!result.ok) {
-    throw new Error(result.error || `Browse command "${command}" failed`);
+  const text = await resp.text();
+  if (!resp.ok) {
+    // Try to parse as JSON error
+    try {
+      const err = JSON.parse(text);
+      throw new Error(err.error || `Browse command "${command}" failed`);
+    } catch (e) {
+      if (e instanceof Error && e.message.includes("Browse command")) throw e;
+      throw new Error(text || `Browse command "${command}" failed`);
+    }
   }
-  return result.data ?? "";
+  return text;
 }
 
 // ---------------------------------------------------------------------------
