@@ -1,0 +1,117 @@
+{
+  "taskId": "marketing-homepage-hero",
+  "mappings": [
+    {
+      "specComponentId": "hero-eyebrow",
+      "repoTarget": {
+        "type": "primitive",
+        "name": "p"
+      },
+      "rationale": "This element is simple text and should remain lightweight.",
+      "propsContract": {
+        "classContract": "Eyebrow typography and accent color are applied via token-aware classes"
+      },
+      "wrappers": [],
+      "allowedSubstitutions": [],
+      "forbiddenSubstitutions": [
+        "Do not convert this element into a badge or pill unless the design explicitly requires it"
+      ]
+    },
+    {
+      "specComponentId": "hero-title",
+      "repoTarget": {
+        "type": "primitive",
+        "name": "h1"
+      },
+      "rationale": "The headline must remain semantic and visually controlled; a generic title component is too risky.",
+      "propsContract": {
+        "classContract": "Display typography, max-width, and balanced line-height are applied directly"
+      },
+      "wrappers": [],
+      "allowedSubstitutions": [],
+      "forbiddenSubstitutions": [
+        "Do not map to a shared section heading component if it weakens headline scale or spacing"
+      ]
+    },
+    {
+      "specComponentId": "hero-body",
+      "repoTarget": {
+        "type": "primitive",
+        "name": "p"
+      },
+      "rationale": "The supporting copy needs custom width and rhythm, but not a dedicated shared component.",
+      "propsContract": {
+        "classContract": "Body large typography and readable line length are applied at the section level"
+      },
+      "wrappers": [],
+      "allowedSubstitutions": [],
+      "forbiddenSubstitutions": [
+        "Do not fall back to the repo's default paragraph style if it compresses line-height or width"
+      ]
+    },
+    {
+      "specComponentId": "hero-primary-cta",
+      "repoTarget": {
+        "type": "existing-component",
+        "name": "Button"
+      },
+      "rationale": "The repo button can be reused only if size, radius, weight, and states can match the spec.",
+      "propsContract": {
+        "variant": "primary",
+        "size": "lg",
+        "stateSupport": "default, hover, focus-visible, disabled"
+      },
+      "wrappers": [
+        "Place inside a CTA row that preserves primary-first ordering and spacing"
+      ],
+      "allowedSubstitutions": [],
+      "forbiddenSubstitutions": [
+        "Do not use the default button variant if it loses prominence, padding, or shadow treatment"
+      ]
+    },
+    {
+      "specComponentId": "hero-secondary-cta",
+      "repoTarget": {
+        "type": "existing-component",
+        "name": "TextLink or secondary action primitive"
+      },
+      "rationale": "This action should remain clearly secondary while aligning with the CTA row.",
+      "propsContract": {
+        "stateSupport": "default, hover, focus-visible"
+      },
+      "wrappers": [
+        "Keep in the same CTA cluster as the primary CTA"
+      ],
+      "allowedSubstitutions": [
+        "A lightweight button style is allowed only if it stays visually subordinate to the primary CTA"
+      ],
+      "forbiddenSubstitutions": [
+        "Do not give it equal fill, radius, or weight to the primary CTA"
+      ]
+    },
+    {
+      "specComponentId": "hero-proof-row",
+      "repoTarget": {
+        "type": "primitive",
+        "name": "ul/li"
+      },
+      "rationale": "The proof row is content-specific and should stay quiet and flexible.",
+      "propsContract": {
+        "layoutContract": "Vertical stack on small screens, horizontal scan row on desktop"
+      },
+      "wrappers": [],
+      "allowedSubstitutions": [],
+      "forbiddenSubstitutions": [
+        "Do not replace with a loud logo wall or testimonial carousel"
+      ]
+    }
+  ],
+  "unmapped": [],
+  "repoGaps": [
+    {
+      "gap": "Display typography utility may not exist in the target repo",
+      "impact": "medium",
+      "workaround": "Implement local hero-specific typography styles and document the missing design-system primitive"
+    }
+  ]
+}

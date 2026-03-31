@@ -1,0 +1,143 @@
+meta:
+  task_id: "replace-with-task-id"
+  title: "replace-with-task-title"
+  status: "draft"
+  design_inputs:
+    - type: "screenshot|pdf|json|note|link"
+      path_or_ref: "replace-with-source"
+
+scope:
+  target: "page|route|component|flow-step"
+  in_scope:
+    - "replace-with-in-scope-item"
+  out_of_scope:
+    - "replace-with-out-of-scope-item"
+
+intent:
+  primary_user_goal: "replace-with-user-goal"
+  product_goal: "replace-with-product-goal"
+  visual_character:
+    - "replace-with-adjective"
+  non_negotiables:
+    - "replace-with-required-quality"
+
+structure:
+  semantic_landmarks:
+    - "header"
+    - "main"
+  sections:
+    - id: "hero"
+      role: "hero"
+      purpose: "replace-with-purpose"
+      priority: "high"
+      children:
+        - "hero-title"
+        - "hero-body"
+        - "hero-cta"
+
+components:
+  - id: "hero-title"
+    section_id: "hero"
+    semantic_role: "heading"
+    element: "h1"
+    content_source: "replace-with-copy-source"
+    design_requirements:
+      typography_role: "display.hero"
+      color_role: "text.primary"
+      spacing_role: "space.24"
+    states:
+      - "default"
+    implementation_boundary:
+      expected_kind: "existing-component|primitive|new-component"
+      notes: "replace-with-boundary-notes"
+    forbidden_substitutions:
+      - "Do not reduce this to a generic section title style"
+
+  - id: "hero-cta"
+    section_id: "hero"
+    semantic_role: "primary-action"
+    element: "button"
+    content_source: "replace-with-copy-source"
+    design_requirements:
+      typography_role: "label.lg"
+      color_role: "action.primary"
+      radius_role: "radius.pill"
+      shadow_role: "shadow.action"
+    states:
+      - "default"
+      - "hover"
+      - "focus-visible"
+      - "disabled"
+    implementation_boundary:
+      expected_kind: "existing-component|primitive|new-component"
+      notes: "replace-with-boundary-notes"
+    forbidden_substitutions:
+      - "Do not use the default library button without explicit styling parity"
+
+tokens:
+  color_roles:
+    text.primary: "replace-with-token-or-css"
+    action.primary: "replace-with-token-or-css"
+  spacing_roles:
+    space.24: "24px"
+  radius_roles:
+    radius.pill: "999px"
+  typography_roles:
+    display.hero:
+      font_family: "replace-with-font-family"
+      font_size: "56px"
+      line_height: "60px"
+      font_weight: 600
+    label.lg:
+      font_family: "replace-with-font-family"
+      font_size: "16px"
+      line_height: "20px"
+      font_weight: 600
+  shadow_roles:
+    shadow.action: "replace-with-shadow"
+
+responsive:
+  breakpoints:
+    mobile: "0-767"
+    tablet: "768-1023"
+    desktop: "1024+"
+  rules:
+    - target: "hero"
+      behavior: "Stack content vertically on mobile"
+    - target: "hero-cta"
+      behavior: "Remain primary and easy to find at all sizes"
+
+interaction:
+  required_states:
+    - component_id: "hero-cta"
+      states:
+        - "default"
+        - "hover"
+        - "focus-visible"
+        - "disabled"
+  motion_notes:
+    - "Use motion only if it reinforces hierarchy or affordance"
+
+acceptance:
+  structural_checks:
+    - "Semantic landmarks are present"
+    - "Section hierarchy matches the spec"
+  visual_checks:
+    - "Typography scale matches intended emphasis"
+    - "Spacing hierarchy is preserved"
+  interaction_checks:
+    - "Required states are implemented and testable"
+  responsive_checks:
+    - "Required layouts hold across listed breakpoints"
+
+open_questions:
+  - id: "Q1"
+    question: "replace-with-question"
+    impact: "low|medium|high"
+    proposed_resolution: "replace-with-proposed-resolution"
+
+assumptions:
+  - id: "A1"
+    statement: "replace-with-assumption"
+    risk: "low|medium|high"
+    fallback: "replace-with-fallback"

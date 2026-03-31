@@ -1,0 +1,158 @@
+{
+  "meta": {
+    "app": "ACP Browser Client",
+    "description": "Browser extension for connecting AI agents via Agent Communication Protocol",
+    "theme": "dark",
+    "font": "DM Sans",
+    "iconSet": "lucide",
+    "sourceFile": "/Users/eli/Downloads/pencil-new.pen"
+  },
+  "tokens": {
+    "accent": "#6ee7b7",
+    "accent-hover": "#5ddba8",
+    "bg-card": "#1e2538",
+    "bg-hover": "#252833",
+    "bg-input": "#1a1d26",
+    "bg-primary": "#0f1117",
+    "border": "#ffffff2e",
+    "border-card": "#ffffff30",
+    "error": "#f87171",
+    "success": "#6ee7b7",
+    "text-muted": "#6b7280",
+    "text-primary": "#d1d5db",
+    "text-secondary": "#9ca3af",
+    "user-bubble": "#0d3b3c",
+    "warning": "#dcdcaa"
+  },
+  "screens": {
+    "welcome": {
+      "id": "p9GF8",
+      "name": "Welcome State",
+      "file": "WelcomeScreen.tsx",
+      "dimensions": { "width": 400, "height": 780 },
+      "checks": {
+        "structural": [
+          { "id": "WS01", "desc": "Has TopBar with agent selector and action icons", "weight": 8 },
+          { "id": "WS02", "desc": "Has centered main content area", "weight": 6 },
+          { "id": "WS03", "desc": "Has logo/icon in rounded container with border and shadow", "weight": 5 },
+          { "id": "WS04", "desc": "Has app title 'ACP Browser Client'", "weight": 4 },
+          { "id": "WS05", "desc": "Has subtitle text", "weight": 3 },
+          { "id": "WS06", "desc": "Has exactly 3 numbered steps", "weight": 8 },
+          { "id": "WS07", "desc": "Step 1 contains a code/command block", "weight": 5 },
+          { "id": "WS08", "desc": "Has help text with documentation link", "weight": 3 },
+          { "id": "WS09", "desc": "Has bottom input bar with message input", "weight": 6 },
+          { "id": "WS10", "desc": "Input bar has attachment and send buttons", "weight": 5 }
+        ],
+        "layout": [
+          { "id": "WL01", "desc": "Root uses vertical flex/column layout", "weight": 5 },
+          { "id": "WL02", "desc": "TopBar uses horizontal flex with space-between", "weight": 4 },
+          { "id": "WL03", "desc": "Main content area is vertically centered", "weight": 5 },
+          { "id": "WL04", "desc": "Steps use consistent vertical spacing", "weight": 3 },
+          { "id": "WL05", "desc": "Each step uses horizontal layout (number + content)", "weight": 4 },
+          { "id": "WL06", "desc": "Input bar anchored to bottom", "weight": 4 }
+        ],
+        "visual": [
+          { "id": "WV01", "desc": "Dark background (close to #0f1117)", "weight": 5 },
+          { "id": "WV02", "desc": "Card backgrounds distinct from page bg", "weight": 4 },
+          { "id": "WV03", "desc": "Uses green/teal accent color", "weight": 5 },
+          { "id": "WV04", "desc": "Has border/stroke on card elements", "weight": 3 },
+          { "id": "WV05", "desc": "Has shadow effects", "weight": 2 },
+          { "id": "WV06", "desc": "Connection status dot visible", "weight": 2 },
+          { "id": "WV07", "desc": "Step numbers styled as colored circles/badges", "weight": 3 }
+        ],
+        "typography": [
+          { "id": "WT01", "desc": "Uses DM Sans or similar sans-serif font", "weight": 2 },
+          { "id": "WT02", "desc": "Title has larger/bolder font than body", "weight": 2 },
+          { "id": "WT03", "desc": "Muted/secondary text uses lighter color", "weight": 2 },
+          { "id": "WT04", "desc": "Code block uses monospace font", "weight": 2 }
+        ]
+      }
+    },
+    "chat": {
+      "id": "jOuhy",
+      "name": "Chat State",
+      "file": "ChatScreen.tsx",
+      "dimensions": { "width": 400, "height": 780 },
+      "checks": {
+        "structural": [
+          { "id": "CS01", "desc": "Has TopBar with 'Claude Agent' and connected status", "weight": 7 },
+          { "id": "CS02", "desc": "Has scrollable chat area", "weight": 5 },
+          { "id": "CS03", "desc": "Has user message bubble with text 'What's on my current page?'", "weight": 6 },
+          { "id": "CS04", "desc": "Has agent response bubble with GitHub repo info", "weight": 6 },
+          { "id": "CS05", "desc": "Agent response contains code block with repo details", "weight": 5 },
+          { "id": "CS06", "desc": "Has second user message 'Summarize the README for me'", "weight": 4 },
+          { "id": "CS07", "desc": "Has typing indicator with animated dots", "weight": 5 },
+          { "id": "CS08", "desc": "Has bottom input bar with 'Type a message...' placeholder", "weight": 5 },
+          { "id": "CS09", "desc": "Has timestamps on messages", "weight": 3 },
+          { "id": "CS10", "desc": "Input bar has paperclip, camera, and send buttons", "weight": 4 }
+        ],
+        "layout": [
+          { "id": "CL01", "desc": "Root uses vertical flex/column layout", "weight": 4 },
+          { "id": "CL02", "desc": "Chat area takes remaining space (flex-1)", "weight": 5 },
+          { "id": "CL03", "desc": "User messages aligned to the right", "weight": 5 },
+          { "id": "CL04", "desc": "Agent messages aligned to the left", "weight": 4 },
+          { "id": "CL05", "desc": "Messages have vertical gap/spacing between them", "weight": 3 },
+          { "id": "CL06", "desc": "Input bar anchored to bottom", "weight": 4 }
+        ],
+        "visual": [
+          { "id": "CV01", "desc": "User bubbles use teal/dark-teal background (#0d3b3c)", "weight": 5 },
+          { "id": "CV02", "desc": "Agent bubbles use card background (#1e2538)", "weight": 4 },
+          { "id": "CV03", "desc": "Bubbles have rounded corners", "weight": 3 },
+          { "id": "CV04", "desc": "Agent bubbles have border", "weight": 3 },
+          { "id": "CV05", "desc": "Code block inside agent message has distinct background", "weight": 4 },
+          { "id": "CV06", "desc": "Typing indicator shows 3 dots", "weight": 3 },
+          { "id": "CV07", "desc": "Green connected status indicator", "weight": 2 }
+        ],
+        "typography": [
+          { "id": "CT01", "desc": "Uses DM Sans font", "weight": 2 },
+          { "id": "CT02", "desc": "Message text is 13px size", "weight": 2 },
+          { "id": "CT03", "desc": "Timestamps use smaller/muted text", "weight": 2 },
+          { "id": "CT04", "desc": "Code block uses monospace font", "weight": 2 }
+        ]
+      }
+    },
+    "settings": {
+      "id": "zNzqX",
+      "name": "Settings - General",
+      "file": "SettingsScreen.tsx",
+      "dimensions": { "width": 400, "height": 780 },
+      "checks": {
+        "structural": [
+          { "id": "SS01", "desc": "Has header with 'Settings' title and close (X) button", "weight": 6 },
+          { "id": "SS02", "desc": "Has tab bar with General, Agents, Permissions, Connection tabs", "weight": 7 },
+          { "id": "SS03", "desc": "General tab is visually active/selected", "weight": 4 },
+          { "id": "SS04", "desc": "Has Theme card with Dark, Light, System buttons", "weight": 7 },
+          { "id": "SS05", "desc": "System theme button is visually selected/active", "weight": 4 },
+          { "id": "SS06", "desc": "Has Agent Browser Context card with toggle switch", "weight": 6 },
+          { "id": "SS07", "desc": "Context description: 'Auto snapshot browser state before each prompt'", "weight": 3 },
+          { "id": "SS08", "desc": "Has About card with version 'v0.1.0'", "weight": 4 },
+          { "id": "SS09", "desc": "About has description text about Agent Communication Protocol", "weight": 3 },
+          { "id": "SS10", "desc": "Toggle switch is in ON state", "weight": 3 }
+        ],
+        "layout": [
+          { "id": "SL01", "desc": "Root uses vertical flex/column layout", "weight": 4 },
+          { "id": "SL02", "desc": "Header uses horizontal flex with space-between", "weight": 4 },
+          { "id": "SL03", "desc": "Tab bar uses horizontal layout", "weight": 4 },
+          { "id": "SL04", "desc": "Content area scrollable with vertical layout", "weight": 4 },
+          { "id": "SL05", "desc": "Cards stacked vertically with gap", "weight": 4 },
+          { "id": "SL06", "desc": "Theme buttons in horizontal row", "weight": 5 }
+        ],
+        "visual": [
+          { "id": "SV01", "desc": "Dark background", "weight": 4 },
+          { "id": "SV02", "desc": "Cards have distinct background with rounded corners (12px)", "weight": 4 },
+          { "id": "SV03", "desc": "Cards have border and shadow", "weight": 3 },
+          { "id": "SV04", "desc": "Active tab has accent-colored bottom border", "weight": 5 },
+          { "id": "SV05", "desc": "Active tab text uses accent color", "weight": 3 },
+          { "id": "SV06", "desc": "Toggle uses accent green color", "weight": 3 },
+          { "id": "SV07", "desc": "Header and tabs have bottom border separator", "weight": 2 }
+        ],
+        "typography": [
+          { "id": "ST01", "desc": "Uses DM Sans font", "weight": 2 },
+          { "id": "ST02", "desc": "Section titles (Theme, About) are semibold", "weight": 2 },
+          { "id": "ST03", "desc": "Description text uses secondary/muted color", "weight": 2 },
+          { "id": "ST04", "desc": "Tab labels are 12px", "weight": 2 }
+        ]
+      }
+    }
+  }
+}
