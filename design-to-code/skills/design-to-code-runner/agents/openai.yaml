@@ -1,0 +1,4 @@
+interface:
+  display_name: "Design to Code Runner"
+  short_description: "Run spec-first design-to-code tasks"
+  default_prompt: "Use $design-to-code-runner to execute a design-to-code task from repository specs and acceptance gates."

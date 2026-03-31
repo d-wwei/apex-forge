@@ -1,0 +1,61 @@
+{
+  "taskId": "replace-with-task-id",
+  "mappings": [
+    {
+      "specComponentId": "hero-title",
+      "repoTarget": {
+        "type": "existing-component|primitive|new-component",
+        "name": "replace-with-component-name-or-path"
+      },
+      "rationale": "Explain why this mapping preserves the design intent.",
+      "propsContract": {
+        "content": "replace-with-prop-or-composition-rule",
+        "semanticRole": "replace-with-prop-or-wrapper-rule",
+        "variant": "replace-with-prop-if-needed"
+      },
+      "wrappers": [
+        "replace-with-wrapper-or-layout-rule"
+      ],
+      "allowedSubstitutions": [],
+      "forbiddenSubstitutions": [
+        "Do not map to a visually similar but semantically different title component"
+      ]
+    },
+    {
+      "specComponentId": "hero-cta",
+      "repoTarget": {
+        "type": "existing-component|primitive|new-component",
+        "name": "replace-with-component-name-or-path"
+      },
+      "rationale": "Explain why this mapping preserves hierarchy, state behavior, and visual weight.",
+      "propsContract": {
+        "variant": "replace-with-variant",
+        "size": "replace-with-size",
+        "stateSupport": "default, hover, focus-visible, disabled"
+      },
+      "wrappers": [
+        "replace-with-wrapper-or-layout-rule"
+      ],
+      "allowedSubstitutions": [
+        "replace-only-if-approved-in-spec"
+      ],
+      "forbiddenSubstitutions": [
+        "Do not use a default library button if it changes visual priority or spacing"
+      ]
+    }
+  ],
+  "unmapped": [
+    {
+      "specComponentId": "replace-with-unmapped-id",
+      "reason": "replace-with-reason",
+      "proposedResolution": "replace-with-next-step"
+    }
+  ],
+  "repoGaps": [
+    {
+      "gap": "replace-with-gap",
+      "impact": "low|medium|high",
+      "workaround": "replace-with-workaround"
+    }
+  ]
+}

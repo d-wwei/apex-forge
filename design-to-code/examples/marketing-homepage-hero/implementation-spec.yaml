@@ -1,0 +1,260 @@
+meta:
+  task_id: "marketing-homepage-hero"
+  title: "Marketing homepage hero section"
+  status: "ready"
+  design_inputs:
+    - type: "screenshot"
+      path_or_ref: "provided-by-task-owner"
+    - type: "note"
+      path_or_ref: "Headline hierarchy and CTA prominence are non-negotiable"
+
+scope:
+  target: "homepage section"
+  in_scope:
+    - "hero layout"
+    - "hero copy block"
+    - "primary CTA"
+    - "secondary CTA"
+    - "supporting proof row"
+  out_of_scope:
+    - "full page navigation"
+    - "footer"
+    - "analytics integration"
+
+intent:
+  primary_user_goal: "Understand the product value quickly and take the primary action"
+  product_goal: "Drive high-intent visitors to start a trial or request a demo"
+  visual_character:
+    - "premium"
+    - "restrained"
+    - "confident"
+    - "clear"
+  non_negotiables:
+    - "Headline must feel noticeably stronger than body copy"
+    - "Primary CTA must read as the clear visual action"
+    - "Spacing must preserve premium breathing room"
+    - "Proof row must feel supportive, not louder than the main message"
+
+structure:
+  semantic_landmarks:
+    - "main"
+  sections:
+    - id: "hero"
+      role: "hero"
+      purpose: "Introduce value proposition and primary action"
+      priority: "high"
+      children:
+        - "hero-eyebrow"
+        - "hero-title"
+        - "hero-body"
+        - "hero-primary-cta"
+        - "hero-secondary-cta"
+        - "hero-proof-row"
+
+components:
+  - id: "hero-eyebrow"
+    section_id: "hero"
+    semantic_role: "eyebrow"
+    element: "p"
+    content_source: "Short category or trust cue"
+    design_requirements:
+      typography_role: "label.sm"
+      color_role: "accent.subtle"
+      spacing_role: "space.12"
+    states:
+      - "default"
+    implementation_boundary:
+      expected_kind: "primitive"
+      notes: "Keep simple; do not over-componentize"
+    forbidden_substitutions:
+      - "Do not style like a badge unless the design explicitly uses a badge"
+
+  - id: "hero-title"
+    section_id: "hero"
+    semantic_role: "heading"
+    element: "h1"
+    content_source: "Main value proposition headline"
+    design_requirements:
+      typography_role: "display.hero"
+      color_role: "text.primary"
+      spacing_role: "space.20"
+    states:
+      - "default"
+    implementation_boundary:
+      expected_kind: "primitive"
+      notes: "Use semantic h1 and preserve multi-line balance"
+    forbidden_substitutions:
+      - "Do not reduce this to a generic section title style"
+
+  - id: "hero-body"
+    section_id: "hero"
+    semantic_role: "supporting-copy"
+    element: "p"
+    content_source: "Supporting value proposition paragraph"
+    design_requirements:
+      typography_role: "body.lg"
+      color_role: "text.secondary"
+      spacing_role: "space.28"
+    states:
+      - "default"
+    implementation_boundary:
+      expected_kind: "primitive"
+      notes: "Readable line length matters more than maximal width"
+    forbidden_substitutions:
+      - "Do not collapse line-height to standard paragraph defaults if it weakens readability"
+
+  - id: "hero-primary-cta"
+    section_id: "hero"
+    semantic_role: "primary-action"
+    element: "button"
+    content_source: "Start free trial"
+    design_requirements:
+      typography_role: "label.lg"
+      color_role: "action.primary"
+      radius_role: "radius.pill"
+      shadow_role: "shadow.action"
+      spacing_role: "space.16"
+    states:
+      - "default"
+      - "hover"
+      - "focus-visible"
+      - "disabled"
+    implementation_boundary:
+      expected_kind: "existing-component"
+      notes: "Use existing button only if visual priority can be matched"
+    forbidden_substitutions:
+      - "Do not use the default library button if it weakens size, weight, or prominence"
+
+  - id: "hero-secondary-cta"
+    section_id: "hero"
+    semantic_role: "secondary-action"
+    element: "a"
+    content_source: "View live demo"
+    design_requirements:
+      typography_role: "label.lg"
+      color_role: "text.primary"
+      spacing_role: "space.16"
+    states:
+      - "default"
+      - "hover"
+      - "focus-visible"
+    implementation_boundary:
+      expected_kind: "existing-component|primitive"
+      notes: "May use link-style action if emphasis stays secondary"
+    forbidden_substitutions:
+      - "Do not make this equal in visual weight to the primary CTA"
+
+  - id: "hero-proof-row"
+    section_id: "hero"
+    semantic_role: "proof"
+    element: "ul"
+    content_source: "Three concise trust statements"
+    design_requirements:
+      typography_role: "label.md"
+      color_role: "text.muted"
+      spacing_role: "space.24"
+    states:
+      - "default"
+    implementation_boundary:
+      expected_kind: "primitive|existing-component"
+      notes: "Keep understated and horizontally scannable on desktop"
+    forbidden_substitutions:
+      - "Do not convert this into loud logo wall styling if the design uses quiet text proof"
+
+tokens:
+  color_roles:
+    text.primary: "var(--text-primary)"
+    text.secondary: "var(--text-secondary)"
+    text.muted: "var(--text-muted)"
+    accent.subtle: "var(--accent-subtle)"
+    action.primary: "var(--action-primary)"
+  spacing_roles:
+    space.12: "12px"
+    space.16: "16px"
+    space.20: "20px"
+    space.24: "24px"
+    space.28: "28px"
+  radius_roles:
+    radius.pill: "999px"
+  typography_roles:
+    display.hero:
+      font_family: "var(--font-display)"
+      font_size: "clamp(2.75rem, 5vw, 4.5rem)"
+      line_height: "0.98"
+      font_weight: 650
+    body.lg:
+      font_family: "var(--font-body)"
+      font_size: "1.125rem"
+      line_height: "1.6"
+      font_weight: 400
+    label.lg:
+      font_family: "var(--font-body)"
+      font_size: "1rem"
+      line_height: "1.25"
+      font_weight: 600
+    label.md:
+      font_family: "var(--font-body)"
+      font_size: "0.95rem"
+      line_height: "1.3"
+      font_weight: 500
+    label.sm:
+      font_family: "var(--font-body)"
+      font_size: "0.8rem"
+      line_height: "1.2"
+      font_weight: 600
+  shadow_roles:
+    shadow.action: "0 12px 30px rgba(0,0,0,0.12)"
+
+responsive:
+  breakpoints:
+    mobile: "0-767"
+    tablet: "768-1023"
+    desktop: "1024+"
+  rules:
+    - target: "hero"
+      behavior: "Stack content vertically on mobile with generous vertical spacing"
+    - target: "hero-title"
+      behavior: "Preserve balanced line breaks; do not allow overly long line length on desktop"
+    - target: "hero-proof-row"
+      behavior: "Use vertical list on small screens and horizontal row on desktop"
+
+interaction:
+  required_states:
+    - component_id: "hero-primary-cta"
+      states:
+        - "default"
+        - "hover"
+        - "focus-visible"
+        - "disabled"
+    - component_id: "hero-secondary-cta"
+      states:
+        - "default"
+        - "hover"
+        - "focus-visible"
+  motion_notes:
+    - "CTA hover should feel intentional and subtle, not bouncy or playful"
+
+acceptance:
+  structural_checks:
+    - "Hero copy order matches spec"
+    - "CTA grouping remains visually clear"
+  visual_checks:
+    - "Headline hierarchy is immediately stronger than supporting copy"
+    - "Primary CTA is clearly dominant over secondary CTA"
+    - "Spacing preserves a premium, breathable layout"
+  interaction_checks:
+    - "All listed CTA states are implemented"
+  responsive_checks:
+    - "Hero remains legible and intentional on mobile and desktop"
+
+open_questions:
+  - id: "Q1"
+    question: "Should the hero include product UI imagery or remain text-led only?"
+    impact: "medium"
+    proposed_resolution: "Keep the spec text-led unless the task owner provides approved media"
+
+assumptions:
+  - id: "A1"
+    statement: "The product repo already has tokens for text, action, and spacing roles"
+    risk: "medium"
+    fallback: "Implement with local CSS variables and document token gaps"
