@@ -1233,7 +1233,11 @@ html, body {
   transition: border-color 0.15s ease;
 }
 .project-card:hover { border-color: rgba(223,226,235,0.15); }
-.project-card.active-project { border-color: rgba(240,192,64,0.3); }
+.project-card.active-project {
+  border-color: rgba(240,192,64,0.3);
+  border-left: 3px solid #f0c040;
+  box-shadow: 0 0 20px rgba(240,192,64,0.08);
+}
 .project-card.archived { opacity: 0.6; }
 .project-card-header {
   display: flex;
