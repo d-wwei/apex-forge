@@ -1109,7 +1109,7 @@ html, body {
 .home-hero-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(to bottom, transparent 50%, #10141a 100%);
+  background: linear-gradient(to bottom, transparent 65%, #10141a 100%);
 }
 .home-hero-topbar {
   position: absolute;
