@@ -665,7 +665,7 @@ html, body {
 }
 
 /* --- Activity Stream --- */
-.activity-panel { height: 400px; overflow: hidden; display: flex; flex-direction: column; }
+.activity-panel { min-height: 320px; max-height: 400px; overflow: hidden; display: flex; flex-direction: column; }
 
 .activity-panel .panel-body {
   flex: 1;
@@ -726,7 +726,7 @@ html, body {
 }
 
 /* --- Cognitive Memory --- */
-.memory-panel { height: 400px; overflow: hidden; display: flex; flex-direction: column; }
+.memory-panel { min-height: 320px; max-height: 400px; overflow: hidden; display: flex; flex-direction: column; }
 
 .memory-panel .panel-body {
   flex: 1;
@@ -1148,7 +1148,7 @@ html, body {
 }
 
 /* --- 3. Home Content --- */
-.home-content { padding: 0 0 40px 0; }
+.home-content { padding: 0 0 40px 0; background: var(--bg-main); }
 .home-header {
   display: flex;
   align-items: flex-start;
