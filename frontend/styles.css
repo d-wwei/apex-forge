@@ -1212,8 +1212,8 @@ html, body {
 }
 
 .home-grid {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 20px;
   padding: 24px 40px 0 40px;
 }
@@ -1223,14 +1223,12 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  width: 440px;
   padding: 20px;
   background: #181c22;
   border: 1px solid rgba(223,226,235,0.08);
-  border-radius: 12px;
+  border-radius: 10px;
   cursor: pointer;
   transition: border-color 0.15s ease;
-  flex-shrink: 0;
 }
 .project-card:hover { border-color: rgba(223,226,235,0.15); }
 .project-card.active-project { border-color: rgba(240,192,64,0.3); }
