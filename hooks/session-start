@@ -182,14 +182,58 @@ for docs_dir in "docs" "${PLUGIN_ROOT}/docs"; do
 done
 
 # ---------------------------------------------------------------------------
-# 4. Assemble final context
+# 4. Scan for unverified / claimed tasks (HARD GATE WARNING)
 # ---------------------------------------------------------------------------
-full_context="${CORE_PROTOCOL}${state_context}${artifact_scan}\n\n</apex-protocol>"
+verification_warnings=""
+for tasks_file in ".apex/tasks.json" "${PLUGIN_ROOT}/.apex/tasks.json"; do
+    if [ -f "$tasks_file" ]; then
+        verification_warnings=$(python3 -c "
+import json, sys
+
+with open(sys.argv[1]) as f:
+    data = json.load(f)
+
+warnings = []
+for t in data.get('tasks', []):
+    status = t.get('status', '')
+    verified_by = t.get('verified_by')
+    verify_cmd = t.get('verify_cmd', '')
+
+    # Flag 1: Task marked done but verified_by is 'claimed' (not machine-verified)
+    if status == 'done' and verified_by == 'claimed':
+        warnings.append(f'⚠ {t[\"id\"]}: \"{t[\"title\"]}\" — CLAIMED done, NOT machine-verified. Re-run: apex task verify {t[\"id\"]}')
+
+    # Flag 2: Task marked done but has no verified_by at all (legacy or bypassed)
+    elif status == 'done' and verified_by is None and verify_cmd:
+        warnings.append(f'⚠ {t[\"id\"]}: \"{t[\"title\"]}\" — done without verification record. Has verify_cmd but never ran it.')
+
+    # Flag 3: Task marked done but has no verify_cmd (pre-hard-gate task)
+    elif status == 'done' and not verify_cmd:
+        warnings.append(f'ℹ {t[\"id\"]}: \"{t[\"title\"]}\" — legacy task, no verify_cmd defined.')
+
+if warnings:
+    print('### ⚠ Verification Warnings')
+    print('The following tasks need attention — they were NOT machine-verified:')
+    for w in warnings:
+        print(f'- {w}')
+    print()
+    print('Run \`apex task verify TASK_ID\` to machine-verify, or investigate before trusting these as done.')
+" "$tasks_file" 2>/dev/null || true)
+        break
+    fi
+done
+
+# ---------------------------------------------------------------------------
+# 5. Assemble final context
+# ---------------------------------------------------------------------------
+full_context="${CORE_PROTOCOL}${state_context}${artifact_scan}"
+[ -n "$verification_warnings" ] && full_context="${full_context}\n\n${verification_warnings}"
+full_context="${full_context}\n\n</apex-protocol>"
 
 session_context=$(escape_for_json "$full_context")
 
 # ---------------------------------------------------------------------------
-# 5. Output JSON — platform-aware (Claude Code vs Cursor)
+# 6. Output JSON — platform-aware (Claude Code vs Cursor)
 # ---------------------------------------------------------------------------
 # Uses printf instead of heredoc to avoid bash 5.3+ heredoc expansion hang.
 if [ -n "${CURSOR_PLUGIN_ROOT:-}" ]; then

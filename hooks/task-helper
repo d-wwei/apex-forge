@@ -58,21 +58,44 @@ _apex_ensure_tasks() {
 # ---------------------------------------------------------------------------
 
 # Create a new task
-# Usage: apex_task_create TITLE DESCRIPTION [DEPENDS_ON_IDS...]
+# Usage: apex_task_create TITLE DESCRIPTION --verify COMMAND [DEPENDS_ON_IDS...]
+# The --verify flag is REQUIRED. Tasks without a machine-verifiable command cannot be created.
 apex_task_create() {
-    local title="${1:?Usage: apex_task_create TITLE DESCRIPTION [DEPENDS_ON_IDS...]}"
-    local description="${2:?Usage: apex_task_create TITLE DESCRIPTION [DEPENDS_ON_IDS...]}"
+    local title="${1:?Usage: apex_task_create TITLE DESCRIPTION --verify COMMAND [DEP_IDS...]}"
+    local description="${2:?Usage: apex_task_create TITLE DESCRIPTION --verify COMMAND [DEP_IDS...]}"
     shift 2
     _apex_ensure_tasks
 
-    # Collect remaining args as dependency IDs
+    # Parse --verify flag (REQUIRED)
+    local verify_cmd=""
+    local deps_args=()
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --verify)
+                verify_cmd="${2:?--verify requires a command}"
+                shift 2
+                ;;
+            *)
+                deps_args+=("$1")
+                shift
+                ;;
+        esac
+    done
+
+    if [ -z "$verify_cmd" ]; then
+        echo "Error: --verify COMMAND is required. Every task must have a machine-verifiable completion check." >&2
+        echo "Example: apex_task_create \"Fix auth\" \"JWT expired\" --verify \"bun test src/auth.test.ts\"" >&2
+        return 1
+    fi
+
+    # Collect dependency IDs
     local deps_json="[]"
-    if [ $# -gt 0 ]; then
+    if [ ${#deps_args[@]} -gt 0 ]; then
         deps_json=$(python3 -c "
 import json, sys
 deps = sys.argv[1:]
 print(json.dumps(deps))
-" "$@")
+" "${deps_args[@]}")
     fi
 
     local now
@@ -84,8 +107,9 @@ import json, sys
 tasks_file = sys.argv[1]
 title = sys.argv[2]
 description = sys.argv[3]
-deps = json.loads(sys.argv[4])
-now = sys.argv[5]
+verify_cmd = sys.argv[4]
+deps = json.loads(sys.argv[5])
+now = sys.argv[6]
 
 with open(tasks_file) as f:
     data = json.load(f)
@@ -98,6 +122,8 @@ task = {
     'title': title,
     'description': description,
     'status': 'open',
+    'verify_cmd': verify_cmd,
+    'verified_by': None,
     'depends_on': deps,
     'blocked_by': [],
     'evidence': [],
@@ -122,9 +148,10 @@ with open(tasks_file, 'w') as f:
     json.dump(data, f, indent=2)
 
 print(f'Created task {task_id}: {title}')
+print(f'  verify_cmd: {verify_cmd}')
 for w in warnings:
     print(w)
-" "$_apex_tasks_file" "$title" "$description" "$deps_json" "$now"
+" "$_apex_tasks_file" "$title" "$description" "$verify_cmd" "$deps_json" "$now"
 }
 
 # Assign a task (open -> assigned)
@@ -259,53 +286,135 @@ print(f'{task_id}: in_progress -> to_verify (evidence recorded)')
 " "$_apex_tasks_file" "$task_id" "$evidence" "$now"
 }
 
-# Verify a task (to_verify -> done or to_verify -> in_progress)
-# Usage: apex_task_verify TASK_ID [pass|fail]
+# Verify a task by AUTOMATICALLY running its verify_cmd.
+# Manual pass/fail is NOT allowed — the machine decides.
+#
+# Usage: apex_task_verify TASK_ID [--force-claim REASON]
+#
+# Normal mode:   Runs verify_cmd, exit 0 = PASS, else FAIL.
+#                Records verified_by: "auto"
+# Force-claim:   Only for tasks where verify_cmd cannot be automated
+#                (e.g. visual review). Records verified_by: "claimed"
+#                and the reason. These will be flagged in session-start.
 apex_task_verify() {
-    local task_id="${1:?Usage: apex_task_verify TASK_ID [pass|fail]}"
-    local result="${2:-pass}"
+    local task_id="${1:?Usage: apex_task_verify TASK_ID [--force-claim REASON]}"
+    shift
     _apex_ensure_tasks
+
+    local force_claim=""
+    if [ "${1:-}" = "--force-claim" ]; then
+        force_claim="${2:?--force-claim requires a REASON}"
+    fi
 
     local now
     now=$(_apex_iso_timestamp)
 
+    # Step 1: Read task and get verify_cmd
+    local verify_cmd
+    verify_cmd=$(python3 -c "
+import json, sys
+tasks_file = sys.argv[1]
+task_id = sys.argv[2]
+with open(tasks_file) as f:
+    data = json.load(f)
+task = next((t for t in data['tasks'] if t['id'] == task_id), None)
+if not task:
+    print('ERROR:not_found', file=sys.stderr)
+    sys.exit(1)
+if task['status'] != 'to_verify':
+    print(f'ERROR:bad_status:{task[\"status\"]}', file=sys.stderr)
+    sys.exit(1)
+print(task.get('verify_cmd', ''))
+" "$_apex_tasks_file" "$task_id" 2>&1)
+
+    # Handle errors from python
+    if echo "$verify_cmd" | grep -q "^ERROR:not_found"; then
+        echo "Error: task ${task_id} not found" >&2
+        return 1
+    fi
+    if echo "$verify_cmd" | grep -q "^ERROR:bad_status:"; then
+        local actual_status
+        actual_status=$(echo "$verify_cmd" | sed 's/ERROR:bad_status://')
+        echo "Error: cannot verify ${task_id} — status is \"${actual_status}\" (must be \"to_verify\")" >&2
+        return 1
+    fi
+
+    # Step 2: Execute verification
+    local result="fail"
+    local verified_by="auto"
+    local verify_output=""
+
+    if [ -n "$force_claim" ]; then
+        # Force-claim mode: agent claims pass without machine verification
+        result="pass"
+        verified_by="claimed"
+        verify_output="CLAIMED: ${force_claim}"
+        echo "WARNING: Task ${task_id} marked as CLAIMED (not machine-verified)."
+        echo "  Reason: ${force_claim}"
+        echo "  This task will be flagged in future sessions."
+    elif [ -z "$verify_cmd" ]; then
+        echo "Error: task ${task_id} has no verify_cmd. Cannot auto-verify." >&2
+        echo "  If this task requires manual verification, use: apex_task_verify ${task_id} --force-claim \"reason\"" >&2
+        return 1
+    else
+        # Auto mode: run the verify_cmd and check exit code
+        echo "Running verification for ${task_id}:"
+        echo "  $ ${verify_cmd}"
+        echo "  ---"
+
+        # Run verify_cmd, capture output and exit code separately
+        local exit_code=0
+        verify_output=$(eval "$verify_cmd" 2>&1) || exit_code=$?
+
+        echo "$verify_output"
+        echo "  ---"
+
+        if [ "$exit_code" -eq 0 ]; then
+            result="pass"
+            echo "  EXIT CODE: 0 → PASS ✓"
+        else
+            result="fail"
+            echo "  EXIT CODE: ${exit_code} → FAIL ✗"
+        fi
+        verified_by="auto"
+    fi
+
+    # Step 3: Update task state
     python3 -c "
 import json, sys
 
 tasks_file = sys.argv[1]
 task_id = sys.argv[2]
 result = sys.argv[3]
-now = sys.argv[4]
-
-if result not in ('pass', 'fail'):
-    print(f'Error: result must be \"pass\" or \"fail\", got \"{result}\"', file=sys.stderr)
-    sys.exit(1)
+verified_by = sys.argv[4]
+verify_output = sys.argv[5]
+now = sys.argv[6]
 
 with open(tasks_file) as f:
     data = json.load(f)
 
 task = next((t for t in data['tasks'] if t['id'] == task_id), None)
-if not task:
-    print(f'Error: task {task_id} not found', file=sys.stderr)
-    sys.exit(1)
-
-if task['status'] != 'to_verify':
-    print(f'Error: cannot verify {task_id} — status is \"{task[\"status\"]}\" (must be \"to_verify\")', file=sys.stderr)
-    sys.exit(1)
 
 if result == 'pass':
     task['status'] = 'done'
     task['completed_at'] = now
-    print(f'{task_id}: to_verify -> done (verified)')
+    task['verified_by'] = verified_by
+    task['verify_output'] = verify_output[-500:] if len(verify_output) > 500 else verify_output
 else:
     task['status'] = 'in_progress'
-    print(f'{task_id}: to_verify -> in_progress (verification failed, rework needed)')
+    task['verified_by'] = None
+    task['verify_output'] = verify_output[-500:] if len(verify_output) > 500 else verify_output
 
 task['updated_at'] = now
 
 with open(tasks_file, 'w') as f:
     json.dump(data, f, indent=2)
-" "$_apex_tasks_file" "$task_id" "$result" "$now"
+
+if result == 'pass':
+    print(f'{task_id}: to_verify -> done (verified_by: {verified_by})')
+else:
+    print(f'{task_id}: to_verify -> in_progress (verification FAILED, rework needed)')
+" "$_apex_tasks_file" "$task_id" "$result" "$verified_by" "$verify_output" "$now"
 }
 
 # Block a task (any -> blocked)
