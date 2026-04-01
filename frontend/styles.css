@@ -909,6 +909,24 @@ html, body {
 
 .variant-expand-btn:hover { border-color: var(--accent-gold); }
 
+/* Variant number overlay */
+.variant-gallery { counter-reset: variant-counter; }
+.variant-card { counter-increment: variant-counter; }
+.variant-number {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 48px;
+  color: rgba(255,255,255,0.15);
+  letter-spacing: 4px;
+  z-index: 1;
+  pointer-events: none;
+}
+.variant-number::before { content: "0" counter(variant-counter); }
+
 .variant-info {
   background: var(--bg-card);
   padding: 24px;
