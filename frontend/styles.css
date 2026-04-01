@@ -1101,6 +1101,50 @@ html, body {
 #view-project.active { flex-direction: row; }
 
 /* --- 2. Home Hero Section --- */
+/* Sticky Nav Bar */
+.home-sticky-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 28px;
+  background: rgba(10, 14, 20, 0.95);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(78, 70, 53, 0.1);
+  transform: translateY(-100%);
+  transition: transform 0.3s ease;
+}
+.home-sticky-nav.visible { transform: translateY(0); }
+.sticky-nav-left { display: flex; align-items: center; gap: 10px; }
+.sticky-nav-af {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--accent-gold);
+  background: rgba(240, 192, 64, 0.1);
+  padding: 4px 8px;
+  border-radius: 4px;
+  letter-spacing: 1px;
+}
+.sticky-nav-brand {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text-primary);
+  letter-spacing: 2px;
+}
+.sticky-nav-right { display: flex; align-items: center; gap: 8px; }
+.sticky-nav-status {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 1px;
+}
+
 .home-hero {
   position: relative;
   width: 100%;
