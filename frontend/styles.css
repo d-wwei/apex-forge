@@ -162,8 +162,8 @@ html, body {
 .project-sidebar:hover .sidebar-hub-link span,
 .project-sidebar:hover .sidebar-hub-link { opacity: 1; }
 
-/* Offset main content for sidebar */
-.main-wrapper { margin-left: 52px; }
+/* Offset main content for old layout sidebar — overridden in app-view system */
+/* .main-wrapper { margin-left: 52px; } — disabled: new view system uses flexbox */
 
 /* --- Header / TopAppBar --- */
 .header {
@@ -1559,3 +1559,4 @@ html, body {
 #view-project .header,
 #view-project .nav-tabs { display: none; }
 #view-project .main-content { padding-top: 24px; }
+#view-project .main-wrapper { margin-left: 0; }
