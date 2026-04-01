@@ -373,13 +373,5 @@ document.addEventListener('DOMContentLoaded', () => {
   // Load sidebar for project view
   renderSidebar(DEMO_PROJECTS);
 
-  // Sticky nav on scroll for Home view
-  const stickyNav = document.getElementById('home-sticky-nav');
-  const hero = document.querySelector('.home-hero');
-  if (stickyNav && hero) {
-    window.addEventListener('scroll', () => {
-      const heroBottom = hero.getBoundingClientRect().bottom;
-      stickyNav.classList.toggle('visible', heroBottom < 0);
-    });
-  }
+  // Sticky nav handled by CSS position: sticky — no JS needed
 });
