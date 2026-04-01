@@ -9,47 +9,109 @@
 <body>
 <div class="app">
 
-  <!-- Project Sidebar -->
-  <aside class="project-sidebar" id="project-sidebar">
-    <div class="sidebar-header">
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="8" y="1" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="1" y="8" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="8" y="8" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/></svg>
-      <span>PROJECTS</span>
-    </div>
-    <div class="sidebar-list" id="sidebar-list">
-      <div class="sidebar-empty">Loading...</div>
-    </div>
-    <a class="sidebar-hub-link" id="sidebar-hub-link" href="http://localhost:3456" target="_blank">
-      <svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" stroke="currentColor" stroke-width="1" fill="none"/><path d="M2 5h6M5 2v6" stroke="currentColor" stroke-width="0.8"/></svg>
-      HUB
-    </a>
-  </aside>
+  <!-- ================================================================
+       HOME VIEW — Project List Landing Page
+       ================================================================ -->
+  <div id="view-home" class="app-view active">
 
-  <!-- Main wrapper (header + content) -->
-  <div class="main-wrapper">
-
-  <!-- Header -->
-  <header class="header">
-    <div class="header-brand">
-      <h1>APEX FORGE</h1>
-      <span class="header-project" id="header-project">PROJECT: ---</span>
+    <!-- Hero Section -->
+    <div class="home-hero">
+      <div class="home-hero-topbar">
+        <div></div>
+        <div class="home-hero-status">
+          <span class="status-dot"></span>
+          <span class="home-hero-status-text">CONNECTED</span>
+          <div class="home-hero-avatar">E</div>
+        </div>
+      </div>
+      <div class="home-hero-overlay">
+        <div class="home-hero-logo">
+          <img src="/hd_logo_AF.png" alt="APEX FORGE" class="hero-logo-img">
+          <span class="hero-brand">APEX FORGE</span>
+        </div>
+      </div>
     </div>
-    <div class="header-divider"></div>
-    <div class="header-status">
-      <span class="status-dot"></span>
-      <span class="status-text" id="header-status">CONNECTED | ORCHESTRATION_LAYER | --</span>
-    </div>
-  </header>
 
-  <!-- Navigation Tabs -->
-  <nav class="nav-tabs">
-    <button class="nav-tab active" data-view="dashboard">Dashboard</button>
-    <button class="nav-tab" data-view="comparison">Design Comparison</button>
-  </nav>
+    <!-- Project List Content -->
+    <div class="home-content">
+      <div class="home-header">
+        <div class="home-header-left">
+          <h2 class="home-title">YOUR PROJECTS</h2>
+          <span class="home-subtitle" id="home-subtitle">6 projects &middot; 4 active &middot; 2 archived</span>
+        </div>
+        <button class="home-new-btn" id="home-new-btn">+ NEW PROJECT</button>
+      </div>
+
+      <div class="home-search">
+        <div class="home-search-input">
+          <span class="home-search-placeholder">Search projects...</span>
+        </div>
+        <div class="home-filter-btn">Status: All</div>
+        <div class="home-filter-btn">Sort: Recent</div>
+      </div>
+
+      <div class="home-grid" id="project-grid">
+        <!-- Project cards rendered by JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================
+       PROJECT VIEW — Sidebar + Dashboard/Comparison
+       ================================================================ -->
+  <div id="view-project" class="app-view">
+
+    <!-- Enhanced Project Sidebar -->
+    <aside class="project-sidebar" id="project-sidebar">
+      <div class="sidebar-logo" id="sidebar-logo">
+        <span class="sidebar-af">AF</span>
+        <span class="sidebar-brand">APEX FORGE</span>
+      </div>
+      <div class="sidebar-search-wrap">
+        <div class="sidebar-search-box">
+          <span class="sidebar-search-text">Search projects...</span>
+        </div>
+      </div>
+      <div class="sidebar-section-label">PROJECTS</div>
+      <div class="sidebar-list" id="sidebar-list">
+        <!-- Project items rendered by JS -->
+      </div>
+      <div class="sidebar-archived-label">ARCHIVED</div>
+      <div class="sidebar-archived-list" id="sidebar-archived-list">
+        <!-- Archived items rendered by JS -->
+      </div>
+      <div class="sidebar-bottom">
+        <button class="sidebar-toggle-btn" id="sidebar-toggle-btn" title="Toggle sidebar">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8L10 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Wrapper -->
+    <div class="main-wrapper">
+
+      <!-- Project Top Bar -->
+      <div class="project-top-bar">
+        <div class="top-bar-left">
+          <span class="top-bar-project" id="top-bar-project">PROJECT: APEX_FORGE_V4</span>
+          <div class="top-bar-status">
+            <span class="status-dot"></span>
+            <span class="top-bar-status-text">CONNECTED</span>
+          </div>
+        </div>
+        <span class="top-bar-time" id="top-bar-time">2026-03-31 14:38:00</span>
+      </div>
+
+      <!-- Sub-Tab Navigation -->
+      <nav class="sub-tabs">
+        <button class="sub-tab active" data-view="dashboard">DASHBOARD</button>
+        <button class="sub-tab" data-view="comparison">DESIGN COMPARISON</button>
+      </nav>
 
   <!-- ================================================================
        VIEW 1: DASHBOARD
        ================================================================ -->
-  <div id="view-dashboard" class="view active">
+  <div id="view-dashboard" class="sub-view active">
     <div class="main-content">
 
       <!-- Kanban Board Section -->
@@ -181,7 +243,7 @@
   <!-- ================================================================
        VIEW 2: DESIGN COMPARISON
        ================================================================ -->
-  <div id="view-comparison" class="view">
+  <div id="view-comparison" class="sub-view">
     <div class="main-content">
 
       <div class="comparison-header">
@@ -266,7 +328,9 @@
     </div>
   </div>
 
-  </div><!-- /main-wrapper -->
+    </div><!-- /main-wrapper -->
+  </div><!-- /view-project -->
+
 </div>
 
 <script src="/app.js"></script>
