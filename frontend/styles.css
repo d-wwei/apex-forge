@@ -661,6 +661,13 @@ html, body {
   height: 100%;
   background: var(--accent-gold-light);
   border-radius: 12px;
+}
+.skill-bar-row:nth-child(1) .skill-bar-fill { background: var(--accent-gold); }
+.skill-bar-row:nth-child(2) .skill-bar-fill { background: var(--accent-blue); }
+.skill-bar-row:nth-child(3) .skill-bar-fill { background: var(--accent-green); }
+.skill-bar-row:nth-child(1) .skill-bar-count { color: var(--accent-gold); }
+.skill-bar-row:nth-child(2) .skill-bar-count { color: var(--accent-blue); }
+.skill-bar-row:nth-child(3) .skill-bar-count { color: var(--accent-green);
   transition: width 0.3s ease;
 }
 
