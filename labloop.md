@@ -50,7 +50,7 @@ echo "server_ready: true"
 
 #### 评估流程（每轮实验）
 
-1. **获取设计截图**：使用 `mcp__paper__get_screenshot` 截取 Paper MCP 中的设计 artboard
+1. **获取设计参考**：读取 `front-end design/gold version/final/` 中的 PNG 设计稿
 2. **获取前端截图**：使用 `mcp__macos-desktop-control__screenshot` 截取浏览器中 `http://localhost:8765` 的页面
 3. **视觉对比打分**（0-100）：
 
@@ -83,8 +83,8 @@ echo "server_ready: true"
 - 不能修改 Editable 之外的任何文件
 - 前端必须保持纯静态（HTML/CSS/JS），不引入框架
 - 每次修改必须保持现有功能完整（SSE 连接、项目列表、侧边栏切换、Dashboard 等）
-- Paper MCP 实时设计文件为 ground truth（唯一权威设计源）
-- `front-end design/` 中的 PNG 仅作为辅助参考，不作为评分标准
+- `front-end design/gold version/final/` 中的 PNG 为 ground truth（唯一权威设计源）
+- Paper MCP 工具可用于获取精确设计参数，但以 PNG 效果图为最终标准
 - 每次实验只改一个方面（隔离变量），不要同时改 5 个东西
 
 ## Research Hints
