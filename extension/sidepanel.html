@@ -1,42 +1,208 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, system-ui, sans-serif; font-size: 13px; background: #1a1a2e; color: #e0e0e0; }
-    .tabs { display: flex; border-bottom: 1px solid #333; }
-    .tab { flex: 1; padding: 8px; text-align: center; cursor: pointer; color: #888; }
-    .tab.active { color: #f0c040; border-bottom: 2px solid #f0c040; }
-    .panel { display: none; padding: 8px; overflow-y: auto; height: calc(100vh - 80px); }
-    .panel.active { display: block; }
-    .event { padding: 6px 8px; border-bottom: 1px solid #222; font-family: monospace; font-size: 11px; }
-    .event .cmd { color: #4fc3f7; }
-    .event .time { color: #888; font-size: 10px; }
-    .event .ok { color: #66bb6a; }
-    .event .err { color: #ef5350; }
-    .event .dur { color: #ffd54f; }
-    .status { padding: 8px; text-align: center; font-size: 11px; }
-    .status .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
-    .dot.connected { background: #66bb6a; }
-    .dot.disconnected { background: #ef5350; }
-    .ref-list { font-family: monospace; font-size: 11px; }
-    .ref-item { padding: 4px 8px; border-bottom: 1px solid #222; }
-    .ref-id { color: #f0c040; }
-    .ref-role { color: #4fc3f7; }
-  </style>
+<meta charset="utf-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@700&family=Inter:wght@400;600&family=Fira+Code:wght@400;500&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg-main: #10141a;
+    --bg-card: #181c22;
+    --bg-deep: #0a0e14;
+    --bg-tag: #31353c;
+    --text-primary: #dfe2eb;
+    --text-secondary: rgba(223,226,235,0.6);
+    --text-muted: rgba(223,226,235,0.4);
+    --accent-gold: #f0c040;
+    --accent-gold-light: #ffdf96;
+    --accent-blue: #a2c9ff;
+    --accent-green: #22c55e;
+    --accent-red: #ffb4ab;
+    --border-main: rgba(78,70,53,0.1);
+    --border-light: rgba(78,70,53,0.2);
+    --font-heading: 'Space Grotesk', sans-serif;
+    --font-body: 'Inter', system-ui, sans-serif;
+    --font-mono: 'Fira Code', monospace;
+  }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    width: 350px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Header */
+  .header {
+    padding: 16px;
+    border-bottom: 1px solid var(--border-main);
+  }
+  .header-brand {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--accent-gold);
+    letter-spacing: -0.5px;
+  }
+  .header-status {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent-green);
+    animation: pulse 2s infinite;
+  }
+  .status-dot.disconnected { background: var(--accent-red); animation: none; }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border-main);
+  }
+  .tab {
+    flex: 1;
+    padding: 12px;
+    text-align: center;
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--text-muted);
+    cursor: pointer;
+    border: none;
+    background: none;
+    border-bottom: 2px solid transparent;
+    transition: color 0.2s, border-color 0.2s;
+  }
+  .tab:hover { color: var(--text-secondary); }
+  .tab.active {
+    color: var(--accent-gold-light);
+    border-bottom-color: var(--accent-gold);
+  }
+
+  /* Content */
+  .panel { display: none; flex: 1; overflow-y: auto; }
+  .panel.active { display: block; }
+  .panel::-webkit-scrollbar { width: 4px; }
+  .panel::-webkit-scrollbar-track { background: var(--bg-card); }
+  .panel::-webkit-scrollbar-thumb { background: var(--bg-tag); border-radius: 2px; }
+
+  /* Log Entry */
+  .log-entry {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border-main);
+  }
+  .log-entry.error { background: rgba(255,180,171,0.03); }
+
+  .log-entry-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .log-entry-time {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+  .log-entry-status {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .log-entry-status.ok { color: var(--accent-green); }
+  .log-entry-status.err { color: var(--accent-red); }
+
+  .log-entry-detail {
+    margin-top: 4px;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .log-entry-skill {
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--text-primary);
+  }
+  .log-entry-target {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+
+  /* Refs panel */
+  .ref-item {
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border-main);
+    font-family: var(--font-mono);
+    font-size: 11px;
+  }
+  .ref-id { color: var(--accent-gold-light); }
+  .ref-role { color: var(--accent-blue); }
+
+  .empty-state {
+    text-align: center;
+    padding: 32px 16px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  /* Footer */
+  .footer {
+    padding: 8px 16px;
+    border-top: 1px solid var(--border-main);
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+</style>
 </head>
 <body>
+
+  <div class="header">
+    <div class="header-brand">APEX FORGE</div>
+    <div class="header-status">
+      <span class="status-dot" id="status-dot"></span>
+      <span id="status-text">CONNECTING...</span>
+    </div>
+  </div>
+
   <div class="tabs">
-    <div class="tab active" data-panel="activity">Activity</div>
-    <div class="tab" data-panel="refs">Refs</div>
+    <button class="tab active" data-panel="activity">Activity</button>
+    <button class="tab" data-panel="refs">Tools</button>
   </div>
+
   <div class="panel active" id="activity">
-    <div class="status"><span class="dot disconnected" id="status-dot"></span><span id="status-text">Connecting...</span></div>
-    <div id="events"></div>
+    <div id="events"><div class="empty-state">Waiting for activity...</div></div>
   </div>
+
   <div class="panel" id="refs">
-    <div class="ref-list" id="ref-list">No refs yet. Run a snapshot command.</div>
+    <div id="ref-list"><div class="empty-state">No refs yet. Run a snapshot command.</div></div>
   </div>
+
+  <div class="footer">
+    <span>APEX_FORGE v0.1.0</span>
+    <span id="footer-status">MCP: --</span>
+  </div>
+
   <script src="sidepanel.js"></script>
 </body>
 </html>

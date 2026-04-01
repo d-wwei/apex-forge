@@ -452,10 +452,14 @@ async function main() {
         await cmdTrace(rest);
         break;
       case "dashboard": {
-        const { startDashboard } = await import("./dashboard.js");
-        const portIdx = rest.indexOf("--port");
-        const port = portIdx >= 0 ? parseInt(rest[portIdx + 1], 10) : 3456;
-        await startDashboard(port);
+        const { startDashboard, startHub } = await import("./dashboard.js");
+        if (rest[0] === "hub") {
+          await startHub();
+        } else {
+          const portIdx = rest.indexOf("--port");
+          const port = portIdx >= 0 ? parseInt(rest[portIdx + 1], 10) : undefined;
+          await startDashboard(port);
+        }
         // Keep process alive while server runs
         await new Promise(() => {});
         break;
@@ -558,7 +562,8 @@ Commands:
   trace active                  Show running spans
   trace list [LIMIT]            List recent traces
   trace view TRACE_ID           View spans in a trace
-  dashboard [--port PORT]       Start web dashboard (default: 3456)
+  dashboard [--port PORT]       Start project dashboard (auto-port from path)
+  dashboard hub                 Start hub page listing all active dashboards
   convert --platform PLATFORM  Convert skills for cursor|codex|factory|gemini|windsurf
   convert --list               List all discovered skills
   orchestrate [--dry-run] [--once]   Run task orchestrator

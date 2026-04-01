@@ -2,33 +2,129 @@
 
 import { readJSON } from "./utils/json.js";
 import { existsSync, readFileSync } from "fs";
+import { join, resolve, extname } from "path";
+import {
+  autoPort,
+  hubPort,
+  register,
+  unregister,
+  listProjects,
+} from "./registry.js";
 
-const DEFAULT_PORT = 3456;
+/** Derive a human-readable project name from the working directory. */
+function getProjectName(dir: string): string {
+  // Try reading name from package.json
+  const pkgPath = join(dir, "package.json");
+  if (existsSync(pkgPath)) {
+    try {
+      const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+      if (pkg.name) return pkg.name;
+    } catch { /* ignore */ }
+  }
+  // Try reading name from .apex/config.yaml (project_name: xxx)
+  const configPath = join(dir, ".apex", "config.yaml");
+  if (existsSync(configPath)) {
+    try {
+      const content = readFileSync(configPath, "utf-8");
+      const match = content.match(/^project_name:\s*(.+)$/m);
+      if (match) return match[1].trim();
+    } catch { /* ignore */ }
+  }
+  // Fallback: directory basename
+  return dir.split("/").filter(Boolean).pop() || "unknown-project";
+}
 
-export async function startDashboard(port: number = DEFAULT_PORT) {
+const MIME_TYPES: Record<string, string> = {
+  ".html": "text/html",
+  ".css": "text/css",
+  ".js": "application/javascript",
+  ".json": "application/json",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".svg": "image/svg+xml",
+  ".ico": "image/x-icon",
+  ".woff2": "font/woff2",
+  ".woff": "font/woff",
+};
+
+function findFrontendDir(): string | null {
+  const candidates = [
+    // 1. Explicit override via env var
+    process.env.APEX_FORGE_HOME && join(process.env.APEX_FORGE_HOME, "frontend"),
+    // 2. Relative to this source file (works in dev: bun run src/cli.ts)
+    resolve(import.meta.dir, "..", "frontend"),
+    // 3. Relative to compiled binary (dist/apex-forge → dist/../frontend)
+    resolve(import.meta.dir, "frontend"),
+    // 4. Well-known global install path
+    join(process.env.HOME || "/tmp", ".apex-forge", "frontend"),
+  ].filter(Boolean) as string[];
+
+  for (const dir of candidates) {
+    if (existsSync(join(dir, "index.html"))) return dir;
+  }
+  return null;
+}
+
+export async function startDashboard(portOverride?: number) {
+  const frontendDir = findFrontendDir();
+  const projectDir = process.cwd();
+  const projectName = getProjectName(projectDir);
+  const port = portOverride ?? autoPort(projectDir);
+
+  if (!frontendDir) {
+    console.warn(
+      "Frontend assets not found. Searched:\n" +
+      "  - $APEX_FORGE_HOME/frontend\n" +
+      "  - <source-dir>/../frontend\n" +
+      "  - ~/.apex-forge/frontend\n" +
+      "Falling back to legacy inline dashboard."
+    );
+  }
+
+  // Register in shared registry
+  register({
+    name: projectName,
+    path: projectDir,
+    port,
+    pid: process.pid,
+    startedAt: new Date().toISOString(),
+  });
+
+  // Cleanup on exit
+  const cleanup = () => { try { unregister(projectDir); } catch {} };
+  process.on("exit", cleanup);
+  process.on("SIGINT", () => { cleanup(); process.exit(0); });
+  process.on("SIGTERM", () => { cleanup(); process.exit(0); });
+
   const server = Bun.serve({
     port,
     async fetch(req) {
       const url = new URL(req.url);
 
-      if (url.pathname === "/") {
-        return new Response(buildHTML(), {
-          headers: { "Content-Type": "text/html" },
-        });
-      }
-
+      // API: state payload (includes project context)
       if (url.pathname === "/api/state") {
-        const data = await buildStatePayload();
+        const data = await buildStatePayload(projectDir, projectName);
         return Response.json(data);
       }
 
+      // API: all active projects (for sidebar + hub)
+      if (url.pathname === "/api/projects") {
+        const projects = listProjects();
+        return Response.json({
+          current: projectDir,
+          hub: hubPort(),
+          projects,
+        });
+      }
+
+      // API: server-sent events
       if (url.pathname === "/api/events") {
         const stream = new ReadableStream({
           start(controller) {
             const encoder = new TextEncoder();
             const interval = setInterval(async () => {
               try {
-                const data = await buildStatePayload();
+                const data = await buildStatePayload(projectDir, projectName);
                 controller.enqueue(
                   encoder.encode(`data: ${JSON.stringify(data)}\n\n`)
                 );
@@ -48,11 +144,34 @@ export async function startDashboard(port: number = DEFAULT_PORT) {
         });
       }
 
+      // Serve static frontend — or fallback to legacy inline HTML
+      if (!frontendDir) {
+        if (url.pathname === "/" || url.pathname === "/index.html") {
+          return new Response(_buildHTMLLegacy(), {
+            headers: { "Content-Type": "text/html" },
+          });
+        }
+        return new Response("Not Found", { status: 404 });
+      }
+
+      let filePath = url.pathname === "/" ? "/index.html" : url.pathname;
+      const safePath = join(frontendDir, filePath.replace(/\.\./g, ""));
+      if (existsSync(safePath)) {
+        const ext = extname(safePath);
+        const contentType = MIME_TYPES[ext] || "application/octet-stream";
+        const content = readFileSync(safePath);
+        return new Response(content, {
+          headers: { "Content-Type": contentType },
+        });
+      }
+
       return new Response("Not Found", { status: 404 });
     },
   });
 
-  console.log(`Apex Dashboard running at http://localhost:${port}`);
+  console.log(`Apex Dashboard for "${projectName}" at http://localhost:${port}`);
+  console.log(`  Project: ${projectDir}`);
+  console.log(`  Hub:     http://localhost:${hubPort()}`);
 
   // Auto-open in default browser
   try {
@@ -69,20 +188,316 @@ export async function startDashboard(port: number = DEFAULT_PORT) {
   }
 }
 
-function loadAnalytics(): any[] {
-  const file = ".apex/analytics/usage.jsonl";
-  if (!existsSync(file)) return [];
+/**
+ * Hub server — fixed port, lists all active project dashboards.
+ */
+export async function startHub() {
+  const port = hubPort();
+
+  Bun.serve({
+    port,
+    async fetch(req) {
+      const url = new URL(req.url);
+
+      if (url.pathname === "/api/projects") {
+        return Response.json({ projects: listProjects() });
+      }
+
+      // Inline hub page
+      return new Response(buildHubHTML(), {
+        headers: { "Content-Type": "text/html" },
+      });
+    },
+  });
+
+  console.log(`Apex Hub at http://localhost:${port}`);
+
   try {
-    return readFileSync(file, "utf-8")
+    const { exec } = await import("child_process");
+    const cmd = process.platform === "darwin" ? "open" : process.platform === "win32" ? "start" : "xdg-open";
+    exec(`${cmd} http://localhost:${port}`);
+  } catch {}
+}
+
+function buildHubHTML(): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>APEX FORGE — Hub</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=Inter:wght@400;500;600&family=Fira+Code:wght@400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-main: #10141a; --bg-card: #181c22; --bg-deep: #0a0e14;
+    --text-primary: #dfe2eb; --text-secondary: rgba(223,226,235,0.6); --text-muted: rgba(223,226,235,0.4); --text-dim: rgba(223,226,235,0.2);
+    --accent-gold: #f0c040; --accent-gold-light: #ffdf96; --accent-gold-bg: rgba(255,223,150,0.1);
+    --accent-green: #22c55e; --accent-green-bg: rgba(34,197,94,0.1);
+    --border-gold: rgba(240,192,64,0.2); --border-default: rgba(78,70,53,0.2);
+    --font-heading: 'Space Grotesk', sans-serif; --font-body: 'Inter', sans-serif; --font-mono: 'Fira Code', monospace;
+  }
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: var(--font-body); background: var(--bg-deep);
+    color: var(--text-primary); min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* --- Glow background --- */
+  body::before {
+    content: ''; position: fixed; top: -120px; left: 50%; transform: translateX(-50%);
+    width: 600px; height: 400px;
+    background: radial-gradient(ellipse, rgba(240,192,64,0.06) 0%, transparent 70%);
+    pointer-events: none; z-index: 0;
+  }
+
+  /* --- Header --- */
+  .hub-header {
+    position: relative; z-index: 1;
+    padding: 56px 0 12px; text-align: center;
+  }
+  .hub-logo {
+    width: 48px; height: 48px; margin: 0 auto 16px;
+    border-radius: 12px; background: var(--accent-gold-bg);
+    border: 1px solid var(--border-gold);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 24px rgba(240,192,64,0.15);
+  }
+  .hub-logo svg { color: var(--accent-gold); }
+  .hub-title {
+    font-family: var(--font-heading); font-size: 24px; font-weight: 700;
+    color: var(--accent-gold); letter-spacing: 3px;
+  }
+  .hub-subtitle {
+    font-size: 11px; color: var(--text-muted); margin-top: 6px;
+    text-transform: uppercase; letter-spacing: 2px;
+  }
+  .hub-divider {
+    width: 40px; height: 1px; background: var(--border-gold);
+    margin: 20px auto 0;
+  }
+
+  /* --- Stats bar --- */
+  .hub-stats {
+    position: relative; z-index: 1;
+    display: flex; gap: 32px; justify-content: center;
+    padding: 20px 0 32px;
+  }
+  .hub-stat {
+    text-align: center;
+  }
+  .hub-stat-value {
+    font-family: var(--font-heading); font-size: 28px; font-weight: 700;
+    color: var(--text-primary);
+  }
+  .hub-stat-value.gold { color: var(--accent-gold); }
+  .hub-stat-label {
+    font-size: 10px; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 1px; margin-top: 2px;
+  }
+
+  /* --- Project grid --- */
+  .project-grid {
+    position: relative; z-index: 1;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 14px; padding: 0 32px; max-width: 1100px; width: 100%;
+  }
+
+  /* --- Project card --- */
+  .project-card {
+    background: var(--bg-card); border: 1px solid var(--border-default);
+    border-radius: 10px; padding: 20px 22px;
+    cursor: pointer; transition: all 0.2s ease;
+    position: relative; overflow: hidden;
+  }
+  .project-card::before {
+    content: ''; position: absolute; top: 0; left: 0; bottom: 0;
+    width: 3px; background: var(--accent-gold);
+    border-radius: 3px 0 0 3px;
+  }
+  .project-card:hover {
+    border-color: rgba(240,192,64,0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3), 0 0 0 1px rgba(240,192,64,0.1);
+  }
+
+  .card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .card-name {
+    font-family: var(--font-heading); font-size: 15px; font-weight: 700;
+    color: var(--text-primary); letter-spacing: 0.3px;
+  }
+  .card-badge {
+    display: flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 20px;
+    background: var(--accent-green-bg); font-size: 10px;
+    font-weight: 600; color: var(--accent-green);
+    letter-spacing: 0.5px;
+  }
+  .card-badge-dot {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--accent-green);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+
+  .card-path {
+    font-family: var(--font-mono); font-size: 11px;
+    color: var(--text-muted); word-break: break-all;
+    line-height: 1.5; margin-bottom: 14px;
+  }
+
+  .card-footer {
+    display: flex; align-items: center; gap: 16px;
+    padding-top: 12px; border-top: 1px solid var(--border-default);
+    font-size: 11px; color: var(--text-muted);
+  }
+  .card-port {
+    font-family: var(--font-mono); color: var(--accent-gold);
+    font-weight: 600; font-size: 12px;
+  }
+  .card-arrow {
+    margin-left: auto; color: var(--text-dim);
+    transition: color 0.15s, transform 0.15s;
+  }
+  .project-card:hover .card-arrow { color: var(--accent-gold); transform: translateX(3px); }
+
+  /* --- Empty state --- */
+  .empty-state {
+    position: relative; z-index: 1;
+    text-align: center; padding: 48px 24px;
+    max-width: 480px;
+  }
+  .empty-icon {
+    width: 64px; height: 64px; margin: 0 auto 20px;
+    border-radius: 16px; background: var(--bg-card);
+    border: 1px dashed var(--border-gold);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .empty-icon svg { color: var(--text-dim); }
+  .empty-title {
+    font-family: var(--font-heading); font-size: 16px; font-weight: 700;
+    color: var(--text-secondary); margin-bottom: 8px;
+  }
+  .empty-desc { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; line-height: 1.6; }
+  .empty-cmd {
+    display: inline-block; background: var(--bg-card);
+    border: 1px solid var(--border-gold); border-radius: 8px;
+    padding: 10px 20px; font-family: var(--font-mono);
+    font-size: 13px; color: var(--accent-gold-light);
+    letter-spacing: 0.3px;
+  }
+  .empty-cmd .prompt { color: var(--text-dim); }
+
+  /* --- Footer --- */
+  .hub-footer {
+    position: relative; z-index: 1;
+    margin-top: auto; padding: 32px 0 20px;
+    font-size: 10px; color: var(--text-dim);
+    letter-spacing: 1px; text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+
+<div class="hub-header">
+  <div class="hub-logo">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+      <path d="M2 17l10 5 10-5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+      <path d="M2 12l10 5 10-5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+    </svg>
+  </div>
+  <div class="hub-title">APEX FORGE</div>
+  <div class="hub-subtitle">Project Command Center</div>
+  <div class="hub-divider"></div>
+</div>
+
+<div class="hub-stats" id="stats">
+  <div class="hub-stat"><div class="hub-stat-value gold" id="stat-count">--</div><div class="hub-stat-label">Active</div></div>
+  <div class="hub-stat"><div class="hub-stat-value" id="stat-uptime">--</div><div class="hub-stat-label">Longest Up</div></div>
+</div>
+
+<div class="project-grid" id="grid"></div>
+
+<div class="hub-footer">apex-forge v0.1.0</div>
+
+<script>
+async function load() {
+  const grid = document.getElementById('grid');
+  try {
+    const res = await fetch('/api/projects');
+    const data = await res.json();
+    const projects = data.projects || [];
+
+    // Stats
+    document.getElementById('stat-count').textContent = projects.length || '0';
+    if (projects.length > 0) {
+      const oldest = projects.reduce((a, b) => a.startedAt < b.startedAt ? a : b);
+      document.getElementById('stat-uptime').textContent = timeAgo(oldest.startedAt);
+    } else {
+      document.getElementById('stat-uptime').textContent = '--';
+    }
+
+    if (projects.length === 0) {
+      grid.innerHTML =
+        '<div class="empty-state">' +
+          '<div class="empty-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 3"/><path d="M12 8v8M8 12h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>' +
+          '<div class="empty-title">No Active Dashboards</div>' +
+          '<div class="empty-desc">Start a project dashboard from any directory.<br>Each project gets its own auto-assigned port.</div>' +
+          '<div class="empty-cmd"><span class="prompt">$ </span>cd your-project && apex dashboard</div>' +
+        '</div>';
+      return;
+    }
+
+    grid.innerHTML = projects.map(function(p) {
+      var name = p.name || 'unknown';
+      var shortPath = p.path.replace(/^\\/Users\\/[^/]+/, '~');
+      var ago = timeAgo(p.startedAt);
+      return '<div class="project-card" onclick="window.open(\\'http://localhost:' + p.port + '\\', \\'_blank\\')">' +
+        '<div class="card-top">' +
+          '<div class="card-name">' + esc(name) + '</div>' +
+          '<div class="card-badge"><span class="card-badge-dot"></span>LIVE</div>' +
+        '</div>' +
+        '<div class="card-path">' + esc(shortPath) + '</div>' +
+        '<div class="card-footer">' +
+          '<span class="card-port">:' + p.port + '</span>' +
+          '<span>' + ago + '</span>' +
+          '<span class="card-arrow">&rarr;</span>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  } catch(e) {
+    grid.innerHTML = '<div class="empty-state"><div class="empty-title">Connection Error</div><div class="empty-desc">' + esc(e.message) + '</div></div>';
+  }
+}
+function timeAgo(iso) {
+  if (!iso) return '';
+  var diff = Date.now() - new Date(iso).getTime();
+  var mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return mins + 'm';
+  var hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + 'h ' + (mins % 60) + 'm';
+  return Math.floor(hrs / 24) + 'd';
+}
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+load();
+setInterval(load, 5000);
+</script>
+</body>
+</html>`;
+}
+
+function loadJSONL(filePath: string): any[] {
+  if (!existsSync(filePath)) return [];
+  try {
+    return readFileSync(filePath, "utf-8")
       .trim()
       .split("\n")
       .filter(Boolean)
       .map((l) => {
-        try {
-          return JSON.parse(l);
-        } catch {
-          return null;
-        }
+        try { return JSON.parse(l); } catch { return null; }
       })
       .filter(Boolean);
   } catch {
@@ -90,20 +505,57 @@ function loadAnalytics(): any[] {
   }
 }
 
-async function buildStatePayload() {
+function loadEvents(apexDir: string) {
+  // Merge two sources: hook-written events + legacy telemetry analytics
+  const hookEvents = loadJSONL(join(apexDir, "events.jsonl"));
+  const legacyAnalytics = loadJSONL(join(apexDir, "analytics", "usage.jsonl"));
+
+  // Normalize hook events into a unified activity format
+  const activities = hookEvents.map((e) => ({
+    ts: e.ts,
+    skill: e.tool || "unknown",
+    outcome: "success", // hooks only fire on completed calls
+    duration_s: 0,
+    meta: e.meta || {},
+    source: "hook",
+  }));
+
+  // Normalize legacy analytics
+  const legacy = legacyAnalytics.map((a) => ({
+    ts: a.ts || a.timestamp || "",
+    skill: a.skill || a.name || "unknown",
+    outcome: a.outcome || a.result || "unknown",
+    duration_s: a.duration_s ?? a.duration ?? 0,
+    meta: {},
+    source: "telemetry",
+  }));
+
+  // Merge and sort by timestamp (newest last)
+  return [...legacy, ...activities].sort((a, b) =>
+    (a.ts || "").localeCompare(b.ts || "")
+  );
+}
+
+async function buildStatePayload(projectDir: string, projectName: string) {
+  const apexDir = join(projectDir, ".apex");
   return {
-    tasks: await readJSON(".apex/tasks.json", { tasks: [], next_id: 1 }),
-    memory: await readJSON(".apex/memory.json", { facts: [], next_id: 1 }),
-    state: await readJSON(".apex/state.json", {
+    project: {
+      name: projectName,
+      path: projectDir,
+    },
+    tasks: await readJSON(join(apexDir, "tasks.json"), { tasks: [], next_id: 1 }),
+    memory: await readJSON(join(apexDir, "memory.json"), { facts: [], next_id: 1 }),
+    state: await readJSON(join(apexDir, "state.json"), {
       current_stage: "idle",
       artifacts: {},
       history: [],
     }),
-    analytics: loadAnalytics(),
+    analytics: loadEvents(apexDir),
   };
 }
 
-function buildHTML(): string {
+// Legacy buildHTML kept as fallback — no longer primary
+function _buildHTMLLegacy(): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -381,6 +833,7 @@ function buildHTML(): string {
 <div class="header">
   <h1>apex-forge</h1>
   <span class="dot"></span>
+  <span class="status" id="project-name" style="color:#f0c040;font-size:12px;"></span>
   <div class="status" id="status">Connecting...</div>
 </div>
 
@@ -449,6 +902,10 @@ function render(data) {
   renderActivity(data.analytics);
   renderMemory(data.memory);
   renderTelemetry(data.analytics);
+  if (data.project) {
+    document.getElementById('project-name').textContent = data.project.name;
+    document.title = 'Apex Forge — ' + data.project.name;
+  }
   const stage = data.state.current_stage || 'idle';
   document.getElementById('status').textContent =
     'Stage: ' + stage + ' | ' + new Date().toLocaleTimeString();

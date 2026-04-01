@@ -2,6 +2,10 @@
   "name": "apex-forge",
   "version": "0.1.0",
   "type": "module",
+  "bin": {
+    "apex": "src/cli.ts",
+    "apex-forge": "src/cli.ts"
+  },
   "scripts": {
     "build": "bun build --compile src/cli.ts --outfile dist/apex-forge",
     "build:browse": "bun build --compile src/browse/cli.ts --outfile dist/apex-forge-browse --external playwright --external playwright-core",

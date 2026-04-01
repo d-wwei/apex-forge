@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>APEX FORGE</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- Project Sidebar -->
+  <aside class="project-sidebar" id="project-sidebar">
+    <div class="sidebar-header">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="8" y="1" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="1" y="8" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="8" y="8" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/></svg>
+      <span>PROJECTS</span>
+    </div>
+    <div class="sidebar-list" id="sidebar-list">
+      <div class="sidebar-empty">Loading...</div>
+    </div>
+    <a class="sidebar-hub-link" id="sidebar-hub-link" href="http://localhost:3456" target="_blank">
+      <svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" stroke="currentColor" stroke-width="1" fill="none"/><path d="M2 5h6M5 2v6" stroke="currentColor" stroke-width="0.8"/></svg>
+      HUB
+    </a>
+  </aside>
+
+  <!-- Main wrapper (header + content) -->
+  <div class="main-wrapper">
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-brand">
+      <h1>APEX FORGE</h1>
+      <span class="header-project" id="header-project">PROJECT: ---</span>
+    </div>
+    <div class="header-divider"></div>
+    <div class="header-status">
+      <span class="status-dot"></span>
+      <span class="status-text" id="header-status">CONNECTED | ORCHESTRATION_LAYER | --</span>
+    </div>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <nav class="nav-tabs">
+    <button class="nav-tab active" data-view="dashboard">Dashboard</button>
+    <button class="nav-tab" data-view="comparison">Design Comparison</button>
+  </nav>
+
+  <!-- ================================================================
+       VIEW 1: DASHBOARD
+       ================================================================ -->
+  <div id="view-dashboard" class="view active">
+    <div class="main-content">
+
+      <!-- Kanban Board Section -->
+      <section>
+        <h2 class="section-heading">Task Orchestration Board</h2>
+        <div class="kanban-board" id="kanban-board">
+          <!-- Open -->
+          <div class="kanban-column" data-status="open">
+            <div class="kanban-column-header">
+              <span class="kanban-column-label status-open" id="col-label-open">OPEN [00]</span>
+              <span class="kanban-column-dot status-open"></span>
+            </div>
+            <div class="kanban-cards" id="col-open"></div>
+          </div>
+          <!-- Assigned -->
+          <div class="kanban-column" data-status="assigned">
+            <div class="kanban-column-header">
+              <span class="kanban-column-label status-assigned" id="col-label-assigned">ASSIGNED [00]</span>
+              <span class="kanban-column-dot status-assigned"></span>
+            </div>
+            <div class="kanban-cards" id="col-assigned"></div>
+          </div>
+          <!-- In Progress -->
+          <div class="kanban-column" data-status="in_progress">
+            <div class="kanban-column-header">
+              <span class="kanban-column-label status-in-progress" id="col-label-in_progress">IN PROGRESS [00]</span>
+              <span class="kanban-column-dot status-in-progress"></span>
+            </div>
+            <div class="kanban-cards" id="col-in_progress"></div>
+          </div>
+          <!-- To Verify -->
+          <div class="kanban-column" data-status="to_verify">
+            <div class="kanban-column-header">
+              <span class="kanban-column-label status-to-verify" id="col-label-to_verify">TO VERIFY [00]</span>
+              <span class="kanban-column-dot status-to-verify"></span>
+            </div>
+            <div class="kanban-cards" id="col-to_verify"></div>
+          </div>
+          <!-- Done -->
+          <div class="kanban-column" data-status="done">
+            <div class="kanban-column-header">
+              <span class="kanban-column-label status-done" id="col-label-done">DONE [00]</span>
+              <span class="kanban-column-dot status-done"></span>
+            </div>
+            <div class="kanban-cards" id="col-done"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Pipeline + Telemetry Row -->
+      <div class="two-col-row">
+
+        <!-- Pipeline Orchestration -->
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Pipeline Orchestration</span>
+            <span class="panel-badge" id="pipeline-status">STATUS: IDLE</span>
+          </div>
+          <div class="panel-body">
+            <div class="pipeline-stages" id="pipeline-stages">
+              <div class="pipeline-line"></div>
+              <!-- Stages rendered by JS -->
+            </div>
+            <div class="pipeline-artifacts" id="pipeline-artifacts">
+              <!-- Artifacts rendered by JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- System Telemetry -->
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">System Telemetry</span>
+            <button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:16px;letter-spacing:2px;">...</button>
+          </div>
+          <div class="panel-body">
+            <div class="telemetry-stats" id="telemetry-stats">
+              <div class="stat-card gold">
+                <span class="stat-label">Total Runs</span>
+                <span class="stat-value" id="stat-total">0</span>
+              </div>
+              <div class="stat-card blue">
+                <span class="stat-label">Avg Duration</span>
+                <span class="stat-value" id="stat-avg">--<span class="stat-unit">s</span></span>
+              </div>
+              <div class="stat-card green">
+                <span class="stat-label">Success Rate</span>
+                <span class="stat-value green" id="stat-rate">--%</span>
+              </div>
+            </div>
+            <div class="skill-ranking" id="skill-ranking">
+              <div class="skill-ranking-title">Skill Performance Ranking</div>
+              <div id="skill-bars"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Activity + Memory Row -->
+      <div class="two-col-row">
+
+        <!-- Activity Stream -->
+        <div class="panel activity-panel">
+          <div class="panel-header">
+            <span class="panel-title">Activity Stream</span>
+          </div>
+          <div class="panel-body" id="activity-stream">
+            <div class="empty-state">No activity recorded yet</div>
+          </div>
+        </div>
+
+        <!-- Cognitive Memory -->
+        <div class="panel memory-panel">
+          <div class="panel-header">
+            <span class="panel-title">Cognitive Memory</span>
+            <svg width="10.5" height="7" viewBox="0 0 11 7" fill="none" style="cursor:pointer;">
+              <path d="M1 1L5.5 5.5L10 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-muted)"/>
+            </svg>
+          </div>
+          <div class="panel-body" id="memory-list">
+            <div class="empty-state">No facts stored yet</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================================================================
+       VIEW 2: DESIGN COMPARISON
+       ================================================================ -->
+  <div id="view-comparison" class="view">
+    <div class="main-content">
+
+      <div class="comparison-header">
+        <h1 class="comparison-title">Design Comparison</h1>
+        <div class="comparison-subtitle">
+          <span class="comparison-count" id="variant-count">4 VARIANTS CAPTURED</span>
+          <span class="comparison-separator">|</span>
+          <span class="comparison-info">SNAPSHOT DIFF ANALYSIS</span>
+        </div>
+      </div>
+
+      <div class="variant-gallery" id="variant-gallery">
+        <!-- Variant 1 -->
+        <div class="variant-card">
+          <div class="variant-preview">
+            <div class="variant-preview-gradient"></div>
+            <div class="variant-expand-btn">
+              <svg width="22" height="15" viewBox="0 0 22 15" fill="none">
+                <path d="M1 1L8 8L1 15" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M14 1L21 8L14 15" stroke="currentColor" stroke-width="1.5"/>
+              </svg>
+            </div>
+          </div>
+          <div class="variant-info">
+            <div class="variant-name">Variant 01</div>
+            <div class="variant-path">./snapshots/v1/main.png</div>
+          </div>
+        </div>
+
+        <!-- Variant 2 -->
+        <div class="variant-card">
+          <div class="variant-preview">
+            <div class="variant-preview-gradient"></div>
+            <div class="variant-expand-btn">
+              <svg width="22" height="15" viewBox="0 0 22 15" fill="none">
+                <path d="M1 1L8 8L1 15" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M14 1L21 8L14 15" stroke="currentColor" stroke-width="1.5"/>
+              </svg>
+            </div>
+          </div>
+          <div class="variant-info">
+            <div class="variant-name">Variant 02</div>
+            <div class="variant-path">./snapshots/v2/main.png</div>
+          </div>
+        </div>
+
+        <!-- Variant 3 -->
+        <div class="variant-card">
+          <div class="variant-preview">
+            <div class="variant-preview-gradient"></div>
+            <div class="variant-expand-btn">
+              <svg width="22" height="15" viewBox="0 0 22 15" fill="none">
+                <path d="M1 1L8 8L1 15" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M14 1L21 8L14 15" stroke="currentColor" stroke-width="1.5"/>
+              </svg>
+            </div>
+          </div>
+          <div class="variant-info">
+            <div class="variant-name">Variant 03</div>
+            <div class="variant-path">./snapshots/v3/main.png</div>
+          </div>
+        </div>
+
+        <!-- Variant 4 -->
+        <div class="variant-card">
+          <div class="variant-preview">
+            <div class="variant-preview-gradient"></div>
+            <div class="variant-expand-btn">
+              <svg width="22" height="15" viewBox="0 0 22 15" fill="none">
+                <path d="M1 1L8 8L1 15" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M14 1L21 8L14 15" stroke="currentColor" stroke-width="1.5"/>
+              </svg>
+            </div>
+          </div>
+          <div class="variant-info">
+            <div class="variant-name">Variant 04</div>
+            <div class="variant-path">./snapshots/v4/main.png</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  </div><!-- /main-wrapper -->
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>

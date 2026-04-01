@@ -8,18 +8,15 @@ document.querySelectorAll('.tab').forEach(tab => {
   });
 });
 
-// Read connection info from storage
 let port = null;
 let token = null;
 let eventSource = null;
 
 async function connect() {
-  // Try to read port from storage or default
   const stored = await chrome.storage.local.get(['apex_port', 'apex_token']);
   port = stored.apex_port || 34567;
   token = stored.apex_token || '';
 
-  // Also try to read from auth file via fetch
   try {
     const resp = await fetch(`http://127.0.0.1:${port}/status`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {}
@@ -33,20 +30,23 @@ async function connect() {
     }
   } catch {
     setConnected(false);
-    setTimeout(connect, 3000); // retry
+    setTimeout(connect, 3000);
   }
 }
 
 function setConnected(yes) {
   const dot = document.getElementById('status-dot');
   const text = document.getElementById('status-text');
-  dot.className = `dot ${yes ? 'connected' : 'disconnected'}`;
-  text.textContent = yes ? `Connected (port ${port})` : 'Disconnected \u2014 retrying...';
+  const footer = document.getElementById('footer-status');
+  dot.className = `status-dot ${yes ? '' : 'disconnected'}`;
+  text.textContent = yes
+    ? `ORCHESTRATION ACTIVE | PORT ${port}`
+    : 'DISCONNECTED \u2014 RETRYING...';
+  footer.textContent = yes ? 'MCP: CONNECTED' : 'MCP: --';
 }
 
 function startActivityStream() {
   if (eventSource) eventSource.close();
-
   const url = `http://127.0.0.1:${port}/activity/stream`;
   eventSource = new EventSource(url);
 
@@ -56,49 +56,65 @@ function startActivityStream() {
   };
 
   eventSource.addEventListener('refs', (e) => {
-    const refs = JSON.parse(e.data);
-    updateRefs(refs);
+    updateRefs(JSON.parse(e.data));
   });
 
   eventSource.onerror = () => {
-    setConnected(false);
-    eventSource.close();
-    setTimeout(connect, 3000);
+    if (eventSource.readyState === EventSource.CLOSED) {
+      setConnected(false);
+      setTimeout(connect, 3000);
+    }
   };
 }
 
 function addEvent(data) {
   const events = document.getElementById('events');
+  // Clear empty state
+  if (events.querySelector('.empty-state')) events.innerHTML = '';
+
   const div = document.createElement('div');
-  div.className = 'event';
+  const isOk = data.ok !== false;
+  div.className = 'log-entry' + (isOk ? '' : ' error');
 
-  const time = new Date(data.ts).toLocaleTimeString();
-  const dur = data.duration_ms ? `${data.duration_ms}ms` : '';
-  const status = data.ok !== false ? 'ok' : 'err';
+  const time = new Date(data.ts).toLocaleTimeString('en-US', { hour12: false });
+  const dur = data.duration_ms ? `(${(data.duration_ms / 1000).toFixed(3)}s)` : '';
+  const statusLabel = isOk ? 'OK' : 'FAIL';
+  const statusClass = isOk ? 'ok' : 'err';
+  const statusIcon = isOk
+    ? '<svg width="8" height="8" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="currentColor"/></svg>'
+    : '<svg width="8" height="8" viewBox="0 0 10 10"><path d="M2 2L8 8M8 2L2 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
 
-  div.innerHTML = `
-    <span class="time">${time}</span>
-    <span class="cmd">${data.command || ''}</span>
-    <span class="${status}">${data.ok !== false ? '\u2713' : '\u2717'}</span>
-    <span class="dur">${dur}</span>
-    ${data.result ? `<div style="color:#aaa;margin-top:2px">${String(data.result).slice(0, 200)}</div>` : ''}
-  `;
+  const cmd = esc(data.command || 'UNKNOWN');
+  const result = data.result ? esc(String(data.result).slice(0, 120)) : '';
+
+  div.innerHTML =
+    '<div class="log-entry-header">' +
+      '<span class="log-entry-time">' + time + '</span>' +
+      '<span class="log-entry-status ' + statusClass + '">' + statusLabel + ' ' + statusIcon + '</span>' +
+    '</div>' +
+    '<div class="log-entry-detail">' +
+      '<span class="log-entry-skill">' + cmd + '</span>' +
+      '<span class="log-entry-target">' + result + ' ' + dur + '</span>' +
+    '</div>';
 
   events.insertBefore(div, events.firstChild);
-
-  // Cap at 200 events
-  while (events.children.length > 201) events.removeChild(events.lastChild);
+  while (events.children.length > 200) events.removeChild(events.lastChild);
 }
 
 function updateRefs(refs) {
   const list = document.getElementById('ref-list');
   if (!refs || refs.length === 0) {
-    list.innerHTML = 'No refs yet.';
+    list.innerHTML = '<div class="empty-state">No refs yet. Run a snapshot command.</div>';
     return;
   }
   list.innerHTML = refs.map(r =>
-    `<div class="ref-item"><span class="ref-id">${r.id}</span> <span class="ref-role">[${r.role}]</span> "${r.name}"</div>`
+    '<div class="ref-item"><span class="ref-id">' + esc(r.id) + '</span> <span class="ref-role">[' + esc(r.role) + ']</span> "' + esc(r.name) + '"</div>'
   ).join('');
+}
+
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 connect();

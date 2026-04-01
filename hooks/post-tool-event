@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# Apex Forge — Silent PostToolUse Hook
+# Appends tool execution events to .apex/events.jsonl
+# ZERO stdout — invisible to the agent's context window.
+#
+# Input: JSON on stdin from Claude Code PostToolUse hook
+# Output: nothing (all writes go to file, errors to /dev/null)
+
+set -euo pipefail
+
+# Read stdin (Claude Code passes tool info as JSON)
+INPUT=$(cat 2>/dev/null) || exit 0
+
+# Bail fast if no input or no .apex/ directory
+[ -z "$INPUT" ] && exit 0
+
+# Determine project directory: prefer CLAUDE_PROJECT_DIR, then cwd
+PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+APEX_DIR="${PROJECT_DIR}/.apex"
+
+# No .apex/ = project not initialized, silently skip
+[ -d "$APEX_DIR" ] || exit 0
+
+# Ensure events directory exists
+EVENTS_FILE="${APEX_DIR}/events.jsonl"
+mkdir -p "$(dirname "$EVENTS_FILE")" 2>/dev/null || exit 0
+
+# Extract tool info and append event — all in one python call for speed
+python3 -c "
+import json, sys, os
+from datetime import datetime, timezone
+
+try:
+    raw = sys.argv[1]
+    data = json.loads(raw)
+except (json.JSONDecodeError, IndexError):
+    sys.exit(0)
+
+tool_name = data.get('tool_name', '') or data.get('tool', {}).get('name', '')
+if not tool_name:
+    sys.exit(0)
+
+tool_input = data.get('tool_input', {}) or data.get('tool', {}).get('input', {})
+
+# Extract meaningful metadata per tool type (keep it minimal)
+meta = {}
+if tool_name in ('Edit', 'Write', 'Read'):
+    meta['file'] = tool_input.get('file_path', '')
+elif tool_name == 'Bash':
+    cmd = tool_input.get('command', '')
+    meta['cmd'] = cmd[:120]  # truncate long commands
+elif tool_name in ('Grep', 'Glob'):
+    meta['pattern'] = tool_input.get('pattern', '')
+elif tool_name == 'TaskCreate':
+    meta['subject'] = tool_input.get('subject', '')
+elif tool_name == 'TaskUpdate':
+    meta['task_id'] = tool_input.get('taskId', '')
+    meta['status'] = tool_input.get('status', '')
+elif tool_name == 'Agent':
+    meta['desc'] = tool_input.get('description', '')
+
+# Build event record
+event = {
+    'ts': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
+    'tool': tool_name,
+    'meta': meta,
+}
+
+# Append atomically
+events_file = sys.argv[2]
+line = json.dumps(event, ensure_ascii=False, separators=(',', ':'))
+with open(events_file, 'a') as f:
+    f.write(line + '\n')
+" "$INPUT" "$EVENTS_FILE" 2>/dev/null
+
+# === SILENT: no stdout, ever ===
+exit 0
