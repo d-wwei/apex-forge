@@ -3,3 +3,5 @@ node_modules/
 bun.lock
 .apex/
 *.tmp.*
+labloop-results.tsv
+labloop-run.log
