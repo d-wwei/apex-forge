@@ -819,9 +819,10 @@ html, body {
 .comparison-title {
   font-family: var(--font-heading);
   font-weight: 700;
-  font-size: 32px;
+  font-size: 28px;
   color: var(--text-primary);
-  letter-spacing: -1px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
 }
 
 .comparison-subtitle {
@@ -851,8 +852,8 @@ html, body {
 .variant-gallery {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 32px;
-  margin-top: 32px;
+  gap: 24px;
+  margin-top: 24px;
 }
 
 .variant-card {
@@ -868,6 +869,10 @@ html, body {
   position: relative;
   overflow: hidden;
 }
+.variant-card:nth-child(1) .variant-preview { background: linear-gradient(135deg, #0a1a2a 0%, #0d2b3a 50%, #081520 100%); }
+.variant-card:nth-child(2) .variant-preview { background: linear-gradient(135deg, #101820 0%, #1a2030 50%, #0e1520 100%); }
+.variant-card:nth-child(3) .variant-preview { background: linear-gradient(135deg, #0a2010 0%, #153520 50%, #0a1a0e 100%); }
+.variant-card:nth-child(4) .variant-preview { background: linear-gradient(135deg, #201510 0%, #2a1a15 50%, #1a100a 100%); }
 
 .variant-preview img {
   width: 100%;
@@ -912,9 +917,10 @@ html, body {
 .variant-name {
   font-family: var(--font-heading);
   font-weight: 700;
-  font-size: 20px;
+  font-size: 16px;
   color: var(--text-primary);
-  letter-spacing: -0.5px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
 }
 
 .variant-path {
