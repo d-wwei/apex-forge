@@ -321,7 +321,24 @@ function connectSSE() {
 }
 
 async function initialLoad() {
-  try { const res = await fetch('/api/state'); render(await res.json()); } catch {}
+  try {
+    const res = await fetch('/api/state');
+    render(await res.json());
+  } catch {
+    // API unavailable — render with demo data
+    render({
+      tasks: { tasks: [
+        { id: 'T-1442', title: 'Initialize latent space mapping for agent "Echo"', status: 'open', depends_on: null, evidence: [1,2,3,4] },
+        { id: 'T-1100', title: 'Cross-check telemetry logs with Skill_V4 hash', status: 'assigned', depends_on: ['T-1100'], evidence: [1,2] },
+        { id: 'T-1418', title: 'Deploy orchestration layer to sub-node Delta', status: 'in_progress', depends_on: null, evidence: Array(13) },
+        { id: 'T-0042', title: 'Verify agent memory persistence on restart', status: 'to_verify', depends_on: null, evidence: Array(6) },
+      ]},
+      state: { current_stage: 'execute', history: [{ stage: 'brainstorm' }, { stage: 'plan' }], artifacts: {} },
+      analytics: [],
+      memory: { facts: [] },
+      project: { name: currentProject ? currentProject.name : 'APEX_FORGE_V4' }
+    });
+  }
   connectSSE();
 }
 
