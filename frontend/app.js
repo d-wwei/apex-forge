@@ -357,13 +357,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Sidebar logo → Home
+  // Sidebar logo → Toggle sidebar expand/collapse
   const sidebarLogo = document.getElementById('sidebar-logo');
-  if (sidebarLogo) sidebarLogo.addEventListener('click', navigateToHome);
+  if (sidebarLogo) sidebarLogo.addEventListener('click', toggleSidebar);
 
-  // Sidebar toggle
-  const toggleBtn = document.getElementById('sidebar-toggle-btn');
-  if (toggleBtn) toggleBtn.addEventListener('click', toggleSidebar);
+  // Back link → Navigate to Home (All Projects)
+  const backLink = document.getElementById('sidebar-back-link');
+  if (backLink) backLink.addEventListener('click', navigateToHome);
 
   if (sidebarCollapsed) {
     const sidebar = document.getElementById('project-sidebar');
@@ -373,5 +373,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // Load sidebar for project view
   renderSidebar(DEMO_PROJECTS);
 
-  // Sticky nav handled by CSS position: sticky — no JS needed
+  // Sticky nav — show only after scrolling past hero
+  const hero = document.querySelector('.home-hero');
+  const stickyNav = document.getElementById('home-sticky-nav');
+  if (hero && stickyNav) {
+    new IntersectionObserver(([entry]) => {
+      stickyNav.classList.toggle('visible', !entry.isIntersecting);
+    }, { threshold: 0 }).observe(hero);
+  }
 });
