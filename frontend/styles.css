@@ -1098,8 +1098,8 @@ html, body {
 .home-hero {
   position: relative;
   width: 100%;
-  height: 38vh;
-  min-height: 280px;
+  height: 42vh;
+  min-height: 300px;
   background: url('/home_page_background.png') center center / cover no-repeat, #0a0e14;
   display: flex;
   align-items: center;
@@ -1154,7 +1154,7 @@ html, body {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  padding: 24px 40px 0 40px;
+  padding: 20px 40px 0 40px;
 }
 .home-header-left { display: flex; flex-direction: column; gap: 4px; }
 .home-title {
