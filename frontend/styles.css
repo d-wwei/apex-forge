@@ -1585,21 +1585,34 @@ html, body {
   flex-direction: column;
   align-items: center;
   gap: 3px;
-  padding: 8px 6px;
-  background: rgba(24, 28, 34, 0.9);
-  border: 1.5px solid rgba(223, 226, 235, 0.15);
-  border-radius: 6px;
+  padding: 8px 8px 8px 16px;
+  background: rgba(28, 32, 40, 0.6);
+  border: none;
+  border-radius: 10px;
   width: 100%;
+  position: relative;
+  overflow: hidden;
+}
+.project-sidebar.collapsed .sidebar-project-compact::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 5px;
+  bottom: 5px;
+  width: 5px;
+  border-radius: 0 4px 4px 0;
+  background: var(--bar-color, var(--accent-green));
 }
 .project-sidebar.collapsed .sidebar-project-item.active .sidebar-project-compact {
-  border: 2px solid rgba(240, 192, 64, 0.7);
-  background: rgba(240, 192, 64, 0.06);
-  box-shadow: 0 0 10px rgba(240, 192, 64, 0.12);
+  background: rgba(60, 52, 24, 0.8);
+}
+.project-sidebar.collapsed .sidebar-project-item.active .sidebar-project-compact::before {
+  background: var(--bar-color, var(--accent-green));
 }
 .compact-name {
   font-family: 'Space Grotesk', sans-serif;
   font-weight: 700;
-  font-size: 9px;
+  font-size: 11px;
   color: var(--accent-gold);
   letter-spacing: 0.5px;
   text-align: center;
@@ -1607,14 +1620,14 @@ html, body {
 .compact-stats {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   font-family: 'Fira Code', monospace;
-  font-size: 8px;
-  color: rgba(255,255,255,0.5);
+  font-size: 9px;
+  color: rgba(255,255,255,0.55);
 }
 .compact-dot {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
 }
