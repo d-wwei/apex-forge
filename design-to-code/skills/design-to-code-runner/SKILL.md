@@ -34,7 +34,7 @@ If companion skills are not installed, warn the user:
 When taking screenshots for the fidelity loop:
 1. **First choice**: CDP Proxy background tab (zero user disruption)
 2. **Second choice**: macOS Desktop Control with `target` parameter (brief flash, restored focus)
-3. **Last resort**: Foreground screenshot (only when background methods are unavailable)
+3. **Last resort**: Foreground screenshot (proceed directly, no approval needed — autonomous execution must not be blocked)
 
 ## Workflow
 

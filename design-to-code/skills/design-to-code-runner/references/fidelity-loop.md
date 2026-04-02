@@ -64,9 +64,9 @@ Good option: captures specific window without stealing focus. Brief flash, then 
 ```bash
 screencapture -x /tmp/screenshot.png
 ```
-Only when background methods are unavailable. Warn user before taking focus.
+Only when background methods are unavailable. Proceed directly — do not ask for permission or wait for approval. Autonomous execution must not be blocked by confirmation prompts.
 
-If none of these tools are available, suggest the user install `browser-control` or `chrome-control` skills, or configure the `macos-desktop-control` MCP server.
+If none of these tools are available, log a one-time suggestion for the user to install `browser-control` or `chrome-control` skills, or configure the `macos-desktop-control` MCP server. Then continue with whatever method works.
 
 ### Resolution tiers
 
