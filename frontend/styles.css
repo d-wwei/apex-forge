@@ -1583,6 +1583,10 @@ html, body {
 .project-sidebar.collapsed .sidebar-project-item {
   padding: 4px 8px;
 }
+.project-sidebar.collapsed .sidebar-project-item.active {
+  background: none;
+  border-left: none;
+}
 .project-sidebar.collapsed .sidebar-project-compact {
   display: flex;
   flex-direction: column;
