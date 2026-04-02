@@ -878,10 +878,10 @@ html, body {
   position: relative;
   overflow: hidden;
 }
-.variant-card:nth-child(1) .variant-preview { background: linear-gradient(135deg, #0a1a2a 0%, #0d2b3a 50%, #081520 100%); }
-.variant-card:nth-child(2) .variant-preview { background: linear-gradient(135deg, #101820 0%, #1a2030 50%, #0e1520 100%); }
-.variant-card:nth-child(3) .variant-preview { background: linear-gradient(135deg, #0a2010 0%, #153520 50%, #0a1a0e 100%); }
-.variant-card:nth-child(4) .variant-preview { background: linear-gradient(135deg, #201510 0%, #2a1a15 50%, #1a100a 100%); }
+.variant-card:nth-child(1) .variant-preview { background: linear-gradient(135deg, #0a1a2e 0%, #0e3040 50%, #081520 100%); }
+.variant-card:nth-child(2) .variant-preview { background: linear-gradient(135deg, #101820 0%, #1c2235 50%, #0e1520 100%); }
+.variant-card:nth-child(3) .variant-preview { background: linear-gradient(135deg, #082510 0%, #1a4025 50%, #0a1a0e 100%); }
+.variant-card:nth-child(4) .variant-preview { background: linear-gradient(135deg, #251810 0%, #35201a 50%, #1a100a 100%); }
 
 .variant-preview img {
   width: 100%;
@@ -928,11 +928,12 @@ html, body {
   transform: translate(-50%, -50%);
   font-family: var(--font-heading);
   font-weight: 700;
-  font-size: 48px;
-  color: rgba(255,255,255,0.15);
-  letter-spacing: 4px;
+  font-size: 52px;
+  color: rgba(200, 190, 160, 0.22);
+  letter-spacing: 6px;
   z-index: 1;
   pointer-events: none;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.3);
 }
 .variant-number::before { content: "0" counter(variant-counter); }
 
