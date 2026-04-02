@@ -1,0 +1,195 @@
+meta:
+  task_id: apex-forge-frontend-redesign-001
+  status: in-progress
+  design_inputs:
+    - "Paper: 00 logo (ZO-0)"
+    - "Paper: 01 Project List Home-default (FB-0) — 1440x1345"
+    - "Paper: 02 Project List scroll-up (1-0) — 1440x900"
+    - "Paper: 03 Dashboard Sidebar expanded (3S-0) — 1440x900"
+    - "Paper: 04 Dashboard Sidebar collapsed (U5-0) — 1440x900"
+    - "Paper: 05 Design Comparison sub-tab (8U-0) — 1440x900"
+    - "Paper: 06 Browser Side Panel (NB-0) — 390x844"
+  target_files:
+    - frontend/index.html
+    - frontend/styles.css
+    - frontend/app.js
+
+scope:
+  in_scope:
+    - Add Project List landing page with Hero + project card grid
+    - Add scroll behavior (Hero shrinks, sticky nav with small logo)
+    - Modify sidebar to support expand/collapse toggle (not hover-only)
+    - Add sidebar search input and project grouping (active / archived)
+    - Add project-level sub-tab navigation (Dashboard | Design Comparison)
+    - Keep all existing Dashboard and Design Comparison rendering logic
+    - Keep SSE real-time data pipeline intact
+  out_of_scope:
+    - Browser Side Panel (06) — separate Chrome extension, not this task
+    - New Project creation flow (button is placeholder)
+    - Search/filter functionality (UI only, no backend)
+    - Responsive / mobile layouts
+
+intent:
+  user_goal: Navigate between multiple projects from a branded landing page, then drill into project Dashboard or Design Comparison views
+  product_goal: Establish APEX FORGE brand identity with Hero section; enable multi-project workspace navigation
+  visual_character: Dark cyberpunk aesthetic with gold (#F0C040) accents, metallic textures, monospace data display
+  non_negotiables:
+    - Hero area must show full AF logo with atmospheric background
+    - Project cards must display: name, status badge, description, task count, success rate, last active
+    - Sidebar must toggle between 68px collapsed and 240px expanded
+    - Sub-tabs (Dashboard | Design Comparison) must use gold underline for active state
+    - All existing Dashboard/Design Comparison/SSE functionality must remain intact
+
+structure:
+  views:
+    - id: view-home
+      description: Project List landing page with Hero + cards
+      sections:
+        - hero: Full-width 768px tall with logo image background, connected status, user avatar
+        - project-header: "YOUR PROJECTS" title + stats + "NEW PROJECT" button
+        - search-bar: Search input + Status filter + Sort filter
+        - project-grid: 3-column flex-wrap grid of project cards, 20px gap
+    - id: view-project
+      description: Project-level container with sidebar + content area
+      sections:
+        - sidebar: 240px expanded / 68px collapsed, project list with search
+        - top-bar: Project name + connection status + timestamp
+        - sub-tabs: Dashboard | Design Comparison
+        - content: Existing dashboard or design comparison view
+
+  navigation_flow:
+    - Home (view-home) → click project card → Project view (view-project)
+    - Project view → click logo/brand in sidebar → Home (view-home)
+    - Project view → switch sub-tabs → Dashboard or Design Comparison
+    - Project view → click different project in sidebar → switch project
+
+design_tokens:
+  colors:
+    bg_main: "#10141a"
+    bg_card: "#181c22"
+    bg_deep: "#0a0e14"
+    accent_gold: "#f0c040"
+    accent_gold_bg: "rgba(240,192,64,0.1)"
+    accent_gold_border: "rgba(240,192,64,0.3)"
+    accent_blue: "#a2c9ff"
+    accent_green: "#22c55e"
+    accent_purple: "#eddbff"
+    accent_red: "#ffb4ab"
+    text_primary: "#ffffff"
+    text_secondary: "rgba(255,255,255,0.6)"
+    text_muted: "rgba(255,255,255,0.4)"
+    text_dim: "rgba(255,255,255,0.2)"
+    border_default: "rgba(223,226,235,0.08)"
+    border_light: "rgba(223,226,235,0.06)"
+
+  typography:
+    heading: "Space Grotesk, sans-serif"
+    body: "Inter, -apple-system, BlinkMacSystemFont, sans-serif"
+    mono: "Fira Code, SF Mono, monospace"
+
+  spacing:
+    hero_height: 768px
+    sidebar_expanded: 240px
+    sidebar_collapsed: 68px
+    top_bar_height: 48px
+    sub_tab_height: 40px
+    card_padding: 20px
+    card_border_radius: 12px
+    card_gap: 20px
+    section_padding_h: 40px
+    content_padding_h: 24px
+
+components:
+  - id: hero-section
+    description: Full-width branded hero with logo background image
+    design_requirements:
+      width: 1440px (100%)
+      height: 768px
+      background: hero image (cover, center) from Paper design
+      overlay: right-aligned connection status + user avatar at top
+
+  - id: project-card
+    description: Individual project card in the grid
+    design_requirements:
+      width: 440px (flex, ~33% of grid)
+      padding: 20px
+      background: "#181c22"
+      border_radius: 12px
+      border: "1px solid rgba(223,226,235,0.08)"
+      border_active: "1px solid rgba(240,192,64,0.3)"
+      content: name + status badge + description + metrics row
+      metrics: TASKS count, SUCCESS %, LAST ACTIVE
+
+  - id: sidebar-expanded
+    description: Left sidebar in expanded state
+    design_requirements:
+      width: 240px
+      background: "#0a0e14"
+      border_right: "1px solid rgba(223,226,235,0.08)"
+      sections: logo-header, search, project-list (active group), archived group
+
+  - id: sidebar-collapsed
+    description: Left sidebar in collapsed state
+    design_requirements:
+      width: 68px
+      background: "#0a0e14"
+      items: small logo, project abbreviation badges with status dots
+
+  - id: sidebar-project-item
+    description: Single project in sidebar list
+    design_requirements:
+      padding: "8px 10px"
+      border_radius: 6px
+      active_bg: "rgba(240,192,64,0.1)"
+      active_border_left: "2px solid #f0c040"
+      active_text_color: "#f0c040"
+      inactive_text_color: "rgba(255,255,255,0.7)"
+
+  - id: sub-tab-bar
+    description: Dashboard | Design Comparison tab navigation
+    design_requirements:
+      height: 40px
+      background: "#0a0e14"
+      border_bottom: "1px solid rgba(223,226,235,0.08)"
+      active_tab: "2px solid #f0c040 bottom border, #f0c040 text, 600 weight"
+      inactive_tab: "rgba(255,255,255,0.4) text, 500 weight"
+      font: "Space Grotesk 12px, letter-spacing 1px"
+
+  - id: top-bar
+    description: Project-level header bar
+    design_requirements:
+      height: 48px
+      background: "#0a0e14"
+      left: "PROJECT: {NAME}" in Space Grotesk 14px 700
+      center: green dot + CONNECTED text
+      right: timestamp in Fira Code 10px
+
+interaction_states:
+  hero_scroll:
+    description: On scroll past Hero, transition to compact header with small logo
+    trigger: scroll position > hero height
+    result: Hero hidden, sticky nav shows AF logo + "APEX FORGE" + project content
+
+  sidebar_toggle:
+    description: Click toggle button to expand/collapse sidebar
+    expanded: 240px width, full project names + metrics
+    collapsed: 68px width, abbreviation badges only
+
+  project_card_hover:
+    description: Hover state on project cards
+    effect: subtle border brightness increase
+
+  sub_tab_switch:
+    description: Click tab to switch between Dashboard and Design Comparison
+    effect: gold underline moves to active tab, content view switches
+
+acceptance_criteria:
+  - Hero section displays full AF logo with atmospheric background at 768px height
+  - Scrolling past Hero shows compact sticky navigation
+  - Project cards render in 3-column grid with correct status colors
+  - Clicking a project card navigates to project Dashboard view
+  - Sidebar toggles between 68px and 240px widths
+  - Active project in sidebar has gold highlight
+  - Sub-tabs switch between Dashboard and Design Comparison
+  - All existing SSE data rendering continues to work
+  - All CSS uses design tokens from extracted Paper parameters

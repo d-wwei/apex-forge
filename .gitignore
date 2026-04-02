@@ -5,3 +5,6 @@ bun.lock
 *.tmp.*
 labloop-results.tsv
 labloop-run.log
+.DS_Store
+front-end design/
+.assistant/

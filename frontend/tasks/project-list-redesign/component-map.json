@@ -1,0 +1,93 @@
+{
+  "mappings": [
+    {
+      "spec_component": "hero-section",
+      "target": "new-element",
+      "implementation": "div#home-hero inside div#view-home",
+      "rationale": "No existing hero component. Create as full-width section with background image.",
+      "props": {
+        "backgroundImage": "hero background from Paper design (exported or CSS gradient fallback)",
+        "height": "768px",
+        "position": "relative"
+      },
+      "forbidden_substitutions": ["Do not use a smaller logo placeholder — must use full atmospheric hero image"]
+    },
+    {
+      "spec_component": "project-card",
+      "target": "new-element",
+      "implementation": "div.project-card rendered by JS from /api/projects data",
+      "rationale": "Existing sidebar project items are too minimal. New card component with full metrics display.",
+      "props": {
+        "name": "project.name",
+        "status": "derived from project state (RUNNING/ACTIVE/BUILDING/ARCHIVED)",
+        "description": "project.description or fallback",
+        "tasks": "project.task_count",
+        "successRate": "project.success_rate",
+        "lastActive": "project.last_active"
+      },
+      "forbidden_substitutions": ["Do not reuse existing sidebar .project-item — different layout and data requirements"]
+    },
+    {
+      "spec_component": "sidebar-expanded",
+      "target": "modify-existing",
+      "implementation": "Modify existing .sidebar to support expanded state (240px)",
+      "rationale": "Existing sidebar has hover-expand pattern. Change to toggle-based with search and grouping.",
+      "changes": [
+        "Add search input at top",
+        "Add PROJECTS section label",
+        "Add ARCHIVED section label with dimmed items",
+        "Replace hover-expand with toggle button",
+        "Width: 52px → 68px collapsed, 200px → 240px expanded"
+      ],
+      "forbidden_substitutions": ["Do not remove hub link at bottom — keep as navigation back to hub"]
+    },
+    {
+      "spec_component": "sidebar-collapsed",
+      "target": "modify-existing",
+      "implementation": "Modify existing .sidebar collapsed state",
+      "rationale": "Existing collapsed state shows icons only. New design shows abbreviation badges.",
+      "changes": [
+        "Width: 52px → 68px",
+        "Show project abbreviation (first 4-5 chars) + status dot",
+        "Show small logo at top"
+      ]
+    },
+    {
+      "spec_component": "sub-tab-bar",
+      "target": "modify-existing",
+      "implementation": "Modify existing .nav-tabs to be project-level sub-tabs",
+      "rationale": "Existing nav-tabs are page-level. Reposition as sub-tabs below top-bar inside project view.",
+      "changes": [
+        "Move from fixed position to flow inside project view",
+        "Reduce height from current to 40px",
+        "Update font to Space Grotesk 12px with 1px letter-spacing",
+        "Gold underline for active tab (2px bottom border)"
+      ]
+    },
+    {
+      "spec_component": "top-bar",
+      "target": "modify-existing",
+      "implementation": "Modify existing .header to serve as project-level top bar",
+      "rationale": "Existing header shows brand + status. In project view, show project name + connection + timestamp.",
+      "changes": [
+        "Height: 65px → 48px",
+        "Left: 'PROJECT: {NAME}' replaces 'APEX FORGE' brand",
+        "Right: timestamp replaces stage info",
+        "Remove gold bottom border, use subtle divider"
+      ]
+    }
+  ],
+  "navigation_changes": {
+    "current": "Single page with 2 tabs (Dashboard, Design Comparison)",
+    "target": "Two-level: Home view → Project view with 2 sub-tabs",
+    "implementation": [
+      "Add view-home as default landing view",
+      "Wrap existing dashboard/comparison in view-project container",
+      "Add navigateToProject(projectPath) function",
+      "Add navigateToHome() function",
+      "Sidebar logo click → navigateToHome()",
+      "Project card click → navigateToProject(path)",
+      "Sidebar project click → navigateToProject(path)"
+    ]
+  }
+}
