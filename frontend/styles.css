@@ -1036,12 +1036,13 @@ html, body {
 
 /* Log Entry Row (Side Panel) */
 .log-entry {
-  padding: 16px 18px;
+  padding: 18px 18px;
   border-bottom: 1px solid var(--border-main);
 }
 
 .log-entry.error { background: rgba(255, 180, 171, 0.04); }
 .log-entry.error .log-entry-skill { color: var(--accent-gold); }
+.log-entry-skill.green { color: var(--accent-green); }
 
 .log-entry-header {
   display: flex;
@@ -1116,8 +1117,8 @@ html, body {
   gap: 8px;
 }
 .side-panel-footer-logo {
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
   object-fit: contain;
 }
 .side-panel-footer-version {
