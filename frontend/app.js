@@ -133,11 +133,16 @@ function renderSidebar(projects) {
   list.innerHTML = activeProjects.map((p, i) => {
     const isActive = currentProject && currentProject.name === p.name;
     const dotColor = p.status === 'building' ? '#a2c9ff' : '#22c55e';
+    const abbr = p.name.split('_')[0];
     return '<div class="sidebar-project-item' + (isActive ? ' active' : '') + '" data-index="' + i + '">' +
       '<div class="sidebar-project-dot" style="background:' + dotColor + '"></div>' +
       '<div class="sidebar-project-info">' +
         '<span class="sidebar-project-name">' + esc(p.name) + '</span>' +
         '<span class="sidebar-project-meta">' + p.tasks + ' tasks \u00b7 ' + p.success.toFixed(1) + '%</span>' +
+      '</div>' +
+      '<div class="sidebar-project-compact">' +
+        '<span class="compact-name">' + esc(abbr) + '</span>' +
+        '<span class="compact-stats"><span class="compact-dot" style="background:' + dotColor + '"></span>' + p.success.toFixed(1) + '%</span>' +
       '</div>' +
     '</div>';
   }).join('');

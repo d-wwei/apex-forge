@@ -1552,6 +1552,9 @@ html, body {
   font-size: 11px;
   color: rgba(255,255,255,0.4);
 }
+/* Compact sidebar project display — hidden when expanded */
+.sidebar-project-compact { display: none; }
+
 /* Collapsed sidebar state */
 .project-sidebar.collapsed .sidebar-brand,
 .project-sidebar.collapsed .sidebar-collapse-icon,
@@ -1559,6 +1562,7 @@ html, body {
 .project-sidebar.collapsed .sidebar-search-wrap,
 .project-sidebar.collapsed .sidebar-section-label,
 .project-sidebar.collapsed .sidebar-project-info,
+.project-sidebar.collapsed .sidebar-project-dot,
 .project-sidebar.collapsed .sidebar-archived-label,
 .project-sidebar.collapsed .sidebar-archived-list { display: none; }
 .project-sidebar.collapsed .sidebar-logo {
@@ -1571,12 +1575,47 @@ html, body {
   width: 42px;
 }
 .project-sidebar.collapsed .sidebar-project-item {
-  justify-content: center;
-  padding: 8px 0;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 6px;
+  gap: 0;
 }
-.project-sidebar.collapsed .sidebar-project-dot {
-  width: 10px;
-  height: 10px;
+.project-sidebar.collapsed .sidebar-project-compact {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 4px;
+  background: rgba(24, 28, 34, 0.8);
+  border: 1px solid rgba(78, 70, 53, 0.2);
+  border-radius: 6px;
+  width: 100%;
+}
+.project-sidebar.collapsed .sidebar-project-item.active .sidebar-project-compact {
+  border-color: rgba(240, 192, 64, 0.5);
+  background: rgba(240, 192, 64, 0.08);
+}
+.compact-name {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: 9px;
+  color: var(--accent-gold);
+  letter-spacing: 0.5px;
+  text-align: center;
+}
+.compact-stats {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-family: 'Fira Code', monospace;
+  font-size: 8px;
+  color: rgba(255,255,255,0.5);
+}
+.compact-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 /* --- 6. Project Top Bar & Sub-tabs --- */
