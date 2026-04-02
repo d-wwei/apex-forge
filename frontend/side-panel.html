@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>APEX FORGE — Side Panel</title>
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg-deep);
+      height: 100%;
+      overflow: hidden;
+    }
+    .side-panel-container {
+      width: 100%;
+      max-width: 390px;
+      margin: 0 auto;
+      height: 100vh;
+      min-height: unset;
+    }
+  </style>
+</head>
+<body>
+
+<div class="side-panel-container">
+
+  <!-- Tabs -->
+  <div class="side-panel-tabs">
+    <button class="side-panel-tab active" data-tab="activity">ACTIVITY</button>
+    <button class="side-panel-tab" data-tab="refs">REFS</button>
+  </div>
+
+  <!-- Activity Content -->
+  <div class="side-panel-content" id="panel-activity">
+
+    <div class="log-entry">
+      <div class="log-entry-header">
+        <span class="log-entry-time">14:22:01.442</span>
+        <span class="log-entry-status success">12ms <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.5 12L13 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      </div>
+      <div class="log-entry-detail">
+        <span class="log-entry-skill">DOM_SNAPSHOT</span>
+      </div>
+      <div class="log-entry-desc">Target: section#main-canvas &gt; div.grid...</div>
+    </div>
+
+    <div class="log-entry">
+      <div class="log-entry-header">
+        <span class="log-entry-time">14:22:03.189</span>
+        <span class="log-entry-status success">248ms <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.5 12L13 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      </div>
+      <div class="log-entry-detail">
+        <span class="log-entry-skill">EXEC_SKILL</span>
+      </div>
+      <div class="log-entry-desc">Input: "Analyze structural integrity of...</div>
+    </div>
+
+    <div class="log-entry error">
+      <div class="log-entry-header">
+        <span class="log-entry-time">14:22:05.882</span>
+        <span class="log-entry-status failed">1.2s <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M4 4L12 12M12 4L4 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+      </div>
+      <div class="log-entry-detail">
+        <span class="log-entry-skill">MEMORY_SYNC</span>
+      </div>
+      <div class="log-entry-desc">Timeout: Connection dropped to remote ...</div>
+    </div>
+
+    <div class="log-entry">
+      <div class="log-entry-header">
+        <span class="log-entry-time">14:22:12.081</span>
+        <span class="log-entry-status success">4ms <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.5 12L13 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      </div>
+      <div class="log-entry-detail">
+        <span class="log-entry-skill">TELEMETRY_PULSE</span>
+      </div>
+      <div class="log-entry-desc">Status: Nominal. All systems activ...</div>
+    </div>
+
+    <div class="log-entry">
+      <div class="log-entry-header">
+        <span class="log-entry-time">14:21:58.992</span>
+        <span class="log-entry-status success">92ms <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.5 12L13 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      </div>
+      <div class="log-entry-detail">
+        <span class="log-entry-skill">AUTH_HANDSHAKE</span>
+      </div>
+      <div class="log-entry-desc">Operator: session_s882 verified.</div>
+    </div>
+
+  </div>
+
+  <!-- Refs Content (hidden) -->
+  <div class="side-panel-content" id="panel-refs" style="display:none;">
+    <div style="padding:20px;color:var(--text-muted);font-size:12px;text-align:center;">No references loaded</div>
+  </div>
+
+  <!-- Footer -->
+  <div class="side-panel-footer">
+    <div class="side-panel-footer-left">
+      <img class="side-panel-footer-logo" src="/hd_logo_AF.png" alt="AF" draggable="false">
+    </div>
+    <div class="side-panel-footer-right">
+      <span class="side-panel-footer-dot"></span>
+      <span>CONNECTED: 34567</span>
+    </div>
+  </div>
+  <div class="side-panel-sub-footer">
+    <span>FORGE_V4_2_8_STABLE</span>
+    <span>READ-ONLY MONITOR</span>
+  </div>
+
+</div>
+
+<script>
+// Tab switching
+document.querySelectorAll('.side-panel-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.side-panel-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const target = tab.dataset.tab;
+    document.getElementById('panel-activity').style.display = target === 'activity' ? '' : 'none';
+    document.getElementById('panel-refs').style.display = target === 'refs' ? '' : 'none';
+  });
+});
+</script>
+</body>
+</html>
