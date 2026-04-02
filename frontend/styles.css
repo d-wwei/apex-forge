@@ -1593,13 +1593,13 @@ html, body {
   align-items: center;
   gap: 2px;
   padding: 6px 6px 6px 8px;
-  background: rgba(240, 192, 64, 0.1);
-  border-left: 2px solid #f0c040;
+  background: color-mix(in srgb, var(--card-color, #f0c040) 8%, transparent);
+  border-left: 2px solid var(--card-color, #f0c040);
   border-radius: 6px;
   width: 100%;
 }
 .project-sidebar.collapsed .sidebar-project-item.active .sidebar-project-compact {
-  background: rgba(240, 192, 64, 0.18);
+  background: color-mix(in srgb, var(--card-color, #f0c040) 22%, transparent);
 }
 .compact-name {
   font-family: 'Inter', sans-serif;

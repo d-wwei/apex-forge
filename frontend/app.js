@@ -130,11 +130,13 @@ function renderSidebar(projects) {
   const activeProjects = projects.filter(p => p.status !== 'archived');
   const archivedProjects = projects.filter(p => p.status === 'archived');
 
+  const cardColors = ['#f0c040', '#22c55e', '#a2c9ff', '#e879a0'];
   list.innerHTML = activeProjects.map((p, i) => {
     const isActive = currentProject && currentProject.name === p.name;
     const dotColor = p.status === 'building' ? '#a2c9ff' : '#22c55e';
+    const cardColor = cardColors[i % cardColors.length];
     const abbr = p.name.split('_')[0];
-    return '<div class="sidebar-project-item' + (isActive ? ' active' : '') + '" data-index="' + i + '">' +
+    return '<div class="sidebar-project-item' + (isActive ? ' active' : '') + '" data-index="' + i + '" style="--card-color:' + cardColor + '">' +
       '<div class="sidebar-project-dot" style="background:' + dotColor + '"></div>' +
       '<div class="sidebar-project-info">' +
         '<span class="sidebar-project-name">' + esc(p.name) + '</span>' +
