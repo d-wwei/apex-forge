@@ -41,6 +41,33 @@ Why: If you change 5 things and the score drops, you don't know which change cau
 
 ## Screenshot comparison protocol
 
+### Background-first screenshot capture
+
+**Always use background methods** so the user can keep working. Never steal the user's active window focus for routine screenshots.
+
+**Priority 1 — CDP Proxy (browser-control skill)**:
+```bash
+# Open dev server in a background tab
+TAB_ID=$(curl -s "http://localhost:3456/new?url=http://localhost:3000" | jq -r '.targetId')
+# Wait for load, then screenshot
+curl -s "http://localhost:3456/screenshot?target=$TAB_ID&file=/tmp/fidelity-check.png"
+```
+Best option: zero user disruption, dedicated background tab, fully scriptable.
+
+**Priority 2 — macOS Desktop Control MCP**:
+```
+mcp__macos-desktop-control__screenshot(target: { app: "Google Chrome", title: "localhost" })
+```
+Good option: captures specific window without stealing focus. Brief flash, then focus restored.
+
+**Priority 3 — Foreground screenshot (last resort)**:
+```bash
+screencapture -x /tmp/screenshot.png
+```
+Only when background methods are unavailable. Warn user before taking focus.
+
+If none of these tools are available, suggest the user install `browser-control` or `chrome-control` skills, or configure the `macos-desktop-control` MCP server.
+
 ### Resolution tiers
 
 Use the smallest image that shows the difference:

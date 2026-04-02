@@ -9,6 +9,33 @@ description: Execute spec-first design-to-code work from repository assets inste
 
 Use the repository as the source of truth. Use this skill to make agents follow the repository workflow consistently: preprocess design sources, discover the contract, create or validate task artifacts, implement in phases, run continuous fidelity checks, and close the acceptance loop.
 
+## Recommended companion skills
+
+This skill relies on browser and desktop automation for the fidelity loop (screenshot capture, visual comparison). Install these companion skills for best results:
+
+- **browser-control** — Background browser automation via CDP Proxy. Use for: opening dev server pages, taking screenshots, scrolling, and comparing — all in background tabs without disturbing the user's active window.
+- **chrome-control** — Chrome-specific automation via JXA/AppleScript. Use for: macOS-native Chrome tab control and async JavaScript injection.
+- **macOS Desktop Control** (MCP server: `mcp__macos-desktop-control__*`) — System-level window screenshot and interaction. Use for: capturing specific windows via the `target` parameter without stealing focus.
+
+If companion skills are not installed, warn the user:
+
+> "Design-to-code fidelity loop requires browser/desktop automation for screenshot comparison. Recommended: install `browser-control` and/or `chrome-control` skills, or ensure the `macos-desktop-control` MCP server is configured."
+
+### Background operation principle
+
+**Always prefer background operations.** The user and the agent should be able to work simultaneously. Never steal the user's active window focus for routine screenshots or comparisons.
+
+| Tool | Background method |
+|------|------------------|
+| Browser Control (CDP Proxy) | `curl -s "http://localhost:3456/screenshot?target=ID&file=/tmp/shot.png"` — operates on background tabs |
+| macOS Desktop Control | `target: { app: "Google Chrome", title: "..." }` — captures specific window without focus |
+| Chrome Control (JXA) | Async JS injection — runs in browser background, retrieves results later |
+
+When taking screenshots for the fidelity loop:
+1. **First choice**: CDP Proxy background tab (zero user disruption)
+2. **Second choice**: macOS Desktop Control with `target` parameter (brief flash, restored focus)
+3. **Last resort**: Foreground screenshot (only when background methods are unavailable)
+
 ## Workflow
 
 ### 0. Identify and preprocess design sources
