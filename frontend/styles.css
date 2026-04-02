@@ -1584,16 +1584,17 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: 6px 4px;
-  background: rgba(24, 28, 34, 0.8);
-  border: 1px solid rgba(78, 70, 53, 0.2);
+  gap: 3px;
+  padding: 8px 6px;
+  background: rgba(24, 28, 34, 0.9);
+  border: 1.5px solid rgba(223, 226, 235, 0.15);
   border-radius: 6px;
   width: 100%;
 }
 .project-sidebar.collapsed .sidebar-project-item.active .sidebar-project-compact {
-  border-color: rgba(240, 192, 64, 0.5);
-  background: rgba(240, 192, 64, 0.08);
+  border: 2px solid rgba(240, 192, 64, 0.7);
+  background: rgba(240, 192, 64, 0.06);
+  box-shadow: 0 0 10px rgba(240, 192, 64, 0.12);
 }
 .compact-name {
   font-family: 'Space Grotesk', sans-serif;
