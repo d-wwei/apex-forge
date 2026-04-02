@@ -1118,7 +1118,7 @@ html, body {
   object-fit: contain;
   position: absolute;
   left: 14px;
-  bottom: 8px;
+  bottom: -2px;
   pointer-events: none;
   z-index: 1;
 }
