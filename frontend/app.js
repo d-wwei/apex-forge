@@ -140,7 +140,7 @@ function renderSidebar(projects) {
         '<span class="sidebar-project-name">' + esc(p.name) + '</span>' +
         '<span class="sidebar-project-meta">' + p.tasks + ' tasks \u00b7 ' + p.success.toFixed(1) + '%</span>' +
       '</div>' +
-      '<div class="sidebar-project-compact" style="--bar-color:' + dotColor + '">' +
+      '<div class="sidebar-project-compact">' +
         '<span class="compact-name">' + esc(abbr) + '</span>' +
         '<span class="compact-stats"><span class="compact-dot" style="background:' + dotColor + '"></span>' + p.success.toFixed(1) + '%</span>' +
       '</div>' +

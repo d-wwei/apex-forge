@@ -1581,47 +1581,37 @@ html, body {
   width: 42px;
 }
 .project-sidebar.collapsed .sidebar-project-item {
-  flex-direction: column;
-  align-items: center;
-  padding: 3px 8px;
-  gap: 0;
+  padding: 4px 8px;
 }
 .project-sidebar.collapsed .sidebar-project-compact {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: 10px 10px 10px 18px;
-  background: rgba(50, 44, 24, 0.7);
+  gap: 2px;
+  padding: 6px 4px;
+  background: none;
   border: none;
-  border-radius: 10px;
+  border-radius: 6px;
   width: 100%;
-  position: relative;
-  overflow: hidden;
-}
-.project-sidebar.collapsed .sidebar-project-compact::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 5px;
-  bottom: 5px;
-  width: 5px;
-  border-radius: 0 4px 4px 0;
-  background: var(--bar-color, var(--accent-green));
 }
 .project-sidebar.collapsed .sidebar-project-item.active .sidebar-project-compact {
-  background: rgba(60, 52, 24, 0.9);
-}
-.project-sidebar.collapsed .sidebar-project-item.active .sidebar-project-compact::before {
-  background: var(--bar-color, var(--accent-green));
+  background: rgba(240, 192, 64, 0.08);
 }
 .compact-name {
-  font-family: 'Space Grotesk', sans-serif;
-  font-weight: 700;
+  font-family: 'Inter', sans-serif;
+  font-weight: 500;
   font-size: 11px;
-  color: var(--accent-gold);
-  letter-spacing: 0.5px;
+  color: rgba(255,255,255,0.7);
+  letter-spacing: 0.3px;
   text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.project-sidebar.collapsed .sidebar-project-item.active .compact-name {
+  font-weight: 600;
+  color: #f0c040;
 }
 .compact-stats {
   display: flex;
@@ -1629,7 +1619,7 @@ html, body {
   gap: 4px;
   font-family: 'Fira Code', monospace;
   font-size: 9px;
-  color: rgba(255,255,255,0.55);
+  color: rgba(255,255,255,0.3);
 }
 .compact-dot {
   width: 6px;
