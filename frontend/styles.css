@@ -347,6 +347,7 @@ html, body {
 .task-card {
   background: var(--bg-card);
   border-left: 4px solid;
+  border-radius: 0 6px 6px 0;
   padding: 12px 12px 12px 16px;
   display: flex;
   flex-direction: column;
@@ -581,9 +582,9 @@ html, body {
   border: 1px solid rgba(78, 70, 53, 0.15);
 }
 
-.stat-card.gold { border-left: 2px solid rgba(255, 223, 150, 0.3); }
-.stat-card.blue { border-left: 2px solid rgba(162, 201, 255, 0.25); }
-.stat-card.green { border-left: 2px solid rgba(34, 197, 94, 0.25); }
+.stat-card.gold { border-left: 3px solid rgba(255, 223, 150, 0.35); }
+.stat-card.blue { border-left: 3px solid rgba(162, 201, 255, 0.3); }
+.stat-card.green { border-left: 3px solid rgba(34, 197, 94, 0.3); background: rgba(34, 197, 94, 0.04); }
 
 .stat-label {
   font-family: var(--font-body);
