@@ -38,11 +38,13 @@ function setConnected(yes) {
   const dot = document.getElementById('status-dot');
   const text = document.getElementById('status-text');
   const footer = document.getElementById('footer-status');
+  const footerDot = document.getElementById('footer-dot');
   dot.className = `status-dot ${yes ? '' : 'disconnected'}`;
+  if (footerDot) footerDot.className = `footer-dot ${yes ? '' : 'disconnected'}`;
   text.textContent = yes
     ? `ORCHESTRATION ACTIVE | PORT ${port}`
     : 'DISCONNECTED \u2014 RETRYING...';
-  footer.textContent = yes ? 'MCP: CONNECTED' : 'MCP: --';
+  footer.textContent = yes ? `CONNECTED: ${port}` : 'DISCONNECTED';
 }
 
 function startActivityStream() {

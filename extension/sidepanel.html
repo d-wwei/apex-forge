@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@700&family=Inter:wght@400;600&family=Fira+Code:wght@400;500&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=Inter:wght@400;500;600&family=Fira+Code:wght@400;500&display=swap');
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -15,12 +15,13 @@
     --text-primary: #dfe2eb;
     --text-secondary: rgba(223,226,235,0.6);
     --text-muted: rgba(223,226,235,0.4);
+    --text-dim: rgba(223,226,235,0.2);
     --accent-gold: #f0c040;
     --accent-gold-light: #ffdf96;
     --accent-blue: #a2c9ff;
     --accent-green: #22c55e;
     --accent-red: #ffb4ab;
-    --border-main: rgba(78,70,53,0.1);
+    --border-main: rgba(78,70,53,0.15);
     --border-light: rgba(78,70,53,0.2);
     --font-heading: 'Space Grotesk', sans-serif;
     --font-body: 'Inter', system-ui, sans-serif;
@@ -29,9 +30,9 @@
 
   body {
     font-family: var(--font-body);
-    background: var(--bg-card);
+    background: var(--bg-deep);
     color: var(--text-primary);
-    width: 350px;
+    width: 100%;
     min-height: 100vh;
     display: flex;
     flex-direction: column;
@@ -74,11 +75,12 @@
   }
   .tab {
     flex: 1;
-    padding: 12px;
+    padding: 14px 12px;
     text-align: center;
     font-family: var(--font-body);
     font-weight: 600;
-    font-size: 12px;
+    font-size: 13px;
+    letter-spacing: 1px;
     color: var(--text-muted);
     cursor: pointer;
     border: none;
@@ -96,15 +98,16 @@
   .panel { display: none; flex: 1; overflow-y: auto; }
   .panel.active { display: block; }
   .panel::-webkit-scrollbar { width: 4px; }
-  .panel::-webkit-scrollbar-track { background: var(--bg-card); }
+  .panel::-webkit-scrollbar-track { background: var(--bg-deep); }
   .panel::-webkit-scrollbar-thumb { background: var(--bg-tag); border-radius: 2px; }
 
   /* Log Entry */
   .log-entry {
-    padding: 12px 14px;
+    padding: 18px 18px;
     border-bottom: 1px solid var(--border-main);
   }
-  .log-entry.error { background: rgba(255,180,171,0.03); }
+  .log-entry.error { background: rgba(255,180,171,0.04); }
+  .log-entry.error .log-entry-skill { color: var(--accent-gold); }
 
   .log-entry-header {
     display: flex;
@@ -118,30 +121,36 @@
   }
   .log-entry-status {
     font-family: var(--font-mono);
-    font-size: 10px;
+    font-size: 11px;
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 5px;
   }
   .log-entry-status.ok { color: var(--accent-green); }
   .log-entry-status.err { color: var(--accent-red); }
 
   .log-entry-detail {
-    margin-top: 4px;
+    margin-top: 8px;
     display: flex;
     align-items: baseline;
     gap: 8px;
   }
   .log-entry-skill {
-    font-family: var(--font-body);
-    font-weight: 600;
-    font-size: 12px;
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 14px;
     color: var(--text-primary);
+    letter-spacing: -0.3px;
   }
   .log-entry-target {
     font-family: var(--font-mono);
     font-size: 10px;
     color: var(--text-muted);
+    margin-top: 4px;
+    line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   /* Refs panel */
@@ -164,13 +173,47 @@
 
   /* Footer */
   .footer {
-    padding: 8px 16px;
+    position: relative;
+    padding: 10px 16px;
     border-top: 1px solid var(--border-main);
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-end;
+    align-items: center;
     font-family: var(--font-mono);
     font-size: 10px;
     color: var(--text-muted);
+    flex-shrink: 0;
+  }
+  .footer-logo {
+    width: 72px;
+    height: 72px;
+    object-fit: contain;
+    position: absolute;
+    left: 14px;
+    bottom: -2px;
+    pointer-events: none;
+    z-index: 1;
+  }
+  .footer-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .footer-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent-green);
+  }
+  .footer-dot.disconnected { background: var(--accent-red); }
+  .sub-footer {
+    padding: 4px 16px 10px;
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--font-mono);
+    font-size: 8px;
+    color: var(--text-dim);
+    letter-spacing: 0.5px;
     flex-shrink: 0;
   }
 </style>
@@ -199,8 +242,15 @@
   </div>
 
   <div class="footer">
+    <img class="footer-logo" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" alt="AF" id="footer-logo">
+    <div class="footer-right">
+      <span class="footer-dot" id="footer-dot"></span>
+      <span id="footer-status">CONNECTED: --</span>
+    </div>
+  </div>
+  <div class="sub-footer">
     <span>APEX_FORGE v0.1.0</span>
-    <span id="footer-status">MCP: --</span>
+    <span>READ-ONLY MONITOR</span>
   </div>
 
   <script src="sidepanel.js"></script>
