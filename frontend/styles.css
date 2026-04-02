@@ -1592,14 +1592,14 @@ html, body {
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  padding: 6px 4px;
-  background: none;
-  border: none;
+  padding: 6px 6px 6px 8px;
+  background: rgba(240, 192, 64, 0.1);
+  border-left: 2px solid #f0c040;
   border-radius: 6px;
   width: 100%;
 }
 .project-sidebar.collapsed .sidebar-project-item.active .sidebar-project-compact {
-  background: rgba(240, 192, 64, 0.08);
+  background: rgba(240, 192, 64, 0.18);
 }
 .compact-name {
   font-family: 'Inter', sans-serif;
