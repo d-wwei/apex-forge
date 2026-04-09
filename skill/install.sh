@@ -2,20 +2,51 @@
 set -euo pipefail
 
 # Apex Forge — Universal Skill Installer
-# Detects available AI agent platforms and installs the skill + CLI
+# Installs AF core + all companion skills (hard dependencies)
 
 SKILL_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SKILL_DIR/.." && pwd)"
 DIST_DIR="$REPO_DIR/dist"
 APEX_BIN="$DIST_DIR/apex-forge"
 
-echo "Apex Forge Skill Installer"
-echo "=========================="
+# ─── Parse command ──────────────────────────────────────────────
+
+CMD="${1:-install}"
+
+case "$CMD" in
+  install) ;;
+  update)
+    echo "Updating all companion skills..."
+    # Detect skill directory
+    for SKILLS_HOME in "$HOME/.claude/skills" "$HOME/.codex/skills" "$HOME/.gemini/skills" "$HOME/.opencode/skills"; do
+      if [ -d "$SKILLS_HOME" ]; then
+        for dir in "$SKILLS_HOME"/*/; do
+          name="$(basename "$dir")"
+          [ "$name" = "apex-forge" ] && continue
+          if [ -d "$dir/.git" ]; then
+            echo "  [update] $name"
+            git -C "$dir" pull --ff-only 2>/dev/null || echo "  [warn] $name: pull failed, skipping"
+          fi
+        done
+        break
+      fi
+    done
+    echo "Done."
+    exit 0
+    ;;
+  *)
+    echo "Usage: install.sh [install|update]"
+    exit 1
+    ;;
+esac
+
+echo "Apex Forge Installer"
+echo "===================="
 echo "Skill:  $SKILL_DIR"
 echo "CLI:    $APEX_BIN"
 echo ""
 
-# --- Step 1: Check CLI binary ---
+# ─── 1. Check CLI binary ─────────────────────────────────────────
 
 if [ ! -x "$APEX_BIN" ]; then
   echo "[!] CLI binary not found at $APEX_BIN"
@@ -25,7 +56,7 @@ fi
 
 echo "[ok] CLI binary found"
 
-# --- Step 2: Add CLI to PATH ---
+# ─── 2. Add CLI to PATH ──────────────────────────────────────────
 
 SHELL_RC=""
 if [ -f "$HOME/.zshrc" ]; then
@@ -54,53 +85,104 @@ else
   echo "    $PATH_LINE"
 fi
 
-# --- Step 3: Install skill for detected platforms ---
+# ─── 3. Install AF core for detected platforms ───────────────────
 
 installed=0
 
-# Claude Code
-if [ -d "$HOME/.claude" ]; then
-  mkdir -p "$HOME/.claude/skills"
-  ln -sfn "$SKILL_DIR" "$HOME/.claude/skills/apex-forge"
-  echo "[ok] Claude Code: ~/.claude/skills/apex-forge"
-  installed=$((installed + 1))
-fi
-
-# Codex
-if [ -d "$HOME/.codex" ]; then
-  mkdir -p "$HOME/.codex/skills"
-  ln -sfn "$SKILL_DIR" "$HOME/.codex/skills/apex-forge"
-  echo "[ok] Codex: ~/.codex/skills/apex-forge"
-  installed=$((installed + 1))
-fi
-
-# Gemini
-if [ -d "$HOME/.gemini" ]; then
-  mkdir -p "$HOME/.gemini/skills"
-  ln -sfn "$SKILL_DIR" "$HOME/.gemini/skills/apex-forge"
-  echo "[ok] Gemini: ~/.gemini/skills/apex-forge"
-  installed=$((installed + 1))
-fi
-
-# OpenCode
-if [ -d "$HOME/.opencode" ]; then
-  mkdir -p "$HOME/.opencode/skills"
-  ln -sfn "$SKILL_DIR" "$HOME/.opencode/skills/apex-forge"
-  echo "[ok] OpenCode: ~/.opencode/skills/apex-forge"
-  installed=$((installed + 1))
-fi
+for SKILLS_HOME in "$HOME/.claude/skills" "$HOME/.codex/skills" "$HOME/.gemini/skills" "$HOME/.opencode/skills"; do
+  PLATFORM_DIR="$(dirname "$SKILLS_HOME")"
+  if [ -d "$PLATFORM_DIR" ]; then
+    mkdir -p "$SKILLS_HOME"
+    ln -sfn "$SKILL_DIR" "$SKILLS_HOME/apex-forge"
+    echo "[ok] $(basename "$PLATFORM_DIR"): $SKILLS_HOME/apex-forge"
+    installed=$((installed + 1))
+  fi
+done
 
 if [ $installed -eq 0 ]; then
-  echo ""
   echo "[!] No known agent platforms detected."
   echo "    Manual install: symlink $SKILL_DIR to your agent's skills directory."
-  echo "    See: $SKILL_DIR/references/platform-setup.md"
+fi
+
+# ─── 4. Install companion skills (hard dependencies) ─────────────
+
+# Detect first available skills home
+SKILLS_HOME=""
+for dir in "$HOME/.claude/skills" "$HOME/.codex/skills" "$HOME/.gemini/skills" "$HOME/.opencode/skills"; do
+  if [ -d "$dir" ]; then
+    SKILLS_HOME="$dir"
+    break
+  fi
+done
+
+if [ -z "$SKILLS_HOME" ]; then
+  SKILLS_HOME="$HOME/.claude/skills"
+  mkdir -p "$SKILLS_HOME"
 fi
 
 echo ""
-echo "Done. $installed platform(s) configured."
+echo "Installing companion skills to $SKILLS_HOME..."
+
+# Format: name|url|tag (empty tag = HEAD)
+DEPS=(
+  "systematic-debugging|https://github.com/d-wwei/systematic-debugging|v1.0.0"
+  "thorough-code-review|https://github.com/d-wwei/thorough-code-review|v1.0.0"
+  "security-audit|https://github.com/d-wwei/security-audit|v1.0.0"
+  "browser-qa-testing|https://github.com/d-wwei/browser-qa-testing|v1.0.0"
+  "tasteful-frontend|https://github.com/d-wwei/tasteful-frontend|"
+  "design-to-code-runner|https://github.com/d-wwei/design-to-code-runner|"
+  "product-review|https://github.com/d-wwei/product-review|"
+)
+
+FAILED=()
+
+for dep in "${DEPS[@]}"; do
+  IFS='|' read -r name url tag <<< "$dep"
+  target="$SKILLS_HOME/$name"
+  if [ -d "$target" ] || [ -L "$target" ]; then
+    echo "  [ok] $name (already installed)"
+  else
+    echo "  [install] $name"
+    if [ -n "$tag" ]; then
+      git clone --depth 1 --branch "$tag" "$url" "$target" 2>/dev/null || FAILED+=("$name")
+    else
+      git clone --depth 1 "$url" "$target" 2>/dev/null || FAILED+=("$name")
+    fi
+  fi
+done
+
+# ─── 5. Build browser-qa-testing binary (if bun available) ───────
+
+BQT_DIR="$SKILLS_HOME/browser-qa-testing"
+if [ -d "$BQT_DIR/src" ] && command -v bun &>/dev/null; then
+  echo ""
+  echo "Building browser binary..."
+  if [ -f "$BQT_DIR/install.sh" ]; then
+    bash "$BQT_DIR/install.sh" 2>/dev/null && echo "  [ok] browse binary" || echo "  [warn] browse binary build failed"
+  else
+    (cd "$BQT_DIR" && bun install 2>/dev/null && bun run build 2>/dev/null) && echo "  [ok] browse binary" || echo "  [warn] browse binary build failed"
+  fi
+fi
+
+# ─── 6. Result ────────────────────────────────────────────────────
+
+echo ""
+if [ ${#FAILED[@]} -gt 0 ]; then
+  echo "WARNING: Failed to install: ${FAILED[*]}"
+  echo "These are hard dependencies. AF pipeline will not function correctly."
+  echo "Please install manually: git clone <url> $SKILLS_HOME/<name>"
+  exit 1
+fi
+
+echo "Done. Apex Forge + 7 companion skills installed."
 echo ""
 echo "Usage:"
-echo "  - In any agent: /apex-forge or \$apex-forge"
-echo "  - In terminal:  apex init && apex status"
-echo "  - Restart your shell or run: source $SHELL_RC"
+echo "  /apex-forge               Activate core protocol"
+echo "  /apex-forge execute       TDD-first implementation"
+echo "  /systematic-debugging     Standalone debugging"
+echo "  /thorough-code-review     Standalone PR review"
+echo "  /browser-qa-testing       Standalone QA + browser"
+echo "  /security-audit           Standalone security audit"
+echo ""
+echo "Maintenance:"
+echo "  install.sh update         Pull latest for all companion skills"

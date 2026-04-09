@@ -8,11 +8,9 @@
   },
   "scripts": {
     "build": "bun build --compile src/cli.ts --outfile dist/apex-forge",
-    "build:browse": "bun build --compile src/browse/cli.ts --outfile dist/apex-forge-browse --external playwright --external playwright-core",
     "build:mcp": "bun build --compile src/mcp/server.ts --outfile dist/apex-forge-mcp --external playwright --external playwright-core --external @modelcontextprotocol/sdk",
-    "build:all": "bun run build && bun run build:browse && bun run build:mcp",
+    "build:all": "bun run build && bun run build:mcp",
     "dev": "bun run src/cli.ts",
-    "dev:browse": "bun run src/browse/cli.ts",
     "test": "bun test"
   },
   "dependencies": {

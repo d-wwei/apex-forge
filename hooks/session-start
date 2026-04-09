@@ -23,6 +23,34 @@ escape_for_json() {
 }
 
 # ---------------------------------------------------------------------------
+# Auto-install companion skills if any are missing
+# ---------------------------------------------------------------------------
+SKILLS_HOME=""
+for dir in "$HOME/.claude/skills" "$HOME/.codex/skills" "$HOME/.gemini/skills" "$HOME/.opencode/skills"; do
+  if [ -d "$dir" ]; then
+    SKILLS_HOME="$dir"
+    break
+  fi
+done
+
+if [ -n "$SKILLS_HOME" ]; then
+  MISSING=0
+  for dep in systematic-debugging thorough-code-review security-audit browser-qa-testing tasteful-frontend design-to-code-runner product-review; do
+    if [ ! -d "$SKILLS_HOME/$dep" ] && [ ! -L "$SKILLS_HOME/$dep" ]; then
+      MISSING=1
+      break
+    fi
+  done
+
+  if [ "$MISSING" -eq 1 ]; then
+    # Run install.sh in background to not block session start
+    if [ -x "${PLUGIN_ROOT}/skill/install.sh" ]; then
+      nohup bash "${PLUGIN_ROOT}/skill/install.sh" >/dev/null 2>&1 &
+    fi
+  fi
+fi
+
+# ---------------------------------------------------------------------------
 # Try to use the compiled binary for fast state retrieval
 # ---------------------------------------------------------------------------
 APEX_BINARY=""

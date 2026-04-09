@@ -1,8 +1,9 @@
 /**
  * Apex Forge — MCP Browse Proxy Tools
  *
- * Registers browser automation tools that proxy commands to the apex-browse
- * daemon via HTTP. The daemon manages a Playwright browser instance.
+ * Registers browser automation tools that proxy commands to the browse daemon
+ * provided by the browser-qa-testing companion skill. The daemon manages a
+ * Playwright browser instance.
  *
  * Commands: goto, snapshot, click, fill, screenshot, text, html, links, console, is
  */
@@ -38,7 +39,7 @@ async function ensureDaemon(): Promise<ServerState> {
   const info = readState();
   if (!info) {
     throw new Error(
-      "apex-browse daemon is not running. Start it with: apex-browse goto <url>",
+      "Browse daemon is not running. Start it with: browse goto <url> (provided by browser-qa-testing skill)",
     );
   }
   // Quick health check (no auth required on /health)
@@ -51,7 +52,7 @@ async function ensureDaemon(): Promise<ServerState> {
     if (health.status !== "healthy") throw new Error("unhealthy");
   } catch {
     throw new Error(
-      "apex-browse daemon is not responding. Restart with: apex-browse goto <url>",
+      "Browse daemon is not responding. Restart with: browse goto <url> (provided by browser-qa-testing skill)",
     );
   }
   return info;

@@ -38,6 +38,20 @@ ask whether they are intentional.
 ### Check 4: Review Status Confirmed
 Re-read the review artifact. Confirm status is DONE or DONE_WITH_CONCERNS.
 
+### Check 5: Skill Invocation Trace
+Read `.apex/state.json` → `skill_invocations[]`. Verify that all required skills
+from `bindings.yaml` (those with `concurrent: false`) were invoked during this
+pipeline run. Missing invocations block ship.
+
+Required checks:
+- Execute stage: Was `systematic-debugging` invoked if bugs were encountered?
+- Review stage: Was `thorough-code-review` (outgoing) invoked?
+- Review stage: Was `security-audit` invoked if changes touch auth/data/network/deps?
+- Review stage: Was `design-baseline` gate run if frontend files changed?
+
+If any required skill invocation is missing, report which skill was skipped and
+instruct the agent to return to the appropriate stage.
+
 ---
 
 ## Ship Sequence

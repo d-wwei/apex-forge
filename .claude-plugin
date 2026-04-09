@@ -82,15 +82,51 @@
       "user-invocable": true
     },
     {
-      "name": "apex-forge-design-review",
-      "path": "workflow/roles/design-review.md",
-      "description": "Visual QA and design polish — screenshot-driven fix-verify loops",
+      "name": "apex-forge-design-baseline",
+      "path": "workflow/gates/design-baseline.md",
+      "description": "Objective design quality gate — WCAG, layout, readability checks (AF-owned)",
+      "user-invocable": false
+    },
+    {
+      "name": "apex-forge-investigate",
+      "path": "workflow/aliases/investigate.md",
+      "description": "Alias: routes to /systematic-debugging",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-forge-code-review",
+      "path": "workflow/aliases/code-review.md",
+      "description": "Alias: routes to /thorough-code-review (outgoing mode)",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-forge-receiving-review",
+      "path": "workflow/aliases/receiving-review.md",
+      "description": "Alias: routes to /thorough-code-review (incoming mode)",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-forge-qa",
+      "path": "workflow/aliases/qa.md",
+      "description": "Alias: routes to /browser-qa-testing",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-forge-browse",
+      "path": "workflow/aliases/browse.md",
+      "description": "Alias: routes to /browser-qa-testing (browser automation)",
       "user-invocable": true
     },
     {
       "name": "apex-forge-security-audit",
-      "path": "workflow/roles/security-audit.md",
-      "description": "Chief Security Officer mode — infrastructure-first security audit",
+      "path": "workflow/aliases/security-audit.md",
+      "description": "Alias: routes to /security-audit",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-forge-design-review",
+      "path": "workflow/aliases/design-review.md",
+      "description": "Alias: routes to two-layer design review (baseline + /tasteful-frontend)",
       "user-invocable": true
     },
     {
@@ -103,30 +139,6 @@
       "name": "apex-forge-plan-eng-review",
       "path": "workflow/roles/plan-eng-review.md",
       "description": "Engineering architecture review — senior eng manager locking in execution",
-      "user-invocable": true
-    },
-    {
-      "name": "apex-forge-browse",
-      "path": "workflow/roles/browse.md",
-      "description": "Browser interaction — navigate, read, interact, screenshot",
-      "user-invocable": true
-    },
-    {
-      "name": "apex-forge-qa",
-      "path": "workflow/roles/qa.md",
-      "description": "Systematic QA testing with tiered depth, browser-aware verification, and bug-fix loop",
-      "user-invocable": true
-    },
-    {
-      "name": "apex-forge-investigate",
-      "path": "workflow/roles/investigate.md",
-      "description": "Systematic debugging with root-cause discipline — no fixes without understanding why",
-      "user-invocable": true
-    },
-    {
-      "name": "apex-forge-code-review",
-      "path": "workflow/roles/code-review.md",
-      "description": "Multi-pass code review — correctness, security, performance, maintainability",
       "user-invocable": true
     },
     {

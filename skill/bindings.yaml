@@ -1,0 +1,100 @@
+# bindings.yaml — AF Stage → External Skill Bindings
+# These skills are installed by install.sh. Pipeline stages MUST invoke them.
+# Version constraints use semver. Skills without version pin use latest.
+
+version: "1.0"
+
+# ─── Execute Stage ─────────────────────────────────────────────
+
+execute:
+  - trigger: "bug, test failure, unexpected behavior, error investigation"
+    skill: systematic-debugging
+    version: ">=1.0.0"
+    priority: 1
+    concurrent: false
+    output_schema:
+      status: [RESOLVED, UNRESOLVED, NEEDS_HELP]
+      evidence_level: [guess, indirect, direct, confirmed, proven]
+    mapping:
+      RESOLVED + confirmed: { af_evidence: E3 }
+      RESOLVED + proven:    { af_evidence: E4 }
+      UNRESOLVED:           { af_action: escalation_ladder }
+      NEEDS_HELP:           { af_action: block_and_handoff }
+
+  - trigger: "task involves frontend UI design or implementation"
+    skill: tasteful-frontend
+    version: ">=1.0.0"
+    priority: 3
+    concurrent: true
+
+  - trigger: "implementing from design mockup, screenshot, or Figma"
+    skill: design-to-code-runner
+    version: ">=1.0.0"
+    priority: 2
+    concurrent: false
+
+  - trigger: "browser verification needed — deployment check, UI regression, functional test"
+    skill: browser-qa-testing
+    version: ">=1.0.0"
+    priority: 4
+    concurrent: false
+    output_schema:
+      health_score: number
+      test_results: list
+    mapping:
+      health_score >= 80: { af_evidence: E3 }
+      health_score < 80:  { af_action: escalation_ladder }
+
+# ─── Review Stage ──────────────────────────────────────────────
+
+review:
+  - trigger: "pre-merge code review"
+    skill: thorough-code-review
+    mode: outgoing
+    version: ">=1.0.0"
+    priority: 1
+    concurrent: false
+    output_schema:
+      verdict: [APPROVED, APPROVED_WITH_FIXES, REJECTED]
+      issues: list
+    mapping:
+      APPROVED:            { af_review: pass }
+      APPROVED_WITH_FIXES: { af_review: pass_with_fixes }
+      REJECTED:            { af_review: fail, af_action: return_to_execute }
+
+  - trigger: "received external review feedback"
+    skill: thorough-code-review
+    mode: incoming
+    version: ">=1.0.0"
+    priority: 1
+    concurrent: false
+
+  - trigger: "changes touch authentication, data handling, network, or dependencies"
+    skill: security-audit
+    version: ">=1.0.0"
+    priority: 2
+    concurrent: true
+    output_schema:
+      verdict: [PASS, FAIL, CONDITIONAL_PASS]
+      findings: list
+    mapping:
+      PASS:             { af_review: pass }
+      CONDITIONAL_PASS: { af_review: pass_with_fixes }
+      FAIL:             { af_review: fail, af_action: return_to_execute }
+
+  - trigger: "frontend visual quality review"
+    skill: design-review
+    priority: 3
+    concurrent: true
+    layers:
+      - gate: design-baseline
+        verdict_on_fail: REJECTED
+      - skill: tasteful-frontend
+        version: ">=1.0.0"
+        verdict_on_fail: APPROVED_WITH_FIXES
+
+  - trigger: "product experience or UX evaluation"
+    skill: product-review
+    version: ">=1.0.0"
+    priority: 4
+    concurrent: true

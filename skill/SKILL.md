@@ -31,14 +31,17 @@ This protocol is **rigid**. Follow it exactly. The only flexibility is the Compl
 | `apex-forge review` | Multi-persona quality gate | `stages/review.md` |
 | `apex-forge ship` | Package, commit, PR, finish branch | `stages/ship.md` |
 | `apex-forge compound` | Knowledge extraction and capture | `stages/compound.md` |
+| **External Skills** (installed by `install.sh`, dispatched via `bindings.yaml`) | | |
+| `/systematic-debugging` | Systematic debugging | External skill |
+| `/thorough-code-review` | Code review (outgoing + incoming) | External skill |
+| `/browser-qa-testing` | QA testing + browser automation | External skill |
+| `/security-audit` | Security audit | External skill |
+| `/tasteful-frontend` | Frontend design guidance | External skill |
+| `/design-to-code-runner` | Design-to-code implementation | External skill |
+| `/product-review` | Product experience review | External skill |
+| **Internal Gates** | | |
+| `design-baseline` | Objective design quality gate (WCAG, layout, readability) | `gates/design-baseline.md` |
 | **Roles** | | |
-| `apex-forge investigate` | Systematic debugging | `roles/investigate.md` |
-| `apex-forge code-review` | Code review protocol | `roles/code-review.md` |
-| `apex-forge qa` | QA testing protocol | `roles/qa.md` |
-| `apex-forge security-audit` | Security audit | `roles/security-audit.md` |
-| `apex-forge design-review` | Design review | `roles/design-review.md` |
-| `apex-forge browse` | Headless browser automation & QA testing | `roles/browse.md` |
-| `apex-forge receiving-review` | Evaluate incoming review feedback critically | `roles/receiving-review.md` |
 | `apex-forge scope-lock` | Lock edits to a directory (prevent scope creep) | `roles/scope-lock.md` |
 | **Orchestration** | | |
 | `apex-forge parallel` | Dispatch 2+ independent tasks to parallel agents | `roles/parallel-dispatch.md` |
