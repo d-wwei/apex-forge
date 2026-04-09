@@ -88,6 +88,19 @@ Use `gh pr create` if available; otherwise instruct the user.
 
 ---
 
+## Branch Completion
+
+After push/PR, present exactly these options to the user:
+
+| Option | Action |
+|--------|--------|
+| **A. Merge locally** | `git checkout <base-branch> && git merge <feature-branch>` then clean up |
+| **B. PR (already created)** | Keep branch, let reviewers handle merge |
+| **C. Keep as-is** | Leave branch for later — no cleanup |
+| **D. Discard** | `git branch -D <feature-branch>` and remove worktree if applicable |
+
+Execute the chosen option. For options A, B, D: clean up worktree if one was used (`apex worktree cleanup <TASK_ID>`).
+
 ## Completion
 
 After successful ship:
@@ -98,7 +111,7 @@ After successful ship:
 
 | Status | When |
 |--------|------|
-| **DONE** | Committed, pushed, PR created. |
+| **DONE** | Committed, pushed, PR created, branch handled. |
 | **DONE_WITH_CONCERNS** | Shipped with acknowledged review concerns in PR. |
 | **BLOCKED** | Pre-flight check failed. |
 | **NEEDS_CONTEXT** | Missing review artifact or ambiguous status. |

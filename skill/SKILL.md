@@ -24,17 +24,26 @@ This protocol is **rigid**. Follow it exactly. The only flexibility is the Compl
 | Command | Purpose | Sub-skill |
 |---------|---------|-----------|
 | `apex-forge` | Activate core protocol (auto Tier routing) | — (inline below) |
+| **Pipeline Stages** | | |
 | `apex-forge brainstorm` | Requirements exploration, no code | `stages/brainstorm.md` |
 | `apex-forge plan` | Implementation planning, no code | `stages/plan.md` |
 | `apex-forge execute` | TDD-first implementation | `stages/execute.md` |
 | `apex-forge review` | Multi-persona quality gate | `stages/review.md` |
-| `apex-forge ship` | Package, commit, PR, deploy | `stages/ship.md` |
+| `apex-forge ship` | Package, commit, PR, finish branch | `stages/ship.md` |
 | `apex-forge compound` | Knowledge extraction and capture | `stages/compound.md` |
+| **Roles** | | |
 | `apex-forge investigate` | Systematic debugging | `roles/investigate.md` |
 | `apex-forge code-review` | Code review protocol | `roles/code-review.md` |
 | `apex-forge qa` | QA testing protocol | `roles/qa.md` |
 | `apex-forge security-audit` | Security audit | `roles/security-audit.md` |
 | `apex-forge design-review` | Design review | `roles/design-review.md` |
+| `apex-forge browse` | Headless browser automation & QA testing | `roles/browse.md` |
+| **Orchestration** | | |
+| `apex-forge parallel` | Dispatch 2+ independent tasks to parallel agents | `roles/parallel-dispatch.md` |
+| `apex-forge subagent-dev` | Per-task subagent dispatch with two-stage review | `roles/subagent-dev.md` |
+| `apex-forge worktree` | Isolated git worktree for branch work | `roles/worktree.md` |
+| **Meta** | | |
+| `apex-forge skill-author` | Create new skills using TDD for docs | `roles/skill-author.md` |
 | `apex-forge status` | Show current project state | Run: `apex status` |
 
 When a sub-skill is listed, read and follow that file relative to this SKILL.md's directory.
