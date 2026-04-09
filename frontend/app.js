@@ -33,6 +33,7 @@ let currentProject = null;
 let sidebarCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
 let evtSource = null;
 let sseConnected = false;
+let loadedProjects = null;
 
 // ===== 3. Navigation =====
 
@@ -114,9 +115,13 @@ function loadProjectCards() {
       success: p.success_rate || 0,
       lastActive: p.last_active || 'unknown',
     }));
-    renderProjectCards(projects.length ? projects : DEMO_PROJECTS);
+    loadedProjects = projects.length ? projects : DEMO_PROJECTS;
+    renderProjectCards(loadedProjects);
+    renderSidebar(loadedProjects);
   }).catch(() => {
+    loadedProjects = DEMO_PROJECTS;
     renderProjectCards(DEMO_PROJECTS);
+    renderSidebar(DEMO_PROJECTS);
   });
 }
 
@@ -377,8 +382,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (sidebar) sidebar.classList.add('collapsed');
   }
 
-  // Load sidebar for project view
-  renderSidebar(DEMO_PROJECTS);
+  // Sidebar is populated by loadProjectCards() via API
 
   // Sticky nav — show only after scrolling past hero
   const hero = document.querySelector('.home-hero');

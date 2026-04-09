@@ -11,6 +11,19 @@ import {
   listProjects,
 } from "./registry.js";
 
+/** Human-readable relative time string. */
+function timeAgo(iso: string): string {
+  if (!iso) return "unknown";
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} hrs ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days} days ago`;
+}
+
 /** Derive a human-readable project name from the working directory. */
 function getProjectName(dir: string): string {
   // Try reading name from package.json
@@ -55,7 +68,9 @@ function findFrontendDir(): string | null {
     resolve(import.meta.dir, "..", "frontend"),
     // 3. Relative to compiled binary (dist/apex-forge → dist/../frontend)
     resolve(import.meta.dir, "frontend"),
-    // 4. Well-known global install path
+    // 4. Relative to working directory (compiled binary run from project root)
+    join(process.cwd(), "frontend"),
+    // 5. Well-known global install path
     join(process.env.HOME || "/tmp", ".apex-forge", "frontend"),
   ].filter(Boolean) as string[];
 
@@ -107,13 +122,37 @@ export async function startDashboard(portOverride?: number) {
         return Response.json(data);
       }
 
-      // API: all active projects (for sidebar + hub)
+      // API: all active projects (for sidebar + hub), enriched with .apex/ state
       if (url.pathname === "/api/projects") {
         const projects = listProjects();
+        const enriched = await Promise.all(
+          projects.map(async (p) => {
+            const apexDir = join(p.path, ".apex");
+            const tasks = await readJSON(join(apexDir, "tasks.json"), { tasks: [] as any[], next_id: 1 });
+            const state = await readJSON(join(apexDir, "state.json"), {
+              current_stage: "idle",
+              last_updated: "",
+              artifacts: {},
+              history: [],
+            });
+            const taskCount = tasks.tasks.length;
+            const doneTasks = tasks.tasks.filter((t: any) => t.status === "done").length;
+            const successRate = taskCount > 0 ? Math.round(doneTasks / taskCount * 1000) / 10 : 0;
+            const stage = (state as any).current_stage || "idle";
+            return {
+              ...p,
+              status: stage !== "idle" ? "running" : "active",
+              description: `Stage: ${stage} | ${taskCount} tasks`,
+              task_count: taskCount,
+              success_rate: successRate,
+              last_active: timeAgo((state as any).last_updated || p.startedAt),
+            };
+          })
+        );
         return Response.json({
           current: projectDir,
           hub: hubPort(),
-          projects,
+          projects: enriched,
         });
       }
 
