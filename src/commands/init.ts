@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, symlinkSync } from "fs";
+import { existsSync, lstatSync, mkdirSync, symlinkSync } from "fs";
 import path from "path";
 import { writeJSON } from "../utils/json.js";
 import { isoTimestamp, sessionId } from "../utils/timestamp.js";
@@ -64,10 +64,14 @@ export async function cmdInit(): Promise<void> {
     const hookDst = path.join(hooksDir, "pre-commit");
     const hookSrc = path.join(process.cwd(), "hooks", "pre-commit");
 
-    if (existsSync(hookSrc) && !existsSync(hookDst)) {
+    const hookDstExists = (() => {
+      try { lstatSync(hookDst); return true; } catch { return false; }
+    })();
+
+    if (existsSync(hookSrc) && !hookDstExists) {
       symlinkSync(path.resolve(hookSrc), hookDst);
       console.log("Installed pre-commit hook (auto memory curation)");
-    } else if (existsSync(hookDst)) {
+    } else if (hookDstExists) {
       console.log("Pre-commit hook already exists (not overwriting)");
     }
   }

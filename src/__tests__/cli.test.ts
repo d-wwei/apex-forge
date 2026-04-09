@@ -32,6 +32,16 @@ describe("CLI Integration", () => {
     expect(existsSync(".apex/memory.json")).toBe(true);
   });
 
+  test("apex init is idempotent (can run twice)", () => {
+    const r1 = run("init");
+    expect(r1.exitCode).toBe(0);
+    const r2 = run("init");
+    expect(r2.exitCode).toBe(0);
+    expect(existsSync(".apex/state.json")).toBe(true);
+    expect(existsSync(".apex/tasks.json")).toBe(true);
+    expect(existsSync(".apex/memory.json")).toBe(true);
+  });
+
   test("apex version", () => {
     const r = run("version");
     expect(r.stdout).toContain("apex-forge");
