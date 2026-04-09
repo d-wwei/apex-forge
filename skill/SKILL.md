@@ -38,9 +38,12 @@ This protocol is **rigid**. Follow it exactly. The only flexibility is the Compl
 | `apex-forge security-audit` | Security audit | `roles/security-audit.md` |
 | `apex-forge design-review` | Design review | `roles/design-review.md` |
 | `apex-forge browse` | Headless browser automation & QA testing | `roles/browse.md` |
+| `apex-forge receiving-review` | Evaluate incoming review feedback critically | `roles/receiving-review.md` |
+| `apex-forge scope-lock` | Lock edits to a directory (prevent scope creep) | `roles/scope-lock.md` |
 | **Orchestration** | | |
 | `apex-forge parallel` | Dispatch 2+ independent tasks to parallel agents | `roles/parallel-dispatch.md` |
 | `apex-forge subagent-dev` | Per-task subagent dispatch with two-stage review | `roles/subagent-dev.md` |
+| `apex-forge cross-session` | Resume plan execution across session boundaries | `roles/cross-session-exec.md` |
 | `apex-forge worktree` | Isolated git worktree for branch work | `roles/worktree.md` |
 | **Meta** | | |
 | `apex-forge skill-author` | Create new skills using TDD for docs | `roles/skill-author.md` |
