@@ -278,6 +278,42 @@
       "path": "workflow/roles/design-to-code.md",
       "description": "Spec-first design-to-code — Figma/screenshot to pixel-perfect frontend with acceptance loop",
       "user-invocable": true
+    },
+    {
+      "name": "apex-forge-checkpoint",
+      "path": "workflow/roles/checkpoint.md",
+      "description": "Save and resume working state checkpoints across branches and sessions",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-forge-design-html",
+      "path": "workflow/roles/design-html.md",
+      "description": "Generate production-quality HTML/CSS from approved designs or descriptions",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-forge-devex-review",
+      "path": "workflow/roles/devex-review.md",
+      "description": "Live developer experience audit — TTHW, docs, error messages, DX scorecard",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-forge-health",
+      "path": "workflow/roles/health.md",
+      "description": "Code quality dashboard — type check, lint, tests, dead code, composite score with trends",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-forge-learn",
+      "path": "workflow/roles/learn.md",
+      "description": "Manage project learnings — search, prune, export, track patterns and pitfalls",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-forge-plan-devex-review",
+      "path": "workflow/roles/plan-devex-review.md",
+      "description": "DX-focused plan review — persona interrogation, competitive benchmarking, 8 review passes",
+      "user-invocable": true
     }
   ],
   "hooks": {
