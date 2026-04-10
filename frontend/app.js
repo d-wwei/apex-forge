@@ -227,11 +227,11 @@ function renderPipeline(state, tasks) {
     var allDone = tasks.tasks.every(function(t) { return t.status === 'done'; });
 
     if (allDone) {
-      // All tasks done → brainstorm, plan, execute completed; review is current
-      history = ['brainstorm', 'plan', 'execute'];
-      current = 'review';
+      // All tasks done → execution and review passed; ready to ship
+      history = ['brainstorm', 'plan', 'execute', 'review'];
+      current = 'ship';
     } else if (hasDone || hasInProgress) {
-      // Some tasks done or in progress → brainstorm, plan completed; execute is current
+      // Some tasks done or in progress → executing
       history = ['brainstorm', 'plan'];
       current = 'execute';
     }
