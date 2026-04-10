@@ -89,6 +89,32 @@ nohup apex dashboard > /dev/null 2>&1 &
 ```
 Then open the URL in the browser. If no, skip silently.
 
+**Step 4 — Check companion skill health (silent):**
+
+```bash
+apex check-bindings 2>/dev/null
+```
+
+If any skill is missing or version mismatched, warn the user:
+> Companion skill {name} is missing/outdated. Run: `bash ~/.claude/skills/apex-forge/install.sh`
+
+If all pass, say nothing.
+
+**Step 5 — Resume check (silent):**
+
+```bash
+apex status --json
+```
+
+Read `current_stage` and task status. If there is an interrupted session:
+- Stage is not `idle` (e.g., `execute`, `review`)
+- Tasks exist in `in_progress` or `to_verify` status
+
+Tell the user what was left unfinished:
+> 上次中断在 {stage} 阶段。{N} 个任务未完成（{task IDs}）。要继续还是重新开始？
+
+If stage is `idle` and no pending tasks, say nothing. Proceed to the Complexity Router.
+
 ---
 
 ## Core Protocol
