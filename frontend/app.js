@@ -17,14 +17,7 @@ const STAGE_ICONS = {
 
 const CHECK_ICON = '<svg viewBox="0 0 14 14"><path d="M3 7l3 3 5-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
-const DEMO_PROJECTS = [
-  { name: 'APEX_FORGE_V4', status: 'running', description: 'AI Agent orchestration platform with multi-stage pipeline, cognitive memory, and real-time telemetry.', tasks: 108, success: 94.2, lastActive: '2 min ago' },
-  { name: 'AGENT_RBAC_FRAMEWORK', status: 'active', description: 'Role-based access control and memory isolation for multi-user AI Agent systems.', tasks: 42, success: 87.5, lastActive: '3 hrs ago' },
-  { name: 'MUSTER_PLATFORM', status: 'building', description: 'Agent collaboration orchestration platform for multi-agent workflow management.', tasks: 76, success: 91.0, lastActive: '1 day ago' },
-  { name: 'DATA_PIPELINE_V2', status: 'active', description: 'Automated data ingestion and transformation pipeline with real-time monitoring.', tasks: 215, success: 96.8, lastActive: '5 hrs ago' },
-  { name: 'LEGACY_MONITOR', status: 'archived', description: 'Legacy system monitoring dashboard. Replaced by unified telemetry in V4.', tasks: 89, success: 78.3, lastActive: '14 days ago' },
-  { name: 'PROTOTYPE_ALPHA', status: 'archived', description: 'Initial prototype for agent task decomposition. Evolved into Apex Forge V4.', tasks: 31, success: 72.1, lastActive: '30 days ago' },
-];
+const DEMO_PROJECTS = [];
 
 // ===== 2. State =====
 
@@ -238,15 +231,15 @@ function renderPipeline(state) {
       return;
     }
   }
-  artEl.innerHTML = '<div><div class="artifact-section-label">Brainstorm Artifacts</div><div class="artifact-item"><span class="artifact-dot"></span><span class="artifact-name">concept_doc_v1.md</span></div><div class="artifact-item"><span class="artifact-dot"></span><span class="artifact-name">wireframe_logic_map</span></div></div><div><div class="artifact-section-label">Plan Artifacts</div><div class="artifact-item"><span class="artifact-dot"></span><span class="artifact-name">task_distribution_matrix</span></div><div class="artifact-item"><span class="artifact-dot"></span><span class="artifact-name">schema_design_final</span></div></div>';
+  artEl.innerHTML = '<div class="artifact-empty">No artifacts yet. Run /apex-forge brainstorm to start.</div>';
 }
 
 function renderTelemetry(analytics) {
   if (!analytics || analytics.length === 0) {
-    document.getElementById('stat-total').textContent = '1,420';
-    document.getElementById('stat-avg').innerHTML = '18.2<span class="stat-unit">s</span>';
-    document.getElementById('stat-rate').textContent = '94.2%';
-    renderSkillBars([{ name: 'REASONING_ENGINE_V4', count: 842, pct: 85 }, { name: 'SEMANTIC_PARSER', count: 612, pct: 62 }, { name: 'DATA_SYNTHESIZER', count: 290, pct: 30 }]);
+    document.getElementById('stat-total').textContent = '0';
+    document.getElementById('stat-avg').innerHTML = '0<span class="stat-unit">s</span>';
+    document.getElementById('stat-rate').textContent = '--';
+    renderSkillBars([]);
     return;
   }
   const bySkill = {}; let totalDur = 0, successes = 0;
@@ -266,15 +259,7 @@ function renderSkillBars(bars) {
 function renderActivity(analytics) {
   const el = document.getElementById('activity-stream');
   if (!analytics || analytics.length === 0) {
-    const demoRows = [
-      { time: '14:29:50.112', skill: 'FILE_READ', status: 'success', dur: '0.012s' },
-      { time: '14:29:50.112', skill: 'FILE_READ', status: 'success', dur: '0.012s' },
-      { time: '14:29:55.302', skill: 'SQL_EXECUTOR', status: 'failed', dur: '0.104s' },
-      { time: '14:29:58.841', skill: 'WEB_SEARCH', status: 'success', dur: '1.821s' },
-      { time: '14:30:05.122', skill: 'REASONING_V4', status: 'success', dur: '0.422s' },
-      { time: '14:30:08.501', skill: 'FILE_READ', status: 'success', dur: '0.012s' },
-    ];
-    el.innerHTML = demoRows.map((r, i) => renderActivityRow(r, i === 4)).join('');
+    el.innerHTML = '<div class="activity-empty">No activity recorded yet.</div>';
     return;
   }
   el.innerHTML = analytics.slice(-30).reverse().map(a => {
@@ -295,12 +280,7 @@ function renderMemory(memory) {
   const el = document.getElementById('memory-list');
   const facts = memory.facts || [];
   if (facts.length === 0) {
-    el.innerHTML = [
-      { confidence: 0.98, level: 'high', content: '"Primary database schema v4.2 is immutable and requires explicit migration tokens for any structural alterations."', tags: ['SCHEMA', 'PROD'] },
-      { confidence: 0.72, level: 'med', content: '"The user typically initiates orchestration layers between 14:00 and 16:00 UTC during weekdays."', tags: ['LATENCY'] },
-      { confidence: 0.24, level: 'low', content: '"Agent Echo might be manifesting divergent reasoning patterns when processing large CSV files from sub-node Delta."', tags: ['HEURISTIC'] },
-      { confidence: 0.91, level: 'high', content: '"Root access is restricted to the current hardware ID: FORGE_ALPHA_09."', tags: ['CREDENTIALS'] }
-    ].map(renderMemoryFact).join('');
+    el.innerHTML = '<div class="memory-empty">No memory facts stored. Use /apex-forge-memory add to record project knowledge.</div>';
     return;
   }
   el.innerHTML = [...facts].sort((a, b) => b.confidence - a.confidence).map(f => {
@@ -337,18 +317,13 @@ async function initialLoad() {
     const res = await fetch('/api/state');
     render(await res.json());
   } catch {
-    // API unavailable — render with demo data
+    // API unavailable — render empty state
     render({
-      tasks: { tasks: [
-        { id: 'T-1442', title: 'Initialize latent space mapping for agent "Echo"', status: 'open', depends_on: null, evidence: [1,2,3,4] },
-        { id: 'T-1100', title: 'Cross-check telemetry logs with Skill_V4 hash', status: 'assigned', depends_on: ['T-1100'], evidence: [1,2] },
-        { id: 'T-1418', title: 'Deploy orchestration layer to sub-node Delta', status: 'in_progress', depends_on: null, evidence: Array(13) },
-        { id: 'T-0042', title: 'Verify agent memory persistence on restart', status: 'to_verify', depends_on: null, evidence: Array(6) },
-      ]},
-      state: { current_stage: 'execute', history: [{ stage: 'brainstorm' }, { stage: 'plan' }], artifacts: {} },
+      tasks: { tasks: [] },
+      state: { current_stage: 'idle', history: [], artifacts: {} },
       analytics: [],
       memory: { facts: [] },
-      project: { name: currentProject ? currentProject.name : 'APEX_FORGE_V4' }
+      project: { name: currentProject ? currentProject.name : 'unknown' }
     });
   }
   connectSSE();
