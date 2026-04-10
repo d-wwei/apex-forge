@@ -48,17 +48,33 @@ apex status
 /apex-forge compound      # 知识提取 — 捕获可复用的解决方案
 ```
 
+别名：`/better-work` 等同于 `/apex-forge`，自动路由到同一协议。
+
 阶段之间有硬门控：brainstorm 阶段不能写代码，execute 阶段不能做设计决策。
 
 ---
 
 ## 4. 独立 Skill（按需使用，不需要进 pipeline）
 
+### 4 个 Companion Skill（外部仓库，独立可用）
+
 ```
 /systematic-debugging          # 根因调试（Iron Law：不找到根因不修复）
 /thorough-code-review          # 代码审查（outgoing: 你审别人 / incoming: 别人审你）
 /browser-qa-testing            # QA 测试 + 无头浏览器（Quick/Standard/Exhaustive 三级）
 /security-audit                # 安全审计（5 域扫描，CWE 标签）
+```
+
+### 向后兼容别名（旧命令仍然可用）
+
+```
+/apex-forge investigate        # → 自动路由到 /systematic-debugging
+/apex-forge code-review        # → 自动路由到 /thorough-code-review outgoing
+/apex-forge receiving-review   # → 自动路由到 /thorough-code-review incoming
+/apex-forge qa                 # → 自动路由到 /browser-qa-testing
+/apex-forge browse             # → 自动路由到 /browser-qa-testing
+/apex-forge security-audit     # → 自动路由到 /security-audit
+/apex-forge design-review      # → 先跑 design-baseline 基线，再跑 /tasteful-frontend
 ```
 
 这些 skill 既可以在 pipeline 内被自动调用（通过 `bindings.yaml` 派发），也可以独立使用。
