@@ -13,62 +13,33 @@ argument-hint: "[brainstorm|plan|execute|review|ship|investigate|status|compound
 
 Unified execution protocol. **Rigid** — follow exactly.
 
-## Setup (Every Invocation)
-
-Run Steps 1–2.5 silently. **Step 3 REQUIRES user interaction — do NOT skip.**
-
-**Step 1 — Check CLI:**
-```bash
-which apex || echo "MISSING: add apex-forge to PATH"
-```
-If missing: tell user to run `export PATH="$PATH:<apex-forge-repo>/dist"`.
-
-**Step 2 — Init project:**
-```bash
-apex init
-```
-Idempotent. Creates `.apex/` if needed.
-
-**Step 2.5 — Detect memory backend (silent):**
-```bash
-apex memory backend
-```
-Reports active backend. No user action needed.
-
-**Step 3 — Offer dashboard (MANDATORY tool call — blocks further progress):**
-
-You MUST call `AskUserQuestion` with the following question before ANY further action.
-Do NOT output any text, run any command, or proceed to Step 4 until the user answers.
+<CRITICAL>
+BEFORE doing ANYTHING else — before checking CLI, before running any command, before saying "ready" —
+you MUST call the AskUserQuestion tool with this exact question:
 
 Question: "是否启动可视化面板？"
+Header: "Dashboard"
 Options:
-  - "启动 Dashboard (Recommended)" — 在浏览器里查看任务看板、pipeline 进度和遥测数据
-  - "跳过" — 不启动，直接开始工作
+  - label: "启动 Dashboard (Recommended)", description: "在浏览器里查看任务看板、pipeline 进度和遥测数据"
+  - label: "跳过", description: "不启动，直接开始工作"
 
-If user selects "启动 Dashboard":
+If "启动 Dashboard": run `nohup apex dashboard > /dev/null 2>&1 &` then open the printed URL.
+If "跳过": proceed silently.
+
+This is a BLOCKING GATE. You CANNOT proceed without the user's answer.
+Do NOT say "ready", do NOT say "give me a task", do NOT run the Complexity Router until this is done.
+</CRITICAL>
+
+## Initialization (silent, every invocation)
+
 ```bash
-nohup apex dashboard > /dev/null 2>&1 &
-```
-Then open the URL printed by the command in the user's browser.
-
-If user selects "跳过": proceed silently.
-
-⚠️ This step is a BLOCKING GATE. The Complexity Router MUST NOT run until the user has answered.
-
-**Step 4 — Check companion skills (silent):**
-```bash
+which apex || echo "MISSING: add apex-forge to PATH"
+apex init
+apex memory backend
 apex check-bindings 2>/dev/null
 ```
-If missing/outdated, warn user. If all pass, say nothing.
 
-**Step 5 — Resume check (silent):**
-```bash
-apex status --json
-```
-If interrupted session (stage not `idle` or tasks `in_progress`):
-> 上次中断在 {stage} 阶段。{N} 个任务未完成。要继续还是重新开始？
-
-If idle and no pending tasks, proceed to Complexity Router.
+Then check `apex status --json` — if interrupted session exists, ask user to resume or restart.
 
 ---
 
