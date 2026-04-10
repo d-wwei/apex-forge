@@ -89,7 +89,10 @@ export function unregister(projectPath: string) {
 }
 
 /**
- * List all registered projects, pruning dead PIDs.
+ * List all registered projects, filtering out dead PIDs.
+ * Does NOT write back to the registry file — pruning is deferred
+ * to pruneRegistry() to avoid a read-modify-write race between
+ * concurrent register() and listProjects() calls.
  */
 export function listProjects(): ProjectEntry[] {
   const reg = readRegistry();
@@ -105,10 +108,30 @@ export function listProjects(): ProjectEntry[] {
     }
   }
 
-  // Prune dead entries
-  if (alive.length !== reg.projects.length) {
-    writeRegistry({ projects: alive });
+  return alive;
+}
+
+/**
+ * Explicitly prune dead entries from registry.
+ * Call this from a single owner (e.g. hub startup) rather than
+ * on every list request, to avoid write races.
+ */
+export function pruneRegistry(): number {
+  const reg = readRegistry();
+  const alive: ProjectEntry[] = [];
+
+  for (const p of reg.projects) {
+    try {
+      process.kill(p.pid, 0);
+      alive.push(p);
+    } catch {
+      // dead
+    }
   }
 
-  return alive;
+  const pruned = reg.projects.length - alive.length;
+  if (pruned > 0) {
+    writeRegistry({ projects: alive });
+  }
+  return pruned;
 }

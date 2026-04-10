@@ -9,6 +9,7 @@ import {
   register,
   unregister,
   listProjects,
+  pruneRegistry,
 } from "./registry.js";
 
 /** Human-readable relative time string. */
@@ -97,16 +98,26 @@ export async function startDashboard(portOverride?: number) {
   }
 
   // Register in shared registry
-  register({
+  const entry = {
     name: projectName,
     path: projectDir,
     port,
     pid: process.pid,
     startedAt: new Date().toISOString(),
-  });
+  };
+  register(entry);
+
+  // Re-register every 30s to recover from registry clears (race conditions,
+  // file corruption, external tools). Cheap operation — single file write.
+  const heartbeat = setInterval(() => {
+    try { register(entry); } catch { /* ignore */ }
+  }, 30_000);
 
   // Cleanup on exit
-  const cleanup = () => { try { unregister(projectDir); } catch {} };
+  const cleanup = () => {
+    clearInterval(heartbeat);
+    try { unregister(projectDir); } catch {}
+  };
   process.on("exit", cleanup);
   process.on("SIGINT", () => { cleanup(); process.exit(0); });
   process.on("SIGTERM", () => { cleanup(); process.exit(0); });
@@ -257,6 +268,10 @@ export async function startDashboard(portOverride?: number) {
  */
 export async function startHub() {
   const port = hubPort();
+
+  // One-time prune of dead entries on hub startup.
+  // Safe because no dashboard is concurrently writing at this exact moment.
+  pruneRegistry();
 
   Bun.serve({
     port,
