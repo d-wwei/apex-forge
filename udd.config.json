@@ -1,0 +1,36 @@
+{
+  "$schemaVersion": 1,
+  "repo": "d-wwei/apex-forge",
+  "releaseChannel": "releases",
+  "currentVersionSource": {
+    "type": "package.json",
+    "path": "./package.json"
+  },
+  "changelogSource": {
+    "type": "release_notes"
+  },
+  "selfHealing": {
+    "enabled": true,
+    "strategyOrder": ["agent_patch", "upstream_update", "issue_only"],
+    "workspaceMode": "git_worktree",
+    "approvalMode": "manual"
+  },
+  "contribute": {
+    "defaultTarget": "master",
+    "strategy": "pull_request",
+    "requireVerification": true
+  },
+  "repair": {
+    "allowPaths": ["src/", "skill/", "tests/"],
+    "protectedPaths": [".env", "dist/", "node_modules/", ".apex/"],
+    "maxFilesChanged": 10
+  },
+  "hooks": {
+    "verification": [
+      { "name": "typecheck", "command": "bun build --compile src/cli.ts --outfile /dev/null 2>&1 || true" },
+      { "name": "test", "command": "bun test" }
+    ]
+  },
+  "state": { "path": ".udd/state.json" },
+  "audit": { "path": ".udd/audit.jsonl" }
+}

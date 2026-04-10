@@ -24,8 +24,22 @@ import {
 } from "./tracing.js";
 import { addSkillInvocation } from "./state/state.js";
 import { satisfies } from "./utils/semver.js";
+import { cmdUpdate } from "./commands/update.js";
+import { cmdHeal } from "./commands/heal.js";
+import { quickCheck } from "./adapters/update-adapter.js";
 
 const VERSION = "0.1.0";
+
+async function startupQuickCheck() {
+  try {
+    const result = await quickCheck();
+    if (result.status === "update_available") {
+      console.error(`[apex-forge] Update available: v${result.currentVersion} → v${result.latestVersion}. Run: apex update apply`);
+    }
+  } catch {
+    // silent — never block normal CLI usage
+  }
+}
 
 async function cmdConsensus(args: string[]) {
   const sub = args[0];
@@ -484,6 +498,9 @@ async function main() {
   const command = args[0];
   const rest = args.slice(1);
 
+  // Fire-and-forget update check (non-blocking, cached <5ms)
+  const updateCheckPromise = startupQuickCheck();
+
   try {
     switch (command) {
       case "init":
@@ -491,6 +508,12 @@ async function main() {
         break;
       case "status":
         await cmdStatus(rest);
+        break;
+      case "update":
+        await cmdUpdate(rest);
+        break;
+      case "heal":
+        await cmdHeal(rest);
         break;
       case "task":
         await cmdTask(rest);
@@ -588,6 +611,8 @@ async function main() {
       process.exit(1);
     }
     throw err;
+  } finally {
+    await updateCheckPromise.catch(() => {});
   }
 }
 
@@ -646,6 +671,14 @@ Commands:
   trace view TRACE_ID           View spans in a trace
   trace-skill STAGE SKILL VER STATUS MAPPING
                                 Record a skill invocation trace
+  update check [--json]         Check for available updates
+  update apply [--json]         Apply available update
+  update rollback [--json]      Rollback to previous version
+  heal check [--json]           Check upstream for updates + changelog
+  heal analyze --error "msg"    Diagnose an error
+  heal run --error "msg"        Full self-heal loop
+  heal issue-draft --error "msg" Draft a GitHub issue
+  heal contribute [--summary]   Contribute local fix as PR
   check-bindings                Verify skill versions against bindings.yaml
   dashboard [--port PORT]       Start project dashboard (auto-port from path)
   dashboard hub                 Start hub page listing all active dashboards

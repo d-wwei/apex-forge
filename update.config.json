@@ -1,0 +1,19 @@
+{
+  "repo": "d-wwei/apex-forge",
+  "releaseChannel": "releases",
+  "componentName": "apex-forge",
+  "currentVersionSource": {
+    "type": "package.json",
+    "path": "./package.json"
+  },
+  "installStrategy": {
+    "type": "custom_command",
+    "command": ["git pull --ff-only", "bun install", "bun run build"]
+  },
+  "autoUpdatePolicy": "manual",
+  "hooks": {
+    "verification": [
+      { "name": "build-check", "command": "test -f dist/apex-forge" }
+    ]
+  }
+}

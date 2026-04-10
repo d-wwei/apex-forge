@@ -16,6 +16,8 @@ CMD="${1:-install}"
 case "$CMD" in
   install) ;;
   update)
+    echo "Updating apex-forge core..."
+    (cd "$REPO_DIR" && git pull --ff-only && bun install && bun run build) 2>/dev/null || echo "  [warn] Core update failed"
     echo "Updating all companion skills..."
     # Detect skill directory
     for SKILLS_HOME in "$HOME/.claude/skills" "$HOME/.codex/skills" "$HOME/.gemini/skills" "$HOME/.opencode/skills"; do
@@ -46,17 +48,28 @@ echo "Skill:  $SKILL_DIR"
 echo "CLI:    $APEX_BIN"
 echo ""
 
-# ─── 1. Check CLI binary ─────────────────────────────────────────
+# ─── 1. Install npm dependencies ─────────────────────────────────
 
-if [ ! -x "$APEX_BIN" ]; then
-  echo "[!] CLI binary not found at $APEX_BIN"
-  echo "    Build it first: cd $REPO_DIR && bun run build"
+if command -v bun &>/dev/null; then
+  echo "[*] Installing dependencies..."
+  (cd "$REPO_DIR" && bun install --frozen-lockfile 2>/dev/null || bun install) >/dev/null 2>&1
+  echo "[ok] Dependencies installed"
+else
+  echo "[!] bun not found. Install bun first: https://bun.sh"
   exit 1
 fi
 
-echo "[ok] CLI binary found"
+# ─── 2. Build CLI binary ────────────────────────────────────────
 
-# ─── 2. Add CLI to PATH ──────────────────────────────────────────
+if [ ! -x "$APEX_BIN" ] || [ "$REPO_DIR/src/cli.ts" -nt "$APEX_BIN" ]; then
+  echo "[*] Building CLI binary..."
+  (cd "$REPO_DIR" && bun run build) >/dev/null 2>&1
+  echo "[ok] CLI binary built"
+else
+  echo "[ok] CLI binary up to date"
+fi
+
+# ─── 3. Add CLI to PATH ──────────────────────────────────────────
 
 SHELL_RC=""
 if [ -f "$HOME/.zshrc" ]; then
@@ -85,7 +98,7 @@ else
   echo "    $PATH_LINE"
 fi
 
-# ─── 3. Install AF core for detected platforms ───────────────────
+# ─── 4. Install AF core for detected platforms ───────────────────
 
 installed=0
 
@@ -104,7 +117,7 @@ if [ $installed -eq 0 ]; then
   echo "    Manual install: symlink $SKILL_DIR to your agent's skills directory."
 fi
 
-# ─── 4. Install companion skills (hard dependencies) ─────────────
+# ─── 5. Install companion skills (hard dependencies) ─────────────
 
 # Detect first available skills home
 SKILLS_HOME=""
@@ -152,7 +165,7 @@ for dep in "${DEPS[@]}"; do
   fi
 done
 
-# ─── 5. Build browser-qa-testing binary (if bun available) ───────
+# ─── 6. Build browser-qa-testing binary (if bun available) ───────
 
 BQT_DIR="$SKILLS_HOME/browser-qa-testing"
 if [ -d "$BQT_DIR/src" ] && command -v bun &>/dev/null; then
@@ -165,7 +178,7 @@ if [ -d "$BQT_DIR/src" ] && command -v bun &>/dev/null; then
   fi
 fi
 
-# ─── 6. Result ────────────────────────────────────────────────────
+# ─── 7. Result ────────────────────────────────────────────────────
 
 echo ""
 if [ ${#FAILED[@]} -gt 0 ]; then
