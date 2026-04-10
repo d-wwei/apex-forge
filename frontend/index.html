@@ -232,7 +232,11 @@
             <span class="panel-title">Activity Stream</span>
           </div>
           <div class="panel-body" id="activity-stream">
-            <div class="empty-state">No activity recorded yet</div>
+            <div class="empty-state">
+              <div class="empty-state-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M8 5v3.5l2.5 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <div class="empty-state-title">No Activity</div>
+              <div class="empty-state-hint">Skill invocations and tool calls will appear here as you work.</div>
+            </div>
           </div>
         </div>
 
@@ -245,7 +249,12 @@
             </svg>
           </div>
           <div class="panel-body" id="memory-list">
-            <div class="empty-state">No facts stored yet</div>
+            <div class="empty-state">
+              <div class="empty-state-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" stroke="currentColor" stroke-width="1.2"/><path d="M5 6h6M5 8.5h4M5 11h2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></div>
+              <div class="empty-state-title">No Memory Facts</div>
+              <div class="empty-state-hint">Project knowledge and learned patterns are stored here.</div>
+              <div class="empty-state-cmd">/apex-forge-memory add</div>
+            </div>
           </div>
         </div>
       </div>

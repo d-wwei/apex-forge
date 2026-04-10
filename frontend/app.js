@@ -175,7 +175,7 @@ function updateSidebarActive(project) {
 
 function render(data) {
   renderKanban(data.tasks);
-  renderPipeline(data.state);
+  renderPipeline(data.state, data.tasks);
   renderTelemetry(data.analytics);
   renderActivity(data.analytics);
   renderMemory(data.memory);
@@ -186,8 +186,11 @@ function render(data) {
     document.title = 'APEX FORGE \u2014 ' + data.project.name;
   }
 
+  // Derive status from state + tasks
+  const stageActive = (data.state.current_stage || 'idle') !== 'idle';
+  const tasksActive = (data.tasks.tasks || []).some(function(t) { return t.status === 'in_progress'; });
   document.getElementById('pipeline-status').textContent =
-    'STATUS: ' + ((data.state.current_stage || 'idle') === 'idle' ? 'IDLE' : 'RUNNING');
+    'STATUS: ' + (stageActive || tasksActive ? 'RUNNING' : 'IDLE');
 }
 
 function renderKanban(tasks) {
@@ -213,9 +216,27 @@ function renderKanban(tasks) {
   }
 }
 
-function renderPipeline(state) {
-  const current = state.current_stage || 'idle';
-  const history = (state.history || []).map(h => h.stage);
+function renderPipeline(state, tasks) {
+  var current = state.current_stage || 'idle';
+  var history = (state.history || []).map(function(h) { return h.stage; });
+
+  // If state.json has no history, derive progress from tasks
+  if (history.length === 0 && current === 'idle' && tasks && tasks.tasks && tasks.tasks.length > 0) {
+    var hasDone = tasks.tasks.some(function(t) { return t.status === 'done'; });
+    var hasInProgress = tasks.tasks.some(function(t) { return t.status === 'in_progress'; });
+    var allDone = tasks.tasks.every(function(t) { return t.status === 'done'; });
+
+    if (allDone) {
+      // All tasks done → brainstorm, plan, execute completed; review is current
+      history = ['brainstorm', 'plan', 'execute'];
+      current = 'review';
+    } else if (hasDone || hasInProgress) {
+      // Some tasks done or in progress → brainstorm, plan completed; execute is current
+      history = ['brainstorm', 'plan'];
+      current = 'execute';
+    }
+  }
+
   const stagesEl = document.getElementById('pipeline-stages');
   stagesEl.innerHTML = '<div class="pipeline-line"></div>' + STAGES.map(s => {
     const isActive = s === current, isCompleted = history.includes(s);
@@ -231,7 +252,12 @@ function renderPipeline(state) {
       return;
     }
   }
-  artEl.innerHTML = '<div class="artifact-empty">No artifacts yet. Run /apex-forge brainstorm to start.</div>';
+  artEl.innerHTML = '<div class="empty-state">' +
+    '<div class="empty-state-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.2" stroke-dasharray="3 2"/><path d="M8 5v6M5 8h6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></div>' +
+    '<div class="empty-state-title">No Artifacts</div>' +
+    '<div class="empty-state-hint">Artifacts are generated as you progress through pipeline stages.</div>' +
+    '<div class="empty-state-cmd">/apex-forge brainstorm</div>' +
+  '</div>';
 }
 
 function renderTelemetry(analytics) {
@@ -253,13 +279,22 @@ function renderTelemetry(analytics) {
 }
 
 function renderSkillBars(bars) {
-  document.getElementById('skill-bars').innerHTML = bars.map(b => '<div class="skill-bar-row"><div class="skill-bar-header"><span class="skill-bar-name">' + esc(b.name) + '</span><span class="skill-bar-count">' + b.count + ' CALLS</span></div><div class="skill-bar-track"><div class="skill-bar-fill" style="width:' + b.pct + '%"></div></div></div>').join('');
+  const el = document.getElementById('skill-bars');
+  if (bars.length === 0) {
+    el.innerHTML = '<div style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim);text-align:center;padding:12px 0;">No skill data yet</div>';
+    return;
+  }
+  el.innerHTML = bars.map(b => '<div class="skill-bar-row"><div class="skill-bar-header"><span class="skill-bar-name">' + esc(b.name) + '</span><span class="skill-bar-count">' + b.count + ' CALLS</span></div><div class="skill-bar-track"><div class="skill-bar-fill" style="width:' + b.pct + '%"></div></div></div>').join('');
 }
 
 function renderActivity(analytics) {
   const el = document.getElementById('activity-stream');
   if (!analytics || analytics.length === 0) {
-    el.innerHTML = '<div class="activity-empty">No activity recorded yet.</div>';
+    el.innerHTML = '<div class="empty-state">' +
+      '<div class="empty-state-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M8 5v3.5l2.5 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>' +
+      '<div class="empty-state-title">No Activity</div>' +
+      '<div class="empty-state-hint">Skill invocations and tool calls will appear here as you work.</div>' +
+    '</div>';
     return;
   }
   el.innerHTML = analytics.slice(-30).reverse().map(a => {
@@ -280,7 +315,12 @@ function renderMemory(memory) {
   const el = document.getElementById('memory-list');
   const facts = memory.facts || [];
   if (facts.length === 0) {
-    el.innerHTML = '<div class="memory-empty">No memory facts stored. Use /apex-forge-memory add to record project knowledge.</div>';
+    el.innerHTML = '<div class="empty-state">' +
+      '<div class="empty-state-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" stroke="currentColor" stroke-width="1.2"/><path d="M5 6h6M5 8.5h4M5 11h2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></div>' +
+      '<div class="empty-state-title">No Memory Facts</div>' +
+      '<div class="empty-state-hint">Project knowledge and learned patterns are stored here.</div>' +
+      '<div class="empty-state-cmd">/apex-forge-memory add</div>' +
+    '</div>';
     return;
   }
   el.innerHTML = [...facts].sort((a, b) => b.confidence - a.confidence).map(f => {
