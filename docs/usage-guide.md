@@ -10,25 +10,27 @@ AI 的能力完全一样，AF 只是堵住它最常犯的错。
 
 ---
 
-## AF 的三层结构
+## AF 的四层结构
 
 ```
-Skills 层（主体）
-  60 个 markdown 文件，AI Agent 读了照着做
-  包括：协议规则、pipeline 阶段、领域能力、操作命令
-  这是 AF 的核心工作方式
+Skills 层 — 给 Agent 用
+  60 个 markdown 文件，Agent 读了照着做
+  协议规则、pipeline 阶段、领域能力、操作命令
 
-CLI 层
-  apex 命令行工具，处理状态持久化
-  任务管理、记忆存储、遥测统计、dashboard
-  Agent 通过 shell 调用
+CLI 层 — Agent 和人都能用
+  apex 命令行工具，读写 .apex/ 状态数据
+  任务管理、记忆存储、遥测统计、设计资产
 
-MCP 层（可选）
-  把 CLI 的功能暴露为 MCP 工具
+Web 层 — 给人用
+  Dashboard + Hub，可视化看项目进展
+  任务看板、pipeline 阶段、遥测、设计对比
+
+MCP 层（可选）— 给 IDE 用
+  把 CLI 功能暴露为 MCP 工具
   配了可以在 IDE 里直接调用，不配也完全能用
 ```
 
-Skills 和 CLI 是必需的，MCP 是可选的。
+Skills 是 Agent 的界面，Web 是人的界面，CLI 是共享的数据层，MCP 是 IDE 的快捷通道。
 
 ---
 
