@@ -119,7 +119,50 @@
 
 ---
 
-## Phase 5：平台级能力
+## Phase 5：借鉴 Muster 的架构优化
+
+来源：Muster（多 Agent 协作编排平台）已验证的架构模式。详见 `docs/muster-synergy.md`。
+
+### 5.1 四层 Skill 注入（减少 Agent 上下文负担）
+
+现在 AF 是一把梭：session-start hook 注入完整协议。Agent 上下文里塞了 2000 token 的规则，不管当前任务用不用得到。
+
+借鉴 Muster 的四层模型：
+- **Platform 级**：只注入最核心的规矩（复杂度路由 + 验证门 + TDD，约 500 token）
+- **Stage 级**：进入 brainstorm/execute/review 时才加载对应的 stage 文件
+- **Skill 级**：bindings.yaml 触发时才加载 companion skill
+- **Task 级**：特定任务的上下文（Issue 级 skill 注入）
+
+好处：Agent 上下文更干净，每个阶段只看到自己需要的指令。
+
+### 5.2 Coalesce + Defer 调度（orchestrator 增强）
+
+AF 的 orchestrator 多个任务同时触发会并发冲突。借鉴 Muster 的心跳调度器：
+- **Coalesce**：同一个任务的重复触发合并为一次执行
+- **Defer**：前一个 Agent 还在跑的时候，后续对同一资源的任务排队等待
+
+改 `src/orchestrator.ts` 的 `pollCycle`，加入 coalesce（去重）和 defer（排队）逻辑。
+
+### 5.3 不可变审计账本
+
+AF 的 `analytics/usage.jsonl` 是普通追加文件，可以被修改或删除。借鉴 Muster 的 `cost_events` 不可变账本模式：
+- 每条记录追加时计算 checksum（包含前一条的 hash，形成链式校验）
+- 任何篡改都会破坏 hash 链
+- `apex audit verify` 命令校验完整性
+
+### 5.4 系统级异常恢复
+
+AF 的升级阶梯（L0-L4）是协议层的（指导 Agent 怎么想），没有系统层的自动恢复。借鉴 Muster 的异常处理体系：
+
+扩展 `apex recover` 为自动异常恢复引擎：
+- 检测卡住的任务（in_progress 超过阈值）→ 自动重试
+- 重试 3 次仍失败 → 指数退避 → 标记 blocked + 通知用户
+- Agent 进程崩溃 → 清理残留状态 → 重新派发
+- 预算耗尽（未来接 Muster 成本系统时）→ 暂停 Agent + 降级模型
+
+---
+
+## Phase 6：平台级能力
 
 长期愿景，不急。
 
@@ -130,3 +173,4 @@
 | 知识图谱 | 跨项目的知识关联：项目 A 的经验自动推荐给做类似事情的项目 B |
 | Agent 市场 | 用户可以发布自己训练/调优的 companion skill，其他人一键安装 |
 | 审计合规 | 完整的操作审计日志，满足企业安全合规要求 |
+| Muster 集成 | AF 协议注入 Muster Agent 心跳，bindings 映射 Muster 工作流阶段 |
