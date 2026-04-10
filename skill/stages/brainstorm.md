@@ -39,7 +39,7 @@ it must stop, log the violation attempt, and return to the checklist.
 
 ---
 
-## On Entry: Resume Check
+## On Entry: Resume Check + Roadmap Context
 
 Before starting a new brainstorm:
 
@@ -49,6 +49,17 @@ Before starting a new brainstorm:
 3. If a requirements doc has `status: approved`, offer to revise or
    proceed to planning.
 4. If no matching artifacts exist, begin a fresh brainstorm.
+
+### Roadmap Awareness
+
+5. Check if `docs/iteration-roadmap.md` exists.
+6. If it exists, read the **当前状态速览** and **建议的下一个迭代** sections.
+7. If the user's request aligns with a Roadmap item, mention it:
+   > "This aligns with a Roadmap item from the last iteration: {item}. I'll use that context."
+8. If the user starts a fresh brainstorm without a specific request, surface
+   the top 3 Roadmap items as suggestions:
+   > "The Roadmap from previous iterations suggests these priorities: ..."
+9. Do NOT auto-select a Roadmap item. The user decides what to work on next.
 
 ---
 
