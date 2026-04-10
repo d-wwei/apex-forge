@@ -77,9 +77,19 @@ apex init
 
 Always run this. It is idempotent. Creates `.apex/` with `state.json`, `tasks.json`, `memory.json` if they don't exist. Does nothing if they already exist.
 
-**Step 3 — Offer dashboard:**
+**Step 2.5 — Detect memory backend (silent):**
 
-If no dashboard is running for this project (check `curl -s http://localhost:$(apex dashboard --port-only 2>/dev/null || echo 0)/api/state` fails), ask the user:
+```bash
+apex memory backend
+```
+
+This detects available memory systems and reports which one is active.
+If Agent Recall is detected (`agent-recall`), memory operations will use it automatically.
+If not, falls back to local `.apex/memory.json` (`apex-local`). No user action needed.
+
+**Step 3 — Offer dashboard (MANDATORY — do NOT skip):**
+
+You MUST ask the user this question before proceeding to any task work:
 
 > 要启动可视化面板吗？可以在浏览器里看到任务看板、pipeline 进度和遥测数据。（Y/n）
 
@@ -87,7 +97,11 @@ If yes:
 ```bash
 nohup apex dashboard > /dev/null 2>&1 &
 ```
-Then open the URL in the browser. If no, skip silently.
+Then open the URL printed by the command in the user's browser.
+
+If no, skip silently.
+
+Do NOT skip this step. Do NOT proceed to the Complexity Router without asking.
 
 **Step 4 — Check companion skill health (silent):**
 
@@ -106,7 +120,11 @@ If all pass, say nothing.
 apex status --json
 ```
 
-Read `current_stage` and task status. If there is an interrupted session:
+Read `current_stage` and task status. Also check the memory backend for richer recovery context:
+- The active backend's `getActiveTask()` may return cross-session task state (especially via Agent Recall, which tracks tasks across all platforms).
+- Local fallback reads `.apex/tasks.json` for `in_progress` tasks.
+
+If there is an interrupted session:
 - Stage is not `idle` (e.g., `execute`, `review`)
 - Tasks exist in `in_progress` or `to_verify` status
 
