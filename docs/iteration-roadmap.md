@@ -1,6 +1,6 @@
 # Apex Forge 迭代计划
 
-> 最后更新：2026-04-10
+> 最后更新：2026-04-10 (Phase 1c complete)
 
 ---
 
@@ -19,6 +19,7 @@
 | agents 多命令支持 | 完成。config 支持 agents 字段（default/review/challenge/consult） |
 | **Brainstorm PRD 分支** | 完成。product-prd v2.0 companion skill（融合 PRD 访谈 + office-hours 6 问），brainstorm.md 分流逻辑，bindings.yaml brainstorm 段绑定，.claude-plugin 注册，install.sh 加入第 8 个 companion skill |
 | **Dashboard 全面接通** | 完成。Design Comparison 接通 `/api/designs` + `/api/designs/file`，10 个区域全部排查确认读真实 `.apex/` 数据，无假数据残留 |
+| **1c 记忆后端插件化** | 完成。`MemoryBackend` 接口 + Agent Recall 混合后端 + 本地 fallback + 启动时自动探测。写操作双写（Agent Recall + local），读操作走 local（即时可用），上下文注入优先 Agent Recall（跨会话/跨平台）。`apex memory backend` 报告当前后端 |
 
 ### 待做
 

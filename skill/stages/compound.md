@@ -95,7 +95,12 @@ Write to `docs/solutions/{category}/{name}.md` with sections:
 - **Prevention**: how to avoid this problem in the future
 
 After writing, capture the fact:
-`apex memory add --type solution --path docs/solutions/{category}/{name}.md`
+`apex memory add "Solution: docs/solutions/{category}/{name}.md" 0.9 solution {category}`
+
+> **Pluggable backend**: The `apex memory add` command automatically selects the best
+> available memory backend. If Agent Recall is running, the solution reference is stored
+> in both `docs/solutions/` (file) and Agent Recall's database (searchable across sessions).
+> If only the local backend is available, it goes to `docs/solutions/` + `.apex/memory.json`.
 
 ### Index Update
 

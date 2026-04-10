@@ -1,15 +1,18 @@
-import {
-  memoryAdd,
-  memoryList,
-  memorySearch,
-  memoryRemove,
-  memoryInject,
-  memoryPrune,
-} from "../state/memory.js";
+import { detectMemoryBackend } from "../memory/index.js";
 import { curateFacts } from "../state/curate.js";
 
 export async function cmdMemory(args: string[]): Promise<void> {
   const verb = args[0];
+
+  // "backend" subcommand doesn't need the full backend — just detect and report
+  if (verb === "backend") {
+    const backend = await detectMemoryBackend();
+    console.log(backend.name);
+    return;
+  }
+
+  // Get the active memory backend for all other commands
+  const backend = await detectMemoryBackend();
 
   switch (verb) {
     case "add": {
@@ -26,9 +29,9 @@ export async function cmdMemory(args: string[]): Promise<void> {
         process.exit(1);
       }
       const tags = args.slice(3);
-      const fact = await memoryAdd(content, confidence, tags);
+      const factId = await backend.addFact(content, confidence, tags);
       console.log(
-        `Added ${fact.id}: "${fact.content}" (confidence: ${fact.confidence.toFixed(2)})`,
+        `Added ${factId}: "${content}" (confidence: ${confidence.toFixed(2)}) [${backend.name}]`,
       );
       break;
     }
@@ -37,7 +40,7 @@ export async function cmdMemory(args: string[]): Promise<void> {
       const minIdx = args.indexOf("--min");
       const minConf =
         minIdx !== -1 ? parseFloat(args[minIdx + 1]) : undefined;
-      const facts = await memoryList(minConf);
+      const facts = await backend.listFacts(minConf);
       if (facts.length === 0) {
         console.log("No facts in memory");
         return;
@@ -46,9 +49,10 @@ export async function cmdMemory(args: string[]): Promise<void> {
         const tags =
           f.tags.length > 0 ? ` [${f.tags.join(", ")}]` : "";
         console.log(
-          `  ${f.id.padEnd(5)} ${f.confidence.toFixed(2)}  ${f.content}${tags}`,
+          `  ${f.id.padEnd(8)} ${f.confidence.toFixed(2)}  ${f.content}${tags}`,
         );
       }
+      console.log(`  (${facts.length} facts via ${backend.name})`);
       break;
     }
 
@@ -58,7 +62,7 @@ export async function cmdMemory(args: string[]): Promise<void> {
         console.error("Usage: apex memory search QUERY");
         process.exit(1);
       }
-      const results = await memorySearch(query);
+      const results = await backend.searchFacts(query);
       if (results.length === 0) {
         console.log("No matching facts");
         return;
@@ -67,9 +71,10 @@ export async function cmdMemory(args: string[]): Promise<void> {
         const tags =
           f.tags.length > 0 ? ` [${f.tags.join(", ")}]` : "";
         console.log(
-          `  ${f.id.padEnd(5)} ${f.confidence.toFixed(2)}  ${f.content}${tags}`,
+          `  ${f.id.padEnd(8)} ${f.confidence.toFixed(2)}  ${f.content}${tags}`,
         );
       }
+      console.log(`  (${results.length} results via ${backend.name})`);
       break;
     }
 
@@ -79,43 +84,40 @@ export async function cmdMemory(args: string[]): Promise<void> {
         console.error("Usage: apex memory remove FACT_ID");
         process.exit(1);
       }
-      await memoryRemove(factId);
+      await backend.removeFact(factId);
       console.log(`Removed ${factId}`);
       break;
     }
 
     case "inject": {
-      const output = await memoryInject();
+      const project = process.cwd().split("/").pop() || "unknown";
+      const output = await backend.injectContext(project);
       console.log(output);
       break;
     }
 
     case "prune": {
-      const result = await memoryPrune();
-      if (result.removed > 0) {
+      const removed = await backend.pruneFacts();
+      if (removed > 0) {
         console.log(
-          `Pruned ${result.removed} fact${result.removed > 1 ? "s" : ""}, ${result.kept} remaining`,
+          `Pruned ${removed} fact${removed > 1 ? "s" : ""} [${backend.name}]`,
         );
       } else {
-        console.log(`Nothing to prune (${result.kept} facts, all >= 0.5 confidence)`);
+        console.log(`Nothing to prune [${backend.name}]`);
       }
       break;
     }
 
     case "curate": {
-      // Auto-extract facts from recent activity:
-      // 1. Read recent git commits (last 7 days)
-      // 2. Read .apex/tasks.json for completed tasks
-      // 3. Read docs/solutions/ for documented knowledge
-      // 4. Extract patterns and add as facts
+      // curate still uses local memoryAdd since it auto-extracts from local sources
       const facts = await curateFacts();
       if (facts.length === 0) {
         console.log("No new facts to curate");
       } else {
         for (const f of facts) {
-          await memoryAdd(f.content, f.confidence, f.tags);
+          await backend.addFact(f.content, f.confidence, f.tags);
         }
-        console.log(`Curated ${facts.length} fact(s) from recent activity`);
+        console.log(`Curated ${facts.length} fact(s) from recent activity [${backend.name}]`);
       }
       break;
     }
@@ -125,17 +127,14 @@ export async function cmdMemory(args: string[]): Promise<void> {
         "../state/llm-curate.js"
       );
 
-      // Check if context is piped via stdin or auto-built
       let context: string;
       if (args[1] === "--stdin") {
-        // Read from stdin (for piping conversation transcripts)
         const chunks: Buffer[] = [];
         for await (const chunk of process.stdin) {
           chunks.push(chunk);
         }
         context = Buffer.concat(chunks).toString();
       } else {
-        // Auto-build from git + tasks + solutions
         context = await buildCurationContext();
       }
 
@@ -151,9 +150,9 @@ export async function cmdMemory(args: string[]): Promise<void> {
         console.log("No new facts extracted");
       } else {
         for (const f of llmFacts) {
-          await memoryAdd(f.content, f.confidence, f.tags, "llm-curated");
+          await backend.addFact(f.content, f.confidence, f.tags);
         }
-        console.log(`Extracted ${llmFacts.length} fact(s) via LLM:`);
+        console.log(`Extracted ${llmFacts.length} fact(s) via LLM [${backend.name}]:`);
         for (const f of llmFacts) {
           console.log(
             `  [${f.confidence.toFixed(2)}] ${f.content} [${f.tags.join(", ")}]`,
@@ -166,7 +165,7 @@ export async function cmdMemory(args: string[]): Promise<void> {
     default:
       console.error(`Unknown memory command: ${verb || "(none)"}`);
       console.error(
-        "Usage: apex memory [add|list|search|remove|inject|prune|curate|extract-llm]",
+        "Usage: apex memory [add|list|search|remove|inject|prune|curate|extract-llm|backend]",
       );
       process.exit(1);
   }
