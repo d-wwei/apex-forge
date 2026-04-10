@@ -87,21 +87,25 @@ This detects available memory systems and reports which one is active.
 If Agent Recall is detected (`agent-recall`), memory operations will use it automatically.
 If not, falls back to local `.apex/memory.json` (`apex-local`). No user action needed.
 
-**Step 3 — Offer dashboard (MANDATORY — do NOT skip):**
+**Step 3 — Offer dashboard (MANDATORY tool call — blocks further progress):**
 
-You MUST ask the user this question before proceeding to any task work:
+You MUST call `AskUserQuestion` with the following question before ANY further action.
+Do NOT output any text, run any command, or proceed to Step 4 until the user answers.
 
-> 要启动可视化面板吗？可以在浏览器里看到任务看板、pipeline 进度和遥测数据。（Y/n）
+Question: "是否启动可视化面板？"
+Options:
+  - "启动 Dashboard (Recommended)" — 在浏览器里查看任务看板、pipeline 进度和遥测数据
+  - "跳过" — 不启动，直接开始工作
 
-If yes:
+If user selects "启动 Dashboard":
 ```bash
 nohup apex dashboard > /dev/null 2>&1 &
 ```
 Then open the URL printed by the command in the user's browser.
 
-If no, skip silently.
+If user selects "跳过": proceed silently.
 
-Do NOT skip this step. Do NOT proceed to the Complexity Router without asking.
+⚠️ This step is a BLOCKING GATE. The Complexity Router MUST NOT run until the user has answered.
 
 **Step 4 — Check companion skill health (silent):**
 
