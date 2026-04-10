@@ -38,10 +38,29 @@ ask whether they are intentional.
 ### Check 4: Review Status Confirmed
 Re-read the review artifact. Confirm status is DONE or DONE_WITH_CONCERNS.
 
-### Check 5: Skill Invocation Trace
-Read `.apex/state.json` → `skill_invocations[]`. Verify that all required skills
+### Check 5: Skill Invocation Trace & Binding Versions
+
+**5a. Invocation trace completeness**
+
+Run:
+```bash
+apex status --json | jq '.skill_invocations'
+```
+
+Or read `.apex/state.json` → `skill_invocations[]`. Verify that all required skills
 from `bindings.yaml` (those with `concurrent: false`) were invoked during this
 pipeline run. Missing invocations block ship.
+
+After each external skill completes, the agent MUST record the trace:
+```bash
+apex trace-skill <stage> <skill> <version> <output_status> <af_mapping>
+```
+
+Example:
+```bash
+apex trace-skill review thorough-code-review 1.0.0 APPROVED af_review:pass
+apex trace-skill review security-audit 1.2.0 PASS af_review:pass
+```
 
 Required checks:
 - Execute stage: Was `systematic-debugging` invoked if bugs were encountered?
@@ -51,6 +70,17 @@ Required checks:
 
 If any required skill invocation is missing, report which skill was skipped and
 instruct the agent to return to the appropriate stage.
+
+**5b. Binding version compliance**
+
+Run:
+```bash
+apex check-bindings
+```
+
+This reads `bindings.yaml`, checks each skill's installed VERSION file against
+the declared version constraint (e.g. `>=1.0.0`), and reports pass/fail.
+Any version mismatch blocks ship.
 
 ---
 

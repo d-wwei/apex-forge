@@ -6,8 +6,9 @@
  */
 
 import { readJSON, writeJSON } from "../utils/json.js";
+import { appendJSONL } from "../utils/logger.js";
 import { isoTimestamp, sessionId } from "../utils/timestamp.js";
-import type { StageState, StageHistory } from "../types/state.js";
+import type { StageState, StageHistory, SkillInvocation } from "../types/state.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -172,4 +173,52 @@ export async function statusSummary(): Promise<string> {
  */
 export async function statusJSON(): Promise<object> {
   return loadState();
+}
+
+// ---------------------------------------------------------------------------
+// Skill Invocation Trace
+// ---------------------------------------------------------------------------
+
+const ANALYTICS_FILE = ".apex/analytics/usage.jsonl";
+
+/**
+ * Record a skill invocation trace into state.json and simultaneously
+ * write a telemetry record to .apex/analytics/usage.jsonl.
+ */
+export async function addSkillInvocation(
+  stage: string,
+  skill: string,
+  version: string,
+  outputStatus: string,
+  afMapping: string,
+): Promise<StageState> {
+  const state = await loadState();
+  const now = isoTimestamp();
+
+  const invocation: SkillInvocation = {
+    stage,
+    skill,
+    version,
+    timestamp: now,
+    output_status: outputStatus,
+    af_mapping: afMapping,
+  };
+
+  if (!state.skill_invocations) {
+    state.skill_invocations = [];
+  }
+  state.skill_invocations.push(invocation);
+  state.last_updated = now;
+
+  await saveState(state);
+
+  // Auto-write telemetry record (Task 2)
+  appendJSONL(ANALYTICS_FILE, {
+    skill,
+    duration_s: 0,
+    outcome: outputStatus,
+    ts: now,
+  });
+
+  return state;
 }

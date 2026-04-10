@@ -98,3 +98,9 @@ review:
     version: ">=1.0.0"
     priority: 4
     concurrent: true
+
+  - trigger: "代码审查完成后，获取独立第二意见"
+    skill: codex-consult
+    mode: review
+    priority: 5
+    concurrent: true

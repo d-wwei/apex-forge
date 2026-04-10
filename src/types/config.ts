@@ -1,3 +1,10 @@
+export interface AgentMap {
+  default?: string;
+  review?: string;
+  challenge?: string;
+  consult?: string;
+}
+
 export interface ApexConfig {
   default_tier: "auto" | "1" | "2" | "3";
   proactive: boolean;
@@ -10,6 +17,7 @@ export interface ApexConfig {
   retry_backoff_base_ms: number;
   agent_command: string;
   idle_timeout_ms: number;
+  agents?: AgentMap;
 }
 
 export const DEFAULT_CONFIG: ApexConfig = {

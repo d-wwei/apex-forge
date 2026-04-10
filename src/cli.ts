@@ -22,6 +22,8 @@ import {
   listTraceSummaries,
   getTraceSpans,
 } from "./tracing.js";
+import { addSkillInvocation } from "./state/state.js";
+import { satisfies } from "./utils/semver.js";
 
 const VERSION = "0.1.0";
 
@@ -411,6 +413,72 @@ Usage:
   }
 }
 
+async function cmdCheckBindings(): Promise<void> {
+  const bindingsPath = "skill/bindings.yaml";
+  if (!existsSync(bindingsPath)) {
+    console.error("bindings.yaml not found at skill/bindings.yaml");
+    process.exit(1);
+  }
+
+  const content = readFileSync(bindingsPath, "utf-8");
+  const home = process.env.HOME || "/tmp";
+  const skillsDir = `${home}/.claude/skills`;
+
+  // Simple YAML extraction: find lines with "skill:" and "version:"
+  interface Binding { skill: string; version: string; }
+  const bindings: Binding[] = [];
+  let currentSkill = "";
+
+  for (const line of content.split("\n")) {
+    const skillMatch = line.match(/^\s+skill:\s+(.+)/);
+    if (skillMatch) {
+      currentSkill = skillMatch[1].trim();
+    }
+    const versionMatch = line.match(/^\s+version:\s+"?([^"]+)"?/);
+    if (versionMatch && currentSkill) {
+      bindings.push({ skill: currentSkill, version: versionMatch[1].trim() });
+      currentSkill = "";
+    }
+  }
+
+  if (bindings.length === 0) {
+    console.log("No version-constrained bindings found.");
+    return;
+  }
+
+  console.log("Checking skill bindings...\n");
+  console.log("Skill                    Constraint    Installed    Status");
+  console.log("\u2500".repeat(65));
+
+  let failures = 0;
+
+  for (const b of bindings) {
+    const versionFile = `${skillsDir}/${b.skill}/VERSION`;
+    let installed = "not found";
+    let ok = false;
+
+    if (existsSync(versionFile)) {
+      installed = readFileSync(versionFile, "utf-8").trim();
+      ok = satisfies(installed, b.version);
+    }
+
+    const status = ok ? "PASS" : "FAIL";
+    if (!ok) failures++;
+
+    console.log(
+      `${b.skill.padEnd(25)} ${b.version.padEnd(14)} ${installed.padEnd(13)} ${status}`
+    );
+  }
+
+  console.log("");
+  if (failures > 0) {
+    console.error(`${failures} binding(s) failed version check.`);
+    process.exit(1);
+  } else {
+    console.log(`All ${bindings.length} bindings pass.`);
+  }
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const command = args[0];
@@ -450,6 +518,20 @@ async function main() {
         break;
       case "trace":
         await cmdTrace(rest);
+        break;
+      case "trace-skill": {
+        const [stage, skill, version, outputStatus, afMapping] = rest;
+        if (!stage || !skill || !version || !outputStatus || !afMapping) {
+          console.error("Usage: apex trace-skill <stage> <skill> <version> <output_status> <af_mapping>");
+          process.exit(1);
+        }
+        const st = await addSkillInvocation(stage, skill, version, outputStatus, afMapping);
+        console.log(`Traced: ${skill}@${version} in ${stage} → ${outputStatus} (${afMapping})`);
+        console.log(`Total invocations: ${st.skill_invocations?.length ?? 0}`);
+        break;
+      }
+      case "check-bindings":
+        await cmdCheckBindings();
         break;
       case "dashboard": {
         const { startDashboard, startHub } = await import("./dashboard.js");
@@ -562,6 +644,9 @@ Commands:
   trace active                  Show running spans
   trace list [LIMIT]            List recent traces
   trace view TRACE_ID           View spans in a trace
+  trace-skill STAGE SKILL VER STATUS MAPPING
+                                Record a skill invocation trace
+  check-bindings                Verify skill versions against bindings.yaml
   dashboard [--port PORT]       Start project dashboard (auto-port from path)
   dashboard hub                 Start hub page listing all active dashboards
   convert --platform PLATFORM  Convert skills for cursor|codex|factory|gemini|windsurf

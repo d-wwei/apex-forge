@@ -64,6 +64,24 @@ function matchTemplate(task: Task, registry: RegistryTemplate[]): RegistryTempla
   return bestScore > 0 ? bestMatch : null;
 }
 
+/**
+ * Resolve the agent command based on config.agents map and template model_hint.
+ * Falls back to config.agent_command if no specific mapping exists.
+ */
+function resolveAgentCommand(config: ApexConfig, template: RegistryTemplate | null): string {
+  if (!config.agents || !template) return config.agent_command;
+
+  const hint = template.model_hint?.toLowerCase() || "";
+
+  // Map model_hint keywords to agents map keys
+  if (hint.includes("review") && config.agents.review) return config.agents.review;
+  if (hint.includes("challenge") && config.agents.challenge) return config.agents.challenge;
+  if (hint.includes("consult") && config.agents.consult) return config.agents.consult;
+  if (config.agents.default) return config.agents.default;
+
+  return config.agent_command;
+}
+
 interface RunningAgent {
   taskId: string;
   process: ChildProcess;
@@ -196,8 +214,9 @@ async function pollCycle(config: ApexConfig, running: Map<string, RunningAgent>,
     }
     const prompt = buildPrompt(task, config, template);
 
-    // Spawn agent — build the command based on the configured agent
-    const [cmd, ...cmdArgs] = config.agent_command.split(" ");
+    // Resolve agent command: check agents map for model_hint-based routing
+    const agentCmd = resolveAgentCommand(config, template);
+    const [cmd, ...cmdArgs] = agentCmd.split(" ");
     // Use --print flag for non-interactive output, -p for prompt input
     const agentArgs = cmd === "claude"
       ? [...cmdArgs, "--print", "-p", prompt]

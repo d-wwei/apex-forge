@@ -59,7 +59,7 @@
     },
     {
       "name": "apex-forge-verify",
-      "path": "workflow/stages/verify.md",
+      "path": "skill/stages/verify.md",
       "description": "Evidence gate — no success claims without proof",
       "user-invocable": true
     },

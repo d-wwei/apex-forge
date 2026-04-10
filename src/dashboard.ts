@@ -569,10 +569,10 @@ function loadEvents(apexDir: string) {
     source: "telemetry",
   }));
 
-  // Merge and sort by timestamp (newest last)
-  return [...legacy, ...activities].sort((a, b) =>
-    (a.ts || "").localeCompare(b.ts || "")
-  );
+  // Merge, sort by timestamp (newest last), cap at 50 most recent
+  return [...legacy, ...activities]
+    .sort((a, b) => (a.ts || "").localeCompare(b.ts || ""))
+    .slice(-50);
 }
 
 async function buildStatePayload(projectDir: string, projectName: string) {
