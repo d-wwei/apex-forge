@@ -314,6 +314,54 @@
       "path": "workflow/roles/plan-devex-review.md",
       "description": "DX-focused plan review — persona interrogation, competitive benchmarking, 8 review passes",
       "user-invocable": true
+    },
+    {
+      "name": "apex-forge-init",
+      "path": "skill/ops/init.md",
+      "description": "Initialize Apex Forge in the current project",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-forge-status",
+      "path": "skill/ops/status.md",
+      "description": "Show current project state — stage, tasks, memory, session",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-forge-dashboard",
+      "path": "skill/ops/dashboard.md",
+      "description": "Start visual dashboard or Hub (multi-project view)",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-forge-tasks",
+      "path": "skill/ops/tasks.md",
+      "description": "Manage tasks — list, create, assign, verify, block",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-forge-memory",
+      "path": "skill/ops/memory.md",
+      "description": "Manage project memory — add facts, search, prune, inject",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-forge-recover",
+      "path": "skill/ops/recover.md",
+      "description": "Fix stuck state — clean locks, reset blocked tasks, repair files",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-forge-telemetry",
+      "path": "skill/ops/telemetry.md",
+      "description": "View usage analytics — skill runs, durations, outcomes",
+      "user-invocable": true
+    },
+    {
+      "name": "apex-forge-worktree-ops",
+      "path": "skill/ops/worktree.md",
+      "description": "Manage git worktrees — create, list, cleanup per task",
+      "user-invocable": true
     }
   ],
   "hooks": {
