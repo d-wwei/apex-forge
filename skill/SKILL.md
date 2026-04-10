@@ -13,22 +13,7 @@ argument-hint: "[brainstorm|plan|execute|review|ship|investigate|status|compound
 
 Unified execution protocol. **Rigid** — follow exactly.
 
-<CRITICAL>
-BEFORE doing ANYTHING else — before checking CLI, before running any command, before saying "ready" —
-you MUST call the AskUserQuestion tool with this exact question:
-
-Question: "是否启动可视化面板？"
-Header: "Dashboard"
-Options:
-  - label: "启动 Dashboard (Recommended)", description: "在浏览器里查看任务看板、pipeline 进度和遥测数据"
-  - label: "跳过", description: "不启动，直接开始工作"
-
-If "启动 Dashboard": run `nohup apex dashboard > /dev/null 2>&1 &` then open the printed URL.
-If "跳过": proceed silently.
-
-This is a BLOCKING GATE. You CANNOT proceed without the user's answer.
-Do NOT say "ready", do NOT say "give me a task", do NOT run the Complexity Router until this is done.
-</CRITICAL>
+<!-- Dashboard prompt is enforced via PostToolUse hook (hooks/apex-forge-dashboard.sh), not via SKILL.md instructions. The Skill tool's summarizer strips inline instructions, so the hook injects the prompt through a channel the agent cannot skip. -->
 
 ## Initialization (silent, every invocation)
 
