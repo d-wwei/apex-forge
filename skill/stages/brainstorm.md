@@ -52,7 +52,46 @@ Before starting a new brainstorm:
 
 ---
 
-## Scope Classification
+## Intent Routing
+
+Before classifying scope, determine the user's intent:
+
+```
+What is the user asking for?
+
+→ Product decision / new product / "要不要做XX" / "写个 PRD" / market analysis
+  → Route to /product-prd (companion skill)
+  → Output: PRD document or validation summary
+  → After PRD approved → proceed to Plan stage
+
+→ Specific development task / "做一个XX功能" / bug fix / refactor
+  → Continue with the 9-step checklist below
+  → Output: requirements confirmation document
+  → After requirements approved → proceed to Plan stage
+```
+
+**Signal phrases for PRD path**: "写 PRD", "做需求文档", "要不要做", "新功能规划",
+"产品决策", "市场分析", "这个产品方向", "写个产品需求文档"
+
+**Signal phrases for development path**: "帮我做一个", "加一个功能", "修这个 bug",
+"重构", "优化性能", "添加 API", specific technical tasks
+
+If ambiguous, ask: "This sounds like it could be a product-level decision or a
+development task. Should I help with a PRD, or should we define the development
+requirements directly?"
+
+### Skill Dispatch (PRD Path)
+
+When routing to PRD path, invoke the product-prd companion skill:
+
+```bash
+# Record invocation after completion
+apex trace-skill brainstorm product-prd 2.0.0 <output_status> <af_mapping>
+```
+
+---
+
+## Scope Classification (Development Path)
 
 Classify the request before running the checklist. Scope determines
 checklist depth and downstream pipeline behavior.

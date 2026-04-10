@@ -132,6 +132,7 @@ DEPS=(
   "tasteful-frontend|https://github.com/d-wwei/tasteful-frontend|"
   "design-to-code-runner|https://github.com/d-wwei/design-to-code-runner|"
   "product-review|https://github.com/d-wwei/product-review|"
+  "product-prd|https://github.com/d-wwei/Product-Prd-Skill|"
 )
 
 FAILED=()
@@ -174,7 +175,7 @@ if [ ${#FAILED[@]} -gt 0 ]; then
   exit 1
 fi
 
-echo "Done. Apex Forge + 7 companion skills installed."
+echo "Done. Apex Forge + 8 companion skills installed."
 echo ""
 echo "Usage:"
 echo "  /apex-forge               Activate core protocol"

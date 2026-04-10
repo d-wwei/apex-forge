@@ -4,6 +4,22 @@
 
 version: "1.0"
 
+# ─── Brainstorm Stage ─────────────────────────────────────────
+
+brainstorm:
+  - trigger: "产品决策、新功能规划、写 PRD、产品需求文档、市场分析、要不要做、product decision"
+    skill: product-prd
+    version: ">=2.0.0"
+    priority: 1
+    concurrent: false
+    output_schema:
+      status: [DONE, DONE_WITH_CONCERNS, BLOCKED, NEEDS_CONTEXT, NOT_VALIDATED]
+    mapping:
+      DONE:              { af_action: proceed_to_plan }
+      DONE_WITH_CONCERNS: { af_action: proceed_to_plan }
+      NOT_VALIDATED:     { af_action: park_idea }
+      BLOCKED:           { af_action: block_and_handoff }
+
 # ─── Execute Stage ─────────────────────────────────────────────
 
 execute:

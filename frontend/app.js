@@ -294,6 +294,48 @@ function renderMemoryFact(f) {
   return '<div class="memory-fact confidence-' + f.level + '"><div class="memory-fact-header"><span class="memory-confidence-badge ' + f.level + '">' + levelLabel + '_CONFIDENCE (' + f.confidence.toFixed(2) + ')</span><div class="memory-tags">' + f.tags.map(t => '<span class="memory-tag">' + esc(t) + '</span>').join('') + '</div></div><div class="memory-fact-content">' + esc(f.content) + '</div></div>';
 }
 
+// ===== 6b. Design Comparison =====
+
+function renderDesignComparison() {
+  fetch('/api/designs').then(r => r.json()).then(data => {
+    const designs = data.designs || [];
+    const gallery = document.getElementById('variant-gallery');
+    const countEl = document.getElementById('variant-count');
+    if (!gallery) return;
+
+    if (countEl) countEl.textContent = designs.length + ' VARIANTS';
+
+    if (designs.length === 0) {
+      gallery.innerHTML = '<div class="activity-empty">No designs yet. Run <code>apex design generate</code> or <code>apex design variants</code> to create designs.</div>';
+      return;
+    }
+
+    gallery.innerHTML = designs.map((d, i) => {
+      const isImage = /\.(png|jpg|jpeg)$/i.test(d.name);
+      const previewStyle = isImage
+        ? 'background-image:url(/api/designs/file?path=' + encodeURIComponent(d.path) + ');background-size:cover;background-position:center;'
+        : '';
+      const sizeKB = d.size ? Math.round(d.size / 1024) + ' KB' : '';
+      return '<div class="variant-card">' +
+        '<div class="variant-preview" style="' + previewStyle + '">' +
+          '<div class="variant-preview-gradient"></div>' +
+          '<span class="variant-number"></span>' +
+          (isImage ? '<div class="variant-expand-btn" onclick="window.open(\'/api/designs/file?path=' + encodeURIComponent(d.path) + '\',\'_blank\')">' +
+            '<svg width="22" height="15" viewBox="0 0 22 15" fill="none"><path d="M1 1L8 8L1 15" stroke="currentColor" stroke-width="1.5"/><path d="M14 1L21 8L14 15" stroke="currentColor" stroke-width="1.5"/></svg>' +
+          '</div>' : '') +
+        '</div>' +
+        '<div class="variant-info">' +
+          '<div class="variant-name">' + esc(d.name) + '</div>' +
+          '<div class="variant-path">' + sizeKB + '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }).catch(() => {
+    const gallery = document.getElementById('variant-gallery');
+    if (gallery) gallery.innerHTML = '<div class="activity-empty">Could not load designs.</div>';
+  });
+}
+
 // ===== 7. Utility =====
 
 function esc(s) {
@@ -326,6 +368,7 @@ async function initialLoad() {
       project: { name: currentProject ? currentProject.name : 'unknown' }
     });
   }
+  renderDesignComparison();
   connectSSE();
 }
 

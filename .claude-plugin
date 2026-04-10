@@ -64,6 +64,12 @@
       "user-invocable": true
     },
     {
+      "name": "apex-forge-prd",
+      "path": "workflow/aliases/prd.md",
+      "description": "Alias: routes to /product-prd companion skill for PRD writing",
+      "user-invocable": true
+    },
+    {
       "name": "apex-forge-wave-planner",
       "path": "workflow/roles/wave-planner.md",
       "description": "Wave-level planning — system mapping, scope definition, risk identification",

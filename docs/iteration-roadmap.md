@@ -17,6 +17,8 @@
 | 1.7 Skill 版本校验 | 完成。`apex check-bindings` + `src/utils/semver.ts` |
 | codex-consult 加入 bindings | 完成。review 阶段 priority 5，concurrent: true |
 | agents 多命令支持 | 完成。config 支持 agents 字段（default/review/challenge/consult） |
+| **Brainstorm PRD 分支** | 完成。product-prd v2.0 companion skill（融合 PRD 访谈 + office-hours 6 问），brainstorm.md 分流逻辑，bindings.yaml brainstorm 段绑定，.claude-plugin 注册，install.sh 加入第 8 个 companion skill |
+| **Dashboard 全面接通** | 完成。Design Comparison 接通 `/api/designs` + `/api/designs/file`，10 个区域全部排查确认读真实 `.apex/` 数据，无假数据残留 |
 
 ### 待做
 

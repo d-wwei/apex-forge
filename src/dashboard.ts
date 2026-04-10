@@ -183,6 +183,31 @@ export async function startDashboard(portOverride?: number) {
         });
       }
 
+      // API: list design images from .apex/designs/
+      if (url.pathname === "/api/designs") {
+        const designDir = join(projectDir, ".apex", "designs");
+        const designs = listDesignFiles(designDir);
+        return Response.json({ designs });
+      }
+
+      // API: serve a design image file
+      if (url.pathname === "/api/designs/file") {
+        const filePath = url.searchParams.get("path");
+        if (!filePath) {
+          return Response.json({ error: "Missing path parameter" }, { status: 400 });
+        }
+        // Security: only serve from .apex/designs/
+        const designDir = join(projectDir, ".apex", "designs");
+        const resolved = resolve(designDir, filePath.replace(/\.\./g, ""));
+        if (!resolved.startsWith(designDir) || !existsSync(resolved)) {
+          return Response.json({ error: "File not found" }, { status: 404 });
+        }
+        const content = readFileSync(resolved);
+        const ext = extname(resolved);
+        const mime = ext === ".png" ? "image/png" : ext === ".jpg" || ext === ".jpeg" ? "image/jpeg" : ext === ".html" ? "text/html" : "application/octet-stream";
+        return new Response(content, { headers: { "Content-Type": mime } });
+      }
+
       // Serve static frontend — or fallback to legacy inline HTML
       if (!frontendDir) {
         if (url.pathname === "/" || url.pathname === "/index.html") {
@@ -526,6 +551,28 @@ setInterval(load, 5000);
 </script>
 </body>
 </html>`;
+}
+
+function listDesignFiles(designDir: string): { name: string; path: string; size: number; created: string }[] {
+  if (!existsSync(designDir)) return [];
+  try {
+    const { readdirSync, statSync } = require("fs");
+    return (readdirSync(designDir) as string[])
+      .filter((f: string) => /\.(png|jpg|jpeg|html)$/i.test(f))
+      .map((f: string) => {
+        const fullPath = join(designDir, f);
+        const stat = statSync(fullPath);
+        return {
+          name: f,
+          path: f,
+          size: stat.size,
+          created: stat.birthtime.toISOString(),
+        };
+      })
+      .sort((a: any, b: any) => b.created.localeCompare(a.created));
+  } catch {
+    return [];
+  }
 }
 
 function loadJSONL(filePath: string): any[] {
