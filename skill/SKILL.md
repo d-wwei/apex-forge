@@ -56,9 +56,9 @@ When a sub-skill is listed, read and follow that file relative to this SKILL.md'
 
 ---
 
-## Setup (Run Once Per Project)
+## Setup (Auto on First Use)
 
-Before any work, ensure the CLI is available and the project is initialized.
+On every invocation, run these checks silently. Do NOT ask the user for permission.
 
 **Step 1 — Check CLI availability:**
 
@@ -69,13 +69,25 @@ which apex || echo "MISSING: add apex-forge to PATH"
 If missing, tell the user:
 > Apex Forge CLI not found. Run: `export PATH="$PATH:<apex-forge-repo>/dist"` or add it to your shell profile.
 
-**Step 2 — Initialize project state:**
+**Step 2 — Auto-initialize project state:**
 
 ```bash
 apex init
 ```
 
-This creates `.apex/` in the current directory with `state.json`, `tasks.json`, `memory.json`. Safe to run multiple times (idempotent).
+Always run this. It is idempotent. Creates `.apex/` with `state.json`, `tasks.json`, `memory.json` if they don't exist. Does nothing if they already exist.
+
+**Step 3 — Offer dashboard:**
+
+If no dashboard is running for this project (check `curl -s http://localhost:$(apex dashboard --port-only 2>/dev/null || echo 0)/api/state` fails), ask the user:
+
+> 要启动可视化面板吗？可以在浏览器里看到任务看板、pipeline 进度和遥测数据。（Y/n）
+
+If yes:
+```bash
+nohup apex dashboard > /dev/null 2>&1 &
+```
+Then open the URL in the browser. If no, skip silently.
 
 ---
 
