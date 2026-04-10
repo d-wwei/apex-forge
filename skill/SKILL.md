@@ -56,9 +56,10 @@ When a sub-skill is listed, read and follow that file relative to this SKILL.md'
 
 ---
 
-## Setup (Auto on First Use)
+## Setup (Every Invocation)
 
-On every invocation, run these checks silently. Do NOT ask the user for permission.
+On every invocation, run Steps 1–2.5 silently (no user interaction needed).
+**Exception: Step 3 REQUIRES user interaction — see below.**
 
 **Step 1 — Check CLI availability:**
 
