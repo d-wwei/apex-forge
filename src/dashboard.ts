@@ -85,9 +85,14 @@ function findFrontendDir(): string | null {
   return null;
 }
 
-export async function startDashboard(portOverride?: number) {
+export interface DashboardOptions {
+  daemon?: boolean;
+  projectPath?: string;
+}
+
+export async function startDashboard(portOverride?: number, options?: DashboardOptions) {
   const frontendDir = findFrontendDir();
-  const projectDir = process.cwd();
+  const projectDir = options?.projectPath || process.cwd();
   const projectName = getProjectName(projectDir);
   const port = portOverride ?? autoPort(projectDir);
 
@@ -264,18 +269,20 @@ export async function startDashboard(portOverride?: number) {
   console.log(`  Project: ${projectDir}`);
   console.log(`  Hub:     http://localhost:${hubPort()}`);
 
-  // Auto-open in default browser
-  try {
-    const { exec } = await import("child_process");
-    const cmd =
-      process.platform === "darwin"
-        ? "open"
-        : process.platform === "win32"
-          ? "start"
-          : "xdg-open";
-    exec(`${cmd} http://localhost:${port}`);
-  } catch {
-    // Silently ignore if browser open fails
+  // Auto-open in default browser (skip in daemon mode)
+  if (!options?.daemon) {
+    try {
+      const { exec } = await import("child_process");
+      const cmd =
+        process.platform === "darwin"
+          ? "open"
+          : process.platform === "win32"
+            ? "start"
+            : "xdg-open";
+      exec(`${cmd} http://localhost:${port}`);
+    } catch {
+      // Silently ignore if browser open fails
+    }
   }
 }
 
@@ -655,6 +662,22 @@ function loadEvents(apexDir: string) {
 
 async function buildStatePayload(projectDir: string, projectName: string) {
   const apexDir = join(projectDir, ".apex");
+  const logDir = join(apexDir, "log");
+
+  // Collect unique session IDs from event logs
+  const sessions = new Set<string>();
+  for (const file of ["tasks.jsonl", "state.jsonl", "memory.jsonl"]) {
+    const events = loadJSONL(join(logDir, file));
+    for (const evt of events) {
+      if (evt.session_id) sessions.add(evt.session_id);
+    }
+  }
+  // Also scan tool events
+  const toolEvents = loadJSONL(join(apexDir, "events.jsonl"));
+  for (const evt of toolEvents) {
+    if (evt.session_id) sessions.add(evt.session_id);
+  }
+
   return {
     project: {
       name: projectName,
@@ -668,6 +691,7 @@ async function buildStatePayload(projectDir: string, projectName: string) {
       history: [],
     }),
     analytics: loadEvents(apexDir),
+    sessions: Array.from(sessions),
   };
 }
 

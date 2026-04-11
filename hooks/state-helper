@@ -129,6 +129,55 @@ _apex_ensure_state() {
     fi
 }
 
+# ---------------------------------------------------------------------------
+# Event Log — append-only concurrent-safe event logging
+# ---------------------------------------------------------------------------
+
+_apex_log_dir="${_apex_state_dir}/log"
+
+# Append an event to the domain's JSONL log.
+# Usage: _apex_append_event <domain> <type> '<json_payload>'
+# Example: _apex_append_event "task" "task.created" '{"id":"T1","title":"foo"}'
+_apex_append_event() {
+    local domain="$1"
+    local type="$2"
+    local payload="$3"
+    mkdir -p "$_apex_log_dir"
+    local log_file="${_apex_log_dir}/${domain}.jsonl"
+    local now session_id
+    now=$(_apex_iso_timestamp)
+    session_id="${APEX_SESSION_ID:-}"
+    if [ -z "$session_id" ] && [ -f "$_apex_state_file" ]; then
+        session_id=$(python3 -c "
+import json,sys
+try:
+    with open(sys.argv[1]) as f:
+        print(json.load(f).get('session_id','unknown'))
+except: print('unknown')
+" "$_apex_state_file" 2>/dev/null)
+    fi
+    [ -z "$session_id" ] && session_id="unknown"
+
+    # Auto-seed: if cache exists but log doesn't, copy cache as seed
+    local cache_file=""
+    case "$domain" in
+        task) cache_file="${_apex_state_dir}/tasks.json" ;;
+        state) cache_file="$_apex_state_file" ;;
+        memory) cache_file="${_apex_state_dir}/memory.json" ;;
+    esac
+    local seed_file="${_apex_log_dir}/${domain}.seed.json"
+    if [ ! -f "$log_file" ] && [ -f "$cache_file" ] && [ ! -f "$seed_file" ]; then
+        cp "$cache_file" "$seed_file" 2>/dev/null || true
+    fi
+
+    python3 -c "
+import json,sys
+event={'ts':sys.argv[1],'session_id':sys.argv[2],'domain':sys.argv[3],'type':sys.argv[4],'payload':json.loads(sys.argv[5])}
+with open(sys.argv[6],'a') as f:
+    f.write(json.dumps(event)+'\n')
+" "$now" "$session_id" "$domain" "$type" "$payload" "$log_file" 2>/dev/null || true
+}
+
 # ===========================================================================
 # SECTION 1: Stage State API (original)
 # ===========================================================================
@@ -143,11 +192,11 @@ apex_read_state() {
 apex_get_current_stage() {
     _apex_ensure_state
     python3 -c "
-import json
-with open('${_apex_state_file}') as f:
+import json, sys
+with open(sys.argv[1]) as f:
     d = json.load(f)
 print(d.get('current_stage', 'unknown'))
-"
+" "$_apex_state_file"
 }
 
 # Set the current stage and record history
@@ -159,12 +208,17 @@ apex_set_stage() {
     local now
     now=$(_apex_iso_timestamp)
 
-    python3 -c "
-import json
+    # Get current stage for event payload
+    local old_stage
+    old_stage=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('current_stage','idle'))" "$_apex_state_file" 2>/dev/null || echo "idle")
+    _apex_append_event "state" "stage.set" "{\"stage\":\"${new_stage}\",\"previous\":\"${old_stage}\"}"
 
-state_file = '${_apex_state_file}'
-new_stage = '${new_stage}'
-now = '${now}'
+    python3 -c "
+import json, sys
+
+state_file = sys.argv[1]
+new_stage = sys.argv[2]
+now = sys.argv[3]
 
 with open(state_file) as f:
     state = json.load(f)
@@ -195,7 +249,7 @@ with open(state_file, 'w') as f:
     json.dump(state, f, indent=2)
 
 print(f'Stage: {old_stage} -> {new_stage}')
-"
+" "$_apex_state_file" "$new_stage" "$now"
 }
 
 # Add an artifact to a stage
@@ -205,16 +259,18 @@ apex_add_artifact() {
     local file_path="${2:?Usage: apex_add_artifact STAGE FILE_PATH}"
     _apex_ensure_state
 
+    _apex_append_event "state" "artifact.added" "{\"stage\":\"${stage}\",\"path\":\"${file_path}\"}"
+
     local now
     now=$(_apex_iso_timestamp)
 
     python3 -c "
-import json
+import json, sys
 
-state_file = '${_apex_state_file}'
-stage = '${stage}'
-file_path = '${file_path}'
-now = '${now}'
+state_file = sys.argv[1]
+stage = sys.argv[2]
+file_path = sys.argv[3]
+now = sys.argv[4]
 
 with open(state_file) as f:
     state = json.load(f)
@@ -231,7 +287,7 @@ with open(state_file, 'w') as f:
     json.dump(state, f, indent=2)
 
 print(f'Artifact added: {stage} <- {file_path}')
-"
+" "$_apex_state_file" "$stage" "$file_path" "$now"
 }
 
 # List artifacts for a stage (one per line on stdout)
@@ -241,10 +297,10 @@ apex_get_artifacts() {
     _apex_ensure_state
 
     python3 -c "
-import json
+import json, sys
 
-state_file = '${_apex_state_file}'
-stage = '${stage}'
+state_file = sys.argv[1]
+stage = sys.argv[2]
 
 with open(state_file) as f:
     state = json.load(f)
@@ -252,7 +308,7 @@ with open(state_file) as f:
 artifacts = state.get('artifacts', {}).get(stage, [])
 for a in artifacts:
     print(a)
-"
+" "$_apex_state_file" "$stage"
 }
 
 # Get a brief status summary (for injection or display)
@@ -260,9 +316,9 @@ apex_status_summary() {
     _apex_ensure_state
 
     python3 -c "
-import json
+import json, sys
 
-state_file = '${_apex_state_file}'
+state_file = sys.argv[1]
 
 with open(state_file) as f:
     state = json.load(f)
@@ -281,7 +337,7 @@ print(f'Stage: {stage}')
 print(f'Updated: {updated}')
 print(f'Artifacts: {total_artifacts} total')
 print(f'History: {completed_stages} stages completed, {len(history)} total entries')
-"
+" "$_apex_state_file"
 }
 
 # Discover upstream artifacts for a stage (recent .md files)
@@ -373,6 +429,13 @@ print(json.dumps(tags))
 
     local now
     now=$(_apex_iso_timestamp)
+
+    # Get next_id for event payload
+    local next_id
+    next_id=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('next_id',1))" "$_apex_memory_file" 2>/dev/null || echo "1")
+    local escaped_fact
+    escaped_fact=$(python3 -c "import json,sys; print(json.dumps(sys.argv[1]))" "$fact" 2>/dev/null)
+    _apex_append_event "memory" "fact.added" "{\"id\":\"F${next_id}\",\"content\":${escaped_fact},\"confidence\":${confidence},\"tags\":${tags_json},\"source\":\"session ${now:0:10}\"}"
 
     python3 -c "
 import json, sys
@@ -495,6 +558,8 @@ apex_memory_remove() {
     local fact_id="${1:?Usage: apex_memory_remove FACT_ID}"
     _apex_ensure_memory
 
+    _apex_append_event "memory" "fact.removed" "{\"id\":\"${fact_id}\"}"
+
     python3 -c "
 import json, sys
 
@@ -550,6 +615,25 @@ print('</apex-memory>')
 # Usage: apex_memory_prune
 apex_memory_prune() {
     _apex_ensure_memory
+
+    # Compute removed IDs for event log before pruning
+    local removed_ids
+    removed_ids=$(python3 -c "
+import json,sys
+with open(sys.argv[1]) as f:
+    data=json.load(f)
+facts=data.get('facts',[])
+below=[f['id'] for f in facts if f.get('confidence',0)<0.5]
+remaining=[f for f in facts if f.get('confidence',0)>=0.5]
+remaining.sort(key=lambda f:f.get('confidence',0),reverse=True)
+over=[f['id'] for f in remaining[100:]]
+all_removed=below+over
+if all_removed: print(json.dumps(all_removed))
+" "$_apex_memory_file" 2>/dev/null)
+
+    if [ -n "$removed_ids" ]; then
+        _apex_append_event "memory" "fact.pruned" "{\"removed_ids\":${removed_ids},\"reason\":\"threshold+cap\"}"
+    fi
 
     python3 -c "
 import json, sys

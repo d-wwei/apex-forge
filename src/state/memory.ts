@@ -5,10 +5,11 @@
  * Provides a scored fact store with search, pruning, and context injection.
  */
 
-import { readJSON, writeJSON } from "../utils/json.js";
+import { readJSON } from "../utils/json.js";
 import { isoTimestamp } from "../utils/timestamp.js";
 import { FactNotFoundError } from "../utils/errors.js";
 import type { Fact, MemoryStore } from "../types/memory.js";
+import { appendEvent, rebuildAndCache } from "./event-log.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -27,9 +28,7 @@ async function loadStore(): Promise<MemoryStore> {
   return readJSON<MemoryStore>(MEMORY_PATH, EMPTY_STORE);
 }
 
-async function saveStore(store: MemoryStore): Promise<void> {
-  await writeJSON(MEMORY_PATH, store);
-}
+// saveStore removed — writes go through event log + rebuildAndCache
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -53,22 +52,19 @@ export async function memoryAdd(
 
   const store = await loadStore();
   const now = isoTimestamp();
-
   const id = `F${store.next_id}`;
-  store.next_id += 1;
 
-  const fact: Fact = {
+  appendEvent("memory", "fact.added", {
     id,
     content,
     confidence,
     tags,
     source: source || `session ${now.slice(0, 10)}`,
-    created_at: now,
-  };
+  });
 
-  store.facts.push(fact);
-  await saveStore(store);
-  return fact;
+  await rebuildAndCache("memory");
+  const updated = await loadStore();
+  return updated.facts.find((f) => f.id === id)!;
 }
 
 /**
@@ -106,8 +102,8 @@ export async function memoryRemove(factId: string): Promise<void> {
     throw new FactNotFoundError(factId);
   }
 
-  store.facts.splice(idx, 1);
-  await saveStore(store);
+  appendEvent("memory", "fact.removed", { id: factId });
+  await rebuildAndCache("memory");
 }
 
 /**
@@ -156,20 +152,28 @@ export async function memoryPrune(): Promise<{
   const store = await loadStore();
   const original = store.facts.length;
 
-  // Step 1: remove below threshold
-  store.facts = store.facts.filter((f) => f.confidence >= PRUNE_THRESHOLD);
-  const prunedLow = original - store.facts.length;
+  // Find facts to prune
+  const belowThreshold = store.facts.filter((f) => f.confidence < PRUNE_THRESHOLD);
+  const remaining = store.facts.filter((f) => f.confidence >= PRUNE_THRESHOLD);
 
-  // Step 2: cap at MAX_FACTS, keep highest confidence
-  let prunedCap = 0;
-  if (store.facts.length > MAX_FACTS) {
-    store.facts.sort((a, b) => b.confidence - a.confidence);
-    prunedCap = store.facts.length - MAX_FACTS;
-    store.facts = store.facts.slice(0, MAX_FACTS);
+  let overCap: Fact[] = [];
+  if (remaining.length > MAX_FACTS) {
+    remaining.sort((a, b) => b.confidence - a.confidence);
+    overCap = remaining.slice(MAX_FACTS);
   }
 
-  await saveStore(store);
+  const removedIds = [
+    ...belowThreshold.map((f) => f.id),
+    ...overCap.map((f) => f.id),
+  ];
 
-  const totalRemoved = prunedLow + prunedCap;
-  return { removed: totalRemoved, kept: store.facts.length };
+  if (removedIds.length > 0) {
+    appendEvent("memory", "fact.pruned", {
+      removed_ids: removedIds,
+      reason: "threshold+cap",
+    });
+    await rebuildAndCache("memory");
+  }
+
+  return { removed: removedIds.length, kept: original - removedIds.length };
 }

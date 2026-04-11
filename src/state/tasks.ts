@@ -11,11 +11,11 @@
  *   blocked -> open (unblock, restores previous_status metadata)
  */
 
-import { readJSON, writeJSON } from "../utils/json.js";
-import { isoTimestamp } from "../utils/timestamp.js";
+import { readJSON } from "../utils/json.js";
 import { TaskNotFoundError, InvalidTransitionError } from "../utils/errors.js";
 import type { Task, TaskStore, TaskStatus } from "../types/task.js";
 import { ALLOWED_TRANSITIONS } from "../types/task.js";
+import { appendEvent, rebuildAndCache } from "./event-log.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -30,10 +30,6 @@ const EMPTY_STORE: TaskStore = { tasks: [], next_id: 1 };
 
 async function loadStore(): Promise<TaskStore> {
   return readJSON<TaskStore>(TASKS_PATH, EMPTY_STORE);
-}
-
-async function saveStore(store: TaskStore): Promise<void> {
-  await writeJSON(TASKS_PATH, store);
 }
 
 function findTask(store: TaskStore, taskId: string): Task {
@@ -79,51 +75,29 @@ export async function taskTransition(
     throw new InvalidTransitionError(taskId, from, toStatus);
   }
 
-  const now = isoTimestamp();
-
-  // --- Handle special cases per target status ---
-
-  if (toStatus === "blocked") {
-    // Save previous status so unblock can reference it
-    task.previous_status = from;
-    task.block_reason = extra?.reason ?? "no reason given";
-    task.blocked_by.push({
-      reason: task.block_reason,
-      blocked_at: now,
-      previous_status: from,
-    } as never); // blocked_by stores history objects in the bash version
+  if (toStatus === "to_verify" && !extra?.evidence) {
+    throw new InvalidTransitionError(
+      taskId,
+      from,
+      toStatus + " (evidence required)",
+    );
   }
 
-  if (toStatus === "done") {
-    task.completed_at = now;
-  }
+  // Append event (concurrent-safe)
+  appendEvent("task", "task.transitioned", {
+    id: taskId,
+    from,
+    to: toStatus,
+    ...(extra?.evidence ? { evidence: extra.evidence } : {}),
+    ...(extra?.reason ? { reason: extra.reason } : {}),
+  });
 
-  if (toStatus === "open" && from === "blocked") {
-    // Unblock — previous_status is informational; we always go to open per ALLOWED_TRANSITIONS
-    delete task.block_reason;
-  }
+  // Rebuild cache from event log
+  await rebuildAndCache("task");
 
-  if (toStatus === "to_verify") {
-    if (!extra?.evidence) {
-      throw new InvalidTransitionError(
-        taskId,
-        from,
-        toStatus + " (evidence required)",
-      );
-    }
-    task.evidence.push({
-      content: extra.evidence,
-      submitted_at: now,
-    } as never);
-  }
-
-  // in_progress from to_verify is a verify-fail — no special handling, just transition
-
-  task.status = toStatus;
-  task.updated_at = now;
-
-  await saveStore(store);
-  return task;
+  // Return the updated task from fresh cache
+  const updated = await loadStore();
+  return findTask(updated, taskId);
 }
 
 // ---------------------------------------------------------------------------
@@ -138,27 +112,24 @@ export async function taskCreate(
   desc: string,
   dependsOn: string[] = [],
 ): Promise<Task> {
+  // Read current next_id from cache (safe — reads are not racy)
   const store = await loadStore();
-  const now = isoTimestamp();
-
   const id = `T${store.next_id}`;
-  store.next_id += 1;
 
-  const task: Task = {
+  // Append event (concurrent-safe)
+  appendEvent("task", "task.created", {
     id,
     title,
     description: desc,
-    status: "open",
     depends_on: dependsOn,
-    blocked_by: [],
-    evidence: [],
-    created_at: now,
-    updated_at: now,
-  };
+  });
 
-  store.tasks.push(task);
-  await saveStore(store);
-  return task;
+  // Rebuild cache from event log
+  await rebuildAndCache("task");
+
+  // Return the created task from fresh cache
+  const updated = await loadStore();
+  return findTask(updated, id);
 }
 
 /**

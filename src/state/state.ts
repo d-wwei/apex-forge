@@ -5,10 +5,11 @@
  * Manages current_stage, history, artifacts, and session identity.
  */
 
-import { readJSON, writeJSON } from "../utils/json.js";
+import { readJSON } from "../utils/json.js";
 import { appendJSONL } from "../utils/logger.js";
 import { isoTimestamp, sessionId } from "../utils/timestamp.js";
-import type { StageState, StageHistory, SkillInvocation } from "../types/state.js";
+import type { StageState } from "../types/state.js";
+import { appendEvent, rebuildAndCache } from "./event-log.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -40,9 +41,7 @@ async function loadState(): Promise<StageState> {
   return readJSON<StageState>(STATE_PATH, defaultState());
 }
 
-async function saveState(state: StageState): Promise<void> {
-  await writeJSON(STATE_PATH, state);
-}
+// saveState removed — writes go through event log + rebuildAndCache
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -62,56 +61,23 @@ export async function getState(): Promise<StageState> {
  */
 export async function setStage(stage: string): Promise<StageState> {
   const state = await loadState();
-  const now = isoTimestamp();
-  const oldStage = state.current_stage;
 
-  // Close previous stage in history if it was active and different
-  if (oldStage !== "idle" && oldStage !== stage) {
-    for (let i = state.history.length - 1; i >= 0; i--) {
-      const entry = state.history[i];
-      if (entry.stage === oldStage && !entry.completed) {
-        entry.completed = now;
-        break;
-      }
-    }
-  }
+  appendEvent("state", "stage.set", {
+    stage,
+    previous: state.current_stage,
+  });
 
-  // Record new stage start
-  const entry: StageHistory = { stage, started: now };
-  state.history.push(entry);
-
-  // Update current stage
-  state.current_stage = stage;
-  state.last_updated = now;
-
-  // Ensure artifacts key exists for this stage
-  if (!state.artifacts[stage]) {
-    state.artifacts[stage] = [];
-  }
-
-  await saveState(state);
-  return state;
+  await rebuildAndCache("state");
+  return loadState();
 }
 
 /**
  * Mark the current history entry for a stage as completed.
  */
 export async function completeStage(stage: string): Promise<StageState> {
-  const state = await loadState();
-  const now = isoTimestamp();
-
-  // Find the most recent uncompleted entry for this stage
-  for (let i = state.history.length - 1; i >= 0; i--) {
-    const entry = state.history[i];
-    if (entry.stage === stage && !entry.completed) {
-      entry.completed = now;
-      break;
-    }
-  }
-
-  state.last_updated = now;
-  await saveState(state);
-  return state;
+  appendEvent("state", "stage.completed", { stage });
+  await rebuildAndCache("state");
+  return loadState();
 }
 
 /**
@@ -121,20 +87,9 @@ export async function addArtifact(
   stage: string,
   path: string,
 ): Promise<StageState> {
-  const state = await loadState();
-  const now = isoTimestamp();
-
-  if (!state.artifacts[stage]) {
-    state.artifacts[stage] = [];
-  }
-
-  if (!state.artifacts[stage].includes(path)) {
-    state.artifacts[stage].push(path);
-  }
-
-  state.last_updated = now;
-  await saveState(state);
-  return state;
+  appendEvent("state", "artifact.added", { stage, path });
+  await rebuildAndCache("state");
+  return loadState();
 }
 
 /**
@@ -192,27 +147,19 @@ export async function addSkillInvocation(
   outputStatus: string,
   afMapping: string,
 ): Promise<StageState> {
-  const state = await loadState();
   const now = isoTimestamp();
 
-  const invocation: SkillInvocation = {
+  appendEvent("state", "skill.invoked", {
     stage,
     skill,
     version,
-    timestamp: now,
     output_status: outputStatus,
     af_mapping: afMapping,
-  };
+  });
 
-  if (!state.skill_invocations) {
-    state.skill_invocations = [];
-  }
-  state.skill_invocations.push(invocation);
-  state.last_updated = now;
+  await rebuildAndCache("state");
 
-  await saveState(state);
-
-  // Auto-write telemetry record (Task 2)
+  // Auto-write telemetry record
   appendJSONL(ANALYTICS_FILE, {
     skill,
     duration_s: 0,
@@ -220,5 +167,5 @@ export async function addSkillInvocation(
     ts: now,
   });
 
-  return state;
+  return loadState();
 }

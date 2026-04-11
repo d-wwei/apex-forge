@@ -22,7 +22,7 @@ import {
   listTraceSummaries,
   getTraceSpans,
 } from "./tracing.js";
-import { addSkillInvocation } from "./state/state.js";
+import { addSkillInvocation, setStage, completeStage, addArtifact, getState } from "./state/state.js";
 import { satisfies } from "./utils/semver.js";
 import { cmdUpdate } from "./commands/update.js";
 import { cmdHeal } from "./commands/heal.js";
@@ -191,7 +191,7 @@ async function cmdDesign(args: string[]) {
     for (const r of results) console.log(`  ${r.path}`);
     const html = await compareDesigns(results.map((r) => r.path));
     console.log(`Comparison: ${html}`);
-    try { execSync(`open ${html}`); } catch { /* ignore if open fails */ }
+    try { execSync(`open "${html}"`); } catch { /* ignore if open fails */ }
   } else if (sub === "list") {
     const { listDesigns } = await import("./design.js");
     const designs = listDesigns();
@@ -210,7 +210,7 @@ async function cmdDesign(args: string[]) {
     const { compareDesigns } = await import("./design.js");
     const html = await compareDesigns(paths);
     console.log(`Comparison: ${html}`);
-    try { execSync(`open ${html}`); } catch { /* ignore */ }
+    try { execSync(`open "${html}"`); } catch { /* ignore */ }
   } else {
     console.log(`
 apex design — AI-powered UI design generation (OpenAI GPT Image)
@@ -527,6 +527,34 @@ async function main() {
       case "worktree":
         await cmdWorktree(rest);
         break;
+      case "stage": {
+        const sub = rest[0];
+        if (sub === "set") {
+          const name = rest[1];
+          if (!name) { console.error("Usage: apex stage set <name>"); process.exit(1); }
+          const st = await setStage(name);
+          console.log(`Stage set to: ${st.current_stage}`);
+        } else if (sub === "complete") {
+          const name = rest[1];
+          if (!name) { console.error("Usage: apex stage complete <name>"); process.exit(1); }
+          const st = await completeStage(name);
+          console.log(`Stage completed: ${name}`);
+        } else if (sub === "artifact") {
+          const [stage, ...pathParts] = rest.slice(1);
+          const path = pathParts.join(" ");
+          if (!stage || !path) { console.error("Usage: apex stage artifact <stage> <path>"); process.exit(1); }
+          await addArtifact(stage, path);
+          console.log(`Artifact added to ${stage}: ${path}`);
+        } else if (sub === "get" || !sub) {
+          const st = await getState();
+          console.log(JSON.stringify(st, null, 2));
+        } else {
+          console.error(`Unknown stage subcommand: ${sub}`);
+          console.error("Usage: apex stage [set|complete|artifact|get]");
+          process.exit(1);
+        }
+        break;
+      }
       case "consensus":
         await cmdConsensus(rest);
         break;
@@ -563,10 +591,18 @@ async function main() {
         } else {
           const portIdx = rest.indexOf("--port");
           const port = portIdx >= 0 ? parseInt(rest[portIdx + 1], 10) : undefined;
-          await startDashboard(port);
+          const daemon = rest.includes("--daemon");
+          const projIdx = rest.indexOf("--project");
+          const projectPath = projIdx >= 0 ? rest[projIdx + 1] : undefined;
+          await startDashboard(port, { daemon, projectPath });
         }
         // Keep process alive while server runs
         await new Promise(() => {});
+        break;
+      }
+      case "daemon": {
+        const { cmdDaemon } = await import("./commands/daemon.js");
+        await cmdDaemon(rest);
         break;
       }
       case "convert": {
@@ -575,6 +611,19 @@ async function main() {
         break;
       }
       case "recover": {
+        // Handle --rebuild flag for event log cache rebuild
+        if (rest.includes("--rebuild")) {
+          const { rebuildAndCache, rebuildAllCaches } = await import("./state/event-log.js");
+          const domain = rest.find((r) => ["task", "state", "memory"].includes(r));
+          if (domain) {
+            await rebuildAndCache(domain as "task" | "state" | "memory");
+            console.log(`Rebuilt ${domain} cache from event log.`);
+          } else {
+            await rebuildAllCaches();
+            console.log("Rebuilt all caches from event logs.");
+          }
+          break;
+        }
         const { recoverState } = await import("./state/recovery.js");
         const issues = await recoverState();
         if (issues.length === 0) {
@@ -647,6 +696,10 @@ Commands:
   telemetry end OUTCOME         End tracking (success|error|abort)
   telemetry report              Show usage analytics
   telemetry sync                Upload analytics to remote endpoint
+  stage set NAME                Set current pipeline stage (brainstorm, plan, execute, etc.)
+  stage complete NAME           Mark a stage as completed
+  stage artifact STAGE PATH     Add an artifact to a stage
+  stage get                     Show current stage state as JSON
   worktree create TASK_ID       Create git worktree for task
   worktree list                 List worktrees
   worktree cleanup TASK_ID      Remove worktree

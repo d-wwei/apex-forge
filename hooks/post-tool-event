@@ -59,9 +59,20 @@ elif tool_name == 'TaskUpdate':
 elif tool_name == 'Agent':
     meta['desc'] = tool_input.get('description', '')
 
+# Resolve session ID
+session_id = os.environ.get('APEX_SESSION_ID', '')
+if not session_id:
+    try:
+        state_path = os.path.join(os.path.dirname(sys.argv[2]), 'state.json')
+        with open(state_path) as sf:
+            session_id = json.load(sf).get('session_id', 'unknown')
+    except:
+        session_id = 'unknown'
+
 # Build event record
 event = {
     'ts': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
+    'session_id': session_id,
     'tool': tool_name,
     'meta': meta,
 }

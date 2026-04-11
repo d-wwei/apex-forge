@@ -101,6 +101,14 @@ print(json.dumps(deps))
     local now
     now=$(_apex_iso_timestamp)
 
+    # Get next_id and append event
+    local next_id
+    next_id=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('next_id',1))" "$_apex_tasks_file" 2>/dev/null || echo "1")
+    local escaped_title escaped_desc
+    escaped_title=$(python3 -c "import json,sys; print(json.dumps(sys.argv[1]))" "$title" 2>/dev/null)
+    escaped_desc=$(python3 -c "import json,sys; print(json.dumps(sys.argv[1]))" "$description" 2>/dev/null)
+    _apex_append_event "task" "task.created" "{\"id\":\"T${next_id}\",\"title\":${escaped_title},\"description\":${escaped_desc},\"depends_on\":${deps_json}}"
+
     python3 -c "
 import json, sys
 
@@ -160,6 +168,8 @@ apex_task_assign() {
     local task_id="${1:?Usage: apex_task_assign TASK_ID}"
     _apex_ensure_tasks
 
+    _apex_append_event "task" "task.transitioned" "{\"id\":\"${task_id}\",\"from\":\"open\",\"to\":\"assigned\"}"
+
     local now
     now=$(_apex_iso_timestamp)
 
@@ -203,6 +213,8 @@ print(f'{task_id}: open -> assigned')
 apex_task_start() {
     local task_id="${1:?Usage: apex_task_start TASK_ID}"
     _apex_ensure_tasks
+
+    _apex_append_event "task" "task.transitioned" "{\"id\":\"${task_id}\",\"from\":\"assigned\",\"to\":\"in_progress\"}"
 
     local now
     now=$(_apex_iso_timestamp)
@@ -248,6 +260,10 @@ apex_task_submit() {
     local task_id="${1:?Usage: apex_task_submit TASK_ID EVIDENCE}"
     local evidence="${2:?Usage: apex_task_submit TASK_ID EVIDENCE}"
     _apex_ensure_tasks
+
+    local escaped_evidence
+    escaped_evidence=$(python3 -c "import json,sys; print(json.dumps(sys.argv[1]))" "$evidence" 2>/dev/null)
+    _apex_append_event "task" "task.transitioned" "{\"id\":\"${task_id}\",\"from\":\"in_progress\",\"to\":\"to_verify\",\"evidence\":${escaped_evidence}}"
 
     local now
     now=$(_apex_iso_timestamp)
@@ -379,6 +395,11 @@ print(task.get('verify_cmd', ''))
         verified_by="auto"
     fi
 
+    # Append event based on verify result
+    local to_status="in_progress"
+    [ "$result" = "pass" ] && to_status="done"
+    _apex_append_event "task" "task.transitioned" "{\"id\":\"${task_id}\",\"from\":\"to_verify\",\"to\":\"${to_status}\"}"
+
     # Step 3: Update task state
     python3 -c "
 import json, sys
@@ -424,6 +445,10 @@ apex_task_block() {
     local reason="${2:?Usage: apex_task_block TASK_ID REASON}"
     _apex_ensure_tasks
 
+    local escaped_reason
+    escaped_reason=$(python3 -c "import json,sys; print(json.dumps(sys.argv[1]))" "$reason" 2>/dev/null)
+    _apex_append_event "task" "task.transitioned" "{\"id\":\"${task_id}\",\"from\":\"unknown\",\"to\":\"blocked\",\"reason\":${escaped_reason}}"
+
     local now
     now=$(_apex_iso_timestamp)
 
@@ -468,6 +493,8 @@ print(f'{task_id}: {old_status} -> blocked ({reason})')
 apex_task_release() {
     local task_id="${1:?Usage: apex_task_release TASK_ID}"
     _apex_ensure_tasks
+
+    _apex_append_event "task" "task.transitioned" "{\"id\":\"${task_id}\",\"from\":\"assigned\",\"to\":\"open\"}"
 
     local now
     now=$(_apex_iso_timestamp)
