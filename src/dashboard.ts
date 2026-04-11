@@ -62,16 +62,20 @@ const MIME_TYPES: Record<string, string> = {
 };
 
 function findFrontendDir(): string | null {
+  const { dirname } = require("path") as typeof import("path");
+  const execDir = dirname(process.execPath);
   const candidates = [
     // 1. Explicit override via env var
     process.env.APEX_FORGE_HOME && join(process.env.APEX_FORGE_HOME, "frontend"),
-    // 2. Relative to this source file (works in dev: bun run src/cli.ts)
+    // 2. Relative to the actual binary on disk (compiled: dist/apex → dist/../frontend)
+    resolve(execDir, "..", "frontend"),
+    // 3. Relative to this source file (works in dev: bun run src/cli.ts)
     resolve(import.meta.dir, "..", "frontend"),
-    // 3. Relative to compiled binary (dist/apex-forge → dist/../frontend)
+    // 4. Relative to compiled binary dir (import.meta.dir may differ from execDir)
     resolve(import.meta.dir, "frontend"),
-    // 4. Relative to working directory (compiled binary run from project root)
+    // 5. Relative to working directory
     join(process.cwd(), "frontend"),
-    // 5. Well-known global install path
+    // 6. Well-known global install path
     join(process.env.HOME || "/tmp", ".apex-forge", "frontend"),
   ].filter(Boolean) as string[];
 
@@ -127,10 +131,21 @@ export async function startDashboard(portOverride?: number) {
     async fetch(req) {
       const url = new URL(req.url);
 
+      // CORS: allow cross-port requests from other dashboard instances
+      const corsHeaders = {
+        "Access-Control-Allow-Origin": req.headers.get("Origin") || "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+      };
+
+      if (req.method === "OPTIONS") {
+        return new Response(null, { status: 204, headers: corsHeaders });
+      }
+
       // API: state payload (includes project context)
       if (url.pathname === "/api/state") {
         const data = await buildStatePayload(projectDir, projectName);
-        return Response.json(data);
+        return Response.json(data, { headers: corsHeaders });
       }
 
       // API: all active projects (for sidebar + hub), enriched with .apex/ state
@@ -190,6 +205,7 @@ export async function startDashboard(portOverride?: number) {
             "Content-Type": "text/event-stream",
             "Cache-Control": "no-cache",
             Connection: "keep-alive",
+            ...corsHeaders,
           },
         });
       }

@@ -107,6 +107,8 @@ function loadProjectCards() {
       tasks: p.task_count || 0,
       success: p.success_rate || 0,
       lastActive: p.last_active || 'unknown',
+      port: p.port || null,
+      path: p.path || '',
     }));
     loadedProjects = projects.length ? projects : DEMO_PROJECTS;
     renderProjectCards(loadedProjects);
@@ -388,7 +390,11 @@ function esc(s) {
 function connectSSE() {
   if (evtSource) evtSource.close();
   sseConnected = false;
-  evtSource = new EventSource('/api/events');
+  let sseUrl = '/api/events';
+  if (currentProject && currentProject.port && currentProject.port !== location.port) {
+    sseUrl = `http://${location.hostname}:${currentProject.port}/api/events`;
+  }
+  evtSource = new EventSource(sseUrl);
   evtSource.onopen = () => { sseConnected = true; };
   evtSource.onmessage = (e) => { sseConnected = true; try { render(JSON.parse(e.data)); } catch {} };
   evtSource.onerror = () => { if (evtSource.readyState === EventSource.CLOSED) { sseConnected = false; setTimeout(connectSSE, 5000); } };
@@ -396,7 +402,12 @@ function connectSSE() {
 
 async function initialLoad() {
   try {
-    const res = await fetch('/api/state');
+    // If the selected project runs on a different port, fetch from that port's API
+    let stateUrl = '/api/state';
+    if (currentProject && currentProject.port && currentProject.port !== location.port) {
+      stateUrl = `http://${location.hostname}:${currentProject.port}/api/state`;
+    }
+    const res = await fetch(stateUrl);
     render(await res.json());
   } catch {
     // API unavailable — render empty state
