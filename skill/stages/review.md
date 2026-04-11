@@ -10,6 +10,9 @@ changed. No rubber-stamping. Every claim backed by fresh evidence.
 
 ---
 
+**On entry:** `apex stage set review`
+**On completion:** `apex stage complete review`
+
 ## Entry Conditions
 
 1. Execute stage should be complete (all tasks done, tests passing).

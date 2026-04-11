@@ -155,36 +155,10 @@ export async function startDashboard(portOverride?: number, options?: DashboardO
 
       // API: all active projects (for sidebar + hub), enriched with .apex/ state
       if (url.pathname === "/api/projects") {
-        const projects = listProjects();
-        const enriched = await Promise.all(
-          projects.map(async (p) => {
-            const apexDir = join(p.path, ".apex");
-            const tasks = await readJSON(join(apexDir, "tasks.json"), { tasks: [] as any[], next_id: 1 });
-            const state = await readJSON(join(apexDir, "state.json"), {
-              current_stage: "idle",
-              last_updated: "",
-              artifacts: {},
-              history: [],
-            });
-            const taskCount = tasks.tasks.length;
-            const doneTasks = tasks.tasks.filter((t: any) => t.status === "done").length;
-            const successRate = taskCount > 0 ? Math.round(doneTasks / taskCount * 1000) / 10 : 0;
-            const stage = (state as any).current_stage || "idle";
-            return {
-              ...p,
-              status: stage !== "idle" ? "running" : "active",
-              description: `Stage: ${stage} | ${taskCount} tasks`,
-              task_count: taskCount,
-              success_rate: successRate,
-              last_active: timeAgo((state as any).last_updated || p.startedAt),
-            };
-          })
+        return Response.json(
+          await buildEnrichedProjectList(projectDir),
+          { headers: corsHeaders },
         );
-        return Response.json({
-          current: projectDir,
-          hub: hubPort(),
-          projects: enriched,
-        });
       }
 
       // API: server-sent events
@@ -269,21 +243,6 @@ export async function startDashboard(portOverride?: number, options?: DashboardO
   console.log(`  Project: ${projectDir}`);
   console.log(`  Hub:     http://localhost:${hubPort()}`);
 
-  // Auto-open in default browser (skip in daemon mode)
-  if (!options?.daemon) {
-    try {
-      const { exec } = await import("child_process");
-      const cmd =
-        process.platform === "darwin"
-          ? "open"
-          : process.platform === "win32"
-            ? "start"
-            : "xdg-open";
-      exec(`${cmd} http://localhost:${port}`);
-    } catch {
-      // Silently ignore if browser open fails
-    }
-  }
 }
 
 /**
@@ -293,32 +252,89 @@ export async function startHub() {
   const port = hubPort();
 
   // One-time prune of dead entries on hub startup.
-  // Safe because no dashboard is concurrently writing at this exact moment.
   pruneRegistry();
+
+  const frontendDir = findFrontendDir();
+
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+  };
 
   Bun.serve({
     port,
     async fetch(req) {
       const url = new URL(req.url);
 
-      if (url.pathname === "/api/projects") {
-        return Response.json({ projects: listProjects() });
+      if (req.method === "OPTIONS") {
+        return new Response(null, { status: 204, headers: corsHeaders });
       }
 
-      // Inline hub page
-      return new Response(buildHubHTML(), {
-        headers: { "Content-Type": "text/html" },
-      });
+      // API: enriched project list
+      if (url.pathname === "/api/projects") {
+        return Response.json(
+          await buildEnrichedProjectList(),
+          { headers: corsHeaders },
+        );
+      }
+
+      // API: stub state (no project selected — frontend auto-selects first)
+      if (url.pathname === "/api/state") {
+        return Response.json({
+          project: { name: "Apex Hub", path: "" },
+          tasks: { tasks: [], next_id: 1 },
+          memory: { facts: [], next_id: 1 },
+          state: { current_stage: "idle", artifacts: {}, history: [] },
+          analytics: [],
+          sessions: [],
+        }, { headers: corsHeaders });
+      }
+
+      // API: empty SSE keep-alive
+      if (url.pathname === "/api/events") {
+        const stream = new ReadableStream({
+          start(controller) {
+            const encoder = new TextEncoder();
+            const interval = setInterval(() => {
+              try { controller.enqueue(encoder.encode(": keepalive\n\n")); }
+              catch { clearInterval(interval); }
+            }, 10_000);
+            req.signal.addEventListener("abort", () => clearInterval(interval));
+          },
+        });
+        return new Response(stream, {
+          headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" },
+        });
+      }
+
+      // API: empty designs
+      if (url.pathname === "/api/designs") {
+        return Response.json({ designs: [] }, { headers: corsHeaders });
+      }
+
+      // Serve static frontend — or fallback to legacy hub HTML
+      if (!frontendDir) {
+        if (url.pathname === "/" || url.pathname === "/index.html") {
+          return new Response(buildHubHTML(), { headers: { "Content-Type": "text/html" } });
+        }
+        return new Response("Not Found", { status: 404 });
+      }
+
+      let filePath = url.pathname === "/" ? "/index.html" : url.pathname;
+      const safePath = join(frontendDir, filePath.replace(/\.\./g, ""));
+      if (existsSync(safePath)) {
+        const ext = extname(safePath);
+        const contentType = MIME_TYPES[ext] || "application/octet-stream";
+        const content = readFileSync(safePath);
+        return new Response(content, { headers: { "Content-Type": contentType } });
+      }
+
+      return new Response("Not Found", { status: 404 });
     },
   });
 
   console.log(`Apex Hub at http://localhost:${port}`);
-
-  try {
-    const { exec } = await import("child_process");
-    const cmd = process.platform === "darwin" ? "open" : process.platform === "win32" ? "start" : "xdg-open";
-    exec(`${cmd} http://localhost:${port}`);
-  } catch {}
 }
 
 function buildHubHTML(): string {
@@ -660,6 +676,109 @@ function loadEvents(apexDir: string) {
     .slice(-50);
 }
 
+/** Enriched project list shared by project dashboards and hub. */
+async function buildEnrichedProjectList(currentProjectDir?: string) {
+  const projects = listProjects();
+  const enriched = await Promise.all(
+    projects.map(async (p) => {
+      const apexDir = join(p.path, ".apex");
+      const tasks = await readJSON(join(apexDir, "tasks.json"), { tasks: [] as any[], next_id: 1 });
+      const state = await readJSON(join(apexDir, "state.json"), {
+        current_stage: "idle",
+        last_updated: "",
+        artifacts: {},
+        history: [],
+      });
+      const taskCount = tasks.tasks.length;
+      const doneTasks = tasks.tasks.filter((t: any) => t.status === "done").length;
+      const successRate = taskCount > 0 ? Math.round(doneTasks / taskCount * 1000) / 10 : 0;
+      const derivedState = deriveStageFromTasks(state, tasks.tasks);
+      const stage = derivedState.current_stage || "idle";
+      return {
+        ...p,
+        status: stage !== "idle" ? "running" : "active",
+        description: `Stage: ${stage} | ${taskCount} tasks`,
+        task_count: taskCount,
+        success_rate: successRate,
+        last_active: timeAgo((state as any).last_updated || p.startedAt),
+      };
+    })
+  );
+  return {
+    current: currentProjectDir || null,
+    hub: hubPort(),
+    projects: enriched,
+  };
+}
+
+/**
+ * Derive effective pipeline stage from task completion status.
+ * Tasks are the source of truth — state.json may lag behind.
+ *
+ * Rules:
+ * - No tasks → trust state.json as-is (early stages have no tasks yet)
+ * - All tasks done → at least "ship" (work is complete)
+ * - Any task in_progress → at least "execute"
+ * - Tasks exist but none started → at least "plan" (tasks were decomposed)
+ * - "at least" means: only advance forward, never regress
+ */
+function deriveStageFromTasks(state: any, tasks: any[]): any {
+  if (!tasks || tasks.length === 0) return state;
+
+  const STAGE_ORDER = ["idle", "brainstorm", "plan", "execute", "review", "ship", "compound"];
+  const currentIdx = STAGE_ORDER.indexOf(state.current_stage || "idle");
+
+  const total = tasks.length;
+  const done = tasks.filter((t: any) => t.status === "done").length;
+  const inProgress = tasks.filter((t: any) => t.status === "in_progress").length;
+
+  let derivedStage = state.current_stage || "idle";
+
+  if (done === total && total > 0) {
+    // All tasks complete → at least ship
+    if (currentIdx < STAGE_ORDER.indexOf("ship")) {
+      derivedStage = "ship";
+    }
+  } else if (inProgress > 0 || (done > 0 && done < total)) {
+    // Work in progress → at least execute
+    if (currentIdx < STAGE_ORDER.indexOf("execute")) {
+      derivedStage = "execute";
+    }
+  } else if (total > 0 && done === 0 && inProgress === 0) {
+    // Tasks exist, none started → at least plan
+    if (currentIdx < STAGE_ORDER.indexOf("plan")) {
+      derivedStage = "plan";
+    }
+  }
+
+  if (derivedStage === state.current_stage) return state;
+
+  // Build updated state with auto-completed history entries
+  const history = [...(state.history || [])];
+  const now = new Date().toISOString();
+
+  // Complete any stages between current and derived
+  const fromIdx = currentIdx;
+  const toIdx = STAGE_ORDER.indexOf(derivedStage);
+  for (let i = fromIdx; i < toIdx; i++) {
+    const stageName = STAGE_ORDER[i];
+    if (stageName === "idle") continue;
+    const existing = history.find((h: any) => h.stage === stageName && !h.completed);
+    if (existing) existing.completed = now;
+  }
+
+  // Add the derived stage if not already in history
+  if (!history.some((h: any) => h.stage === derivedStage && !h.completed)) {
+    history.push({ stage: derivedStage, started: now });
+  }
+
+  return {
+    ...state,
+    current_stage: derivedStage,
+    history,
+  };
+}
+
 async function buildStatePayload(projectDir: string, projectName: string) {
   const apexDir = join(projectDir, ".apex");
   const logDir = join(apexDir, "log");
@@ -678,18 +797,25 @@ async function buildStatePayload(projectDir: string, projectName: string) {
     if (evt.session_id) sessions.add(evt.session_id);
   }
 
+  const tasks = await readJSON(join(apexDir, "tasks.json"), { tasks: [] as any[], next_id: 1 });
+  const state = await readJSON(join(apexDir, "state.json"), {
+    current_stage: "idle",
+    artifacts: {} as Record<string, string[]>,
+    history: [] as any[],
+  });
+
+  // Derive effective pipeline stage from task completion status.
+  // state.json may be stale — tasks are the source of truth.
+  const derivedState = deriveStageFromTasks(state, tasks.tasks);
+
   return {
     project: {
       name: projectName,
       path: projectDir,
     },
-    tasks: await readJSON(join(apexDir, "tasks.json"), { tasks: [], next_id: 1 }),
+    tasks,
     memory: await readJSON(join(apexDir, "memory.json"), { facts: [], next_id: 1 }),
-    state: await readJSON(join(apexDir, "state.json"), {
-      current_stage: "idle",
-      artifacts: {},
-      history: [],
-    }),
+    state: derivedState,
     analytics: loadEvents(apexDir),
     sessions: Array.from(sessions),
   };

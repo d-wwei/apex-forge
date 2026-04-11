@@ -1,0 +1,17 @@
+{
+  "name": "Apex Forge",
+  "short_name": "ApexForge",
+  "description": "AI-Powered Project Command Center",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0e14",
+  "theme_color": "#f0c040",
+  "icons": [
+    {
+      "src": "/hd_logo_AF.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

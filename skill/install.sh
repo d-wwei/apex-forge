@@ -81,22 +81,107 @@ elif [ -f "$HOME/.bash_profile" ]; then
 fi
 
 PATH_LINE="export PATH=\"\$PATH:$DIST_DIR\""
-ALIAS_LINE="alias apex=\"$APEX_BIN\""
+# Inner quotes must survive alias expansion — use single-quoted RHS
+# so the double quotes around the path are preserved at expansion time.
+ALIAS_LINE="alias apex='\"$APEX_BIN\"'"
 
 if [ -n "$SHELL_RC" ]; then
   if ! grep -qF "$DIST_DIR" "$SHELL_RC" 2>/dev/null; then
+    # Remove any stale apex alias (may have broken quoting from prior install)
+    if grep -q "alias apex=" "$SHELL_RC" 2>/dev/null; then
+      sed -i '' '/alias apex=/d' "$SHELL_RC" 2>/dev/null || true
+    fi
     echo "" >> "$SHELL_RC"
     echo "# Apex Forge CLI" >> "$SHELL_RC"
     echo "$PATH_LINE" >> "$SHELL_RC"
     echo "$ALIAS_LINE" >> "$SHELL_RC"
     echo "[ok] Added to PATH in $SHELL_RC"
   else
-    echo "[ok] PATH already configured in $SHELL_RC"
+    # Update alias in-place if it exists with old quoting
+    if grep -q 'alias apex="' "$SHELL_RC" 2>/dev/null; then
+      sed -i '' '/alias apex=/d' "$SHELL_RC" 2>/dev/null || true
+      echo "$ALIAS_LINE" >> "$SHELL_RC"
+      echo "[ok] Fixed apex alias quoting in $SHELL_RC"
+    else
+      echo "[ok] PATH already configured in $SHELL_RC"
+    fi
   fi
 else
   echo "[!] No shell RC file found. Add manually:"
   echo "    $PATH_LINE"
 fi
+
+# Create a proper 'apex' wrapper script in dist/ so PATH-based lookup
+# works in non-interactive shells (where aliases aren't loaded).
+cat > "$DIST_DIR/apex" << WRAPPER_EOF
+#!/usr/bin/env bash
+exec "${APEX_BIN}" "\$@"
+WRAPPER_EOF
+chmod +x "$DIST_DIR/apex"
+echo "[ok] Created apex wrapper script"
+
+# ─── 3b. Copy frontend assets to well-known path ─────────────────
+# Compiled binary can't resolve import.meta.dir to filesystem;
+# ~/.apex-forge/frontend/ serves as a reliable fallback.
+
+FRONTEND_SRC="$REPO_DIR/frontend"
+FRONTEND_DST="$HOME/.apex-forge/frontend"
+
+if [ -d "$FRONTEND_SRC" ]; then
+  mkdir -p "$FRONTEND_DST"
+  cp -R "$FRONTEND_SRC"/* "$FRONTEND_DST"/
+  echo "[ok] Frontend assets copied to $FRONTEND_DST"
+else
+  echo "[warn] Frontend source not found at $FRONTEND_SRC"
+fi
+
+# ─── 3c. Create desktop shortcut (zero sudo, all platforms) ──────
+# Users click the shortcut → browser opens Hub → PWA install prompt.
+# After PWA install, the shortcut is no longer needed (app icon in Dock/Taskbar).
+
+HUB_URL="http://localhost:3456"
+
+case "$(uname)" in
+  Darwin)
+    SHORTCUT="$HOME/Desktop/Apex Forge.webloc"
+    if [ ! -f "$SHORTCUT" ]; then
+      cat > "$SHORTCUT" << WEBLOC
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict><key>URL</key><string>${HUB_URL}</string></dict></plist>
+WEBLOC
+      echo "[ok] Desktop shortcut: ~/Desktop/Apex Forge.webloc"
+    else
+      echo "[ok] Desktop shortcut already exists"
+    fi
+    ;;
+  MINGW*|MSYS*|CYGWIN*|Windows*)
+    SHORTCUT="$USERPROFILE/Desktop/Apex Forge.url"
+    if [ ! -f "$SHORTCUT" ]; then
+      printf "[InternetShortcut]\nURL=${HUB_URL}\nIconIndex=0\n" > "$SHORTCUT" 2>/dev/null
+      echo "[ok] Desktop shortcut: Desktop/Apex Forge.url"
+    else
+      echo "[ok] Desktop shortcut already exists"
+    fi
+    ;;
+  Linux)
+    SHORTCUT="$HOME/Desktop/apex-forge.desktop"
+    if [ ! -f "$SHORTCUT" ]; then
+      cat > "$SHORTCUT" << DESKTOP
+[Desktop Entry]
+Type=Application
+Name=Apex Forge
+Exec=xdg-open ${HUB_URL}
+Icon=utilities-terminal
+Terminal=false
+DESKTOP
+      chmod +x "$SHORTCUT" 2>/dev/null
+      echo "[ok] Desktop shortcut: ~/Desktop/apex-forge.desktop"
+    else
+      echo "[ok] Desktop shortcut already exists"
+    fi
+    ;;
+esac
 
 # ─── 4. Install AF core for detected platforms ───────────────────
 
@@ -142,6 +227,7 @@ DEPS=(
   "thorough-code-review|https://github.com/d-wwei/thorough-code-review|v1.0.0"
   "security-audit|https://github.com/d-wwei/security-audit|v1.0.0"
   "browser-qa-testing|https://github.com/d-wwei/browser-qa-testing|v1.0.0"
+  "iteration-reflector|https://github.com/d-wwei/iteration-reflector|v1.0.0"
   "tasteful-frontend|https://github.com/d-wwei/tasteful-frontend|"
   "design-to-code-runner|https://github.com/d-wwei/design-to-code-runner|"
   "product-review|https://github.com/d-wwei/product-review|"
@@ -188,7 +274,7 @@ if [ ${#FAILED[@]} -gt 0 ]; then
   exit 1
 fi
 
-echo "Done. Apex Forge + 8 companion skills installed."
+echo "Done. Apex Forge + 9 companion skills installed."
 echo ""
 echo "Usage:"
 echo "  /apex-forge               Activate core protocol"

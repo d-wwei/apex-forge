@@ -13,7 +13,20 @@ argument-hint: "[brainstorm|plan|execute|review|ship|investigate|status|compound
 
 Unified execution protocol. **Rigid** — follow exactly.
 
-<!-- Dashboard prompt is enforced via PostToolUse hook (hooks/apex-forge-dashboard.sh), not via SKILL.md instructions. The Skill tool's summarizer strips inline instructions, so the hook injects the prompt through a channel the agent cannot skip. -->
+<!-- PostToolUse hook (hooks/apex-forge-dashboard.sh) is backup for programmatic Skill tool invocations.
+     For slash command invocations (/apex-forge), the dashboard gate below is the primary mechanism. -->
+
+## Dashboard Gate (BEFORE anything else)
+
+Call `AskUserQuestion` with:
+- question: "是否启动可视化面板？"
+- header: "Dashboard"
+- options:
+  1. label: "启动 Dashboard (Recommended)", description: "在浏览器里查看任务看板、pipeline 进度和遥测数据"
+  2. label: "跳过", description: "不启动，直接开始工作"
+
+If user selects "启动 Dashboard": run `nohup apex dashboard > /dev/null 2>&1 &`, then report the URL.
+If user selects "跳过": proceed silently.
 
 ## Initialization (silent, every invocation)
 
@@ -78,11 +91,24 @@ Single verified pass possible? → YES → Tier 1 (Single Pass)
 
 ### 2. Phase Discipline
 
-Hard-gated. No leaking between phases.
+Hard-gated. No leaking between phases. **Track every transition:**
 
 - **Brainstorm (WHAT)** — No code. Output: requirements, constraints, success criteria.
 - **Plan (HOW)** — Exact file paths, function signatures, test scenarios. No implementation.
 - **Execute (DO)** — Build per plan. Tests first. No design decisions.
+
+**State tracking (mandatory — Dashboard reads from these):**
+- Entering a stage: `apex stage set <name>` (e.g., `apex stage set brainstorm`)
+- Completing a stage: `apex stage complete <name>`
+- Recording deliverables: `apex stage artifact <stage> <path>`
+
+**Task management: use `apex task` CLI, NOT Claude Code's TaskCreate/TaskUpdate.**
+Claude Code's built-in task tools write to an internal store invisible to the Dashboard.
+`apex task` writes to `.apex/tasks.json` which the Dashboard reads in real-time.
+- Create: `apex task create "title" "description" [DEP1 DEP2]`
+- Start: `apex task start T{N}`
+- Done: `apex task submit T{N} "evidence" && apex task verify T{N} pass`
+- List: `apex task list`
 
 Code in Brainstorm → delete it. Design in Execute → return to Plan. Skipping Plan → stop, produce one.
 

@@ -10,6 +10,9 @@ changelog updated, committed, pushed, PR created.
 
 ---
 
+**On entry:** `apex stage set ship`
+**On completion:** `apex stage complete ship`
+
 ## Entry Conditions
 
 1. **Required upstream**: A review with status `DONE` or `DONE_WITH_CONCERNS`.

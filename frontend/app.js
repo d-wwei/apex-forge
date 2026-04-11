@@ -32,6 +32,7 @@ let loadedProjects = null;
 
 function navigateToHome() {
   currentView = 'home';
+  sessionStorage.setItem('hubExplicitHome', '1');
   document.getElementById('view-home').classList.add('active');
   document.getElementById('view-project').classList.remove('active');
   loadProjectCards();
@@ -113,6 +114,11 @@ function loadProjectCards() {
     loadedProjects = projects.length ? projects : DEMO_PROJECTS;
     renderProjectCards(loadedProjects);
     renderSidebar(loadedProjects);
+    // Hub auto-select: if on hub port (3456) and no project chosen, pick first
+    if (currentView === 'home' && projects.length > 0
+        && location.port === '3456' && !sessionStorage.getItem('hubExplicitHome')) {
+      navigateToProject(projects[0]);
+    }
   }).catch(() => {
     loadedProjects = DEMO_PROJECTS;
     renderProjectCards(DEMO_PROJECTS);
@@ -339,7 +345,11 @@ function renderMemoryFact(f) {
 // ===== 6b. Design Comparison =====
 
 function renderDesignComparison() {
-  fetch('/api/designs').then(r => r.json()).then(data => {
+  var designsUrl = '/api/designs';
+  if (currentProject && currentProject.port && String(currentProject.port) !== location.port) {
+    designsUrl = 'http://' + location.hostname + ':' + currentProject.port + '/api/designs';
+  }
+  fetch(designsUrl).then(r => r.json()).then(data => {
     const designs = data.designs || [];
     const gallery = document.getElementById('variant-gallery');
     const countEl = document.getElementById('variant-count');
@@ -391,7 +401,7 @@ function connectSSE() {
   if (evtSource) evtSource.close();
   sseConnected = false;
   let sseUrl = '/api/events';
-  if (currentProject && currentProject.port && currentProject.port !== location.port) {
+  if (currentProject && currentProject.port && String(currentProject.port) !== location.port) {
     sseUrl = `http://${location.hostname}:${currentProject.port}/api/events`;
   }
   evtSource = new EventSource(sseUrl);
@@ -404,7 +414,7 @@ async function initialLoad() {
   try {
     // If the selected project runs on a different port, fetch from that port's API
     let stateUrl = '/api/state';
-    if (currentProject && currentProject.port && currentProject.port !== location.port) {
+    if (currentProject && currentProject.port && String(currentProject.port) !== location.port) {
       stateUrl = `http://${location.hostname}:${currentProject.port}/api/state`;
     }
     const res = await fetch(stateUrl);

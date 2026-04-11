@@ -10,6 +10,9 @@ an approved requirements document.
 
 Run `apex status` to check current stage before starting.
 
+**On entry:** `apex stage set brainstorm`
+**On completion:** `apex stage complete brainstorm` + `apex stage artifact brainstorm <requirements-file>`
+
 ---
 
 ## HARD GATE DECLARATION

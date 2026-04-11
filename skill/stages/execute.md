@@ -10,6 +10,9 @@ verify each step. No design decisions here -- those belong in Plan.
 
 ---
 
+**On entry:** `apex stage set execute`
+**On completion:** `apex stage complete execute`
+
 ## Entry Conditions
 
 1. **Required upstream**: An approved plan (`docs/plans/{name}-plan.md`
@@ -46,12 +49,14 @@ Read the plan and classify the work:
 
 ### Trivial Dispatch
 1. Read the task from the plan.
-2. Write the test (TDD Step 1).
-3. Run the test, confirm RED.
-4. Implement the minimum code to pass.
-5. Run the test, confirm GREEN.
-6. Verify via the 5-step gate.
-7. Mark task done with `apex task update T{N} --status done`.
+2. `apex task start T{N}` — mark in_progress (updates Dashboard).
+3. Write the test (TDD Step 1).
+4. Run the test, confirm RED.
+5. Implement the minimum code to pass.
+6. Run the test, confirm GREEN.
+7. Verify via the 5-step gate.
+8. `apex task submit T{N} "evidence: tests pass"` — submit for verification.
+9. `apex task verify T{N} pass` — mark done (updates Dashboard).
 
 ### Small Dispatch (Parallel)
 For each independent task (no unfinished dependencies):

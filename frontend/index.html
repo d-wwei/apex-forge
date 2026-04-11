@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>APEX FORGE</title>
   <link rel="stylesheet" href="/styles.css">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#f0c040">
 </head>
 <body>
 <div class="app">
@@ -292,6 +294,7 @@
 
 </div>
 
+<script>if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});</script>
 <script src="/app.js"></script>
 </body>
 </html>

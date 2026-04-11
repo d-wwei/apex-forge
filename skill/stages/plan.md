@@ -11,6 +11,9 @@ No implementation code -- plans are decision artifacts.
 
 ---
 
+**On entry:** `apex stage set plan`
+**On completion:** `apex stage complete plan` + `apex stage artifact plan <plan-file>`
+
 ## Entry Conditions
 
 1. **Required upstream**: An approved requirements document from Brainstorm
@@ -109,8 +112,19 @@ The document includes:
   tasks and all acceptance criteria are covered.
 - Update `status: approved` on approval.
 
-After approval, register with:
-`apex task create --stage plan --artifact docs/plans/{name}-plan.md`
+After approval, register each task from the plan into the task board:
+
+```bash
+# Register every T{N} from the plan into .apex/tasks.json
+apex task create "T1: <title>" "<description>" [DEP1 DEP2...]
+apex task create "T2: <title>" "<description>" [DEP1 DEP2...]
+# ... one per task in the decomposition table
+
+# Record the plan document as an artifact
+apex stage artifact plan "docs/plans/{name}-plan.md"
+```
+
+This is mandatory. Without `apex task create`, the Dashboard Kanban board stays empty.
 
 ---
 
