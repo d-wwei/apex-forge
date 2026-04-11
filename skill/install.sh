@@ -80,45 +80,45 @@ elif [ -f "$HOME/.bash_profile" ]; then
   SHELL_RC="$HOME/.bash_profile"
 fi
 
-PATH_LINE="export PATH=\"\$PATH:$DIST_DIR\""
-# Inner quotes must survive alias expansion — use single-quoted RHS
-# so the double quotes around the path are preserved at expansion time.
-ALIAS_LINE="alias apex='\"$APEX_BIN\"'"
+# ─── Strategy: install wrapper script to a space-free PATH directory ───
+# Shells (especially zsh via eval) choke on spaces in PATH entries and aliases.
+# Instead, place a thin wrapper in ~/.local/bin which is space-free and
+# typically already in PATH.
 
-if [ -n "$SHELL_RC" ]; then
-  if ! grep -qF "$DIST_DIR" "$SHELL_RC" 2>/dev/null; then
-    # Remove any stale apex alias (may have broken quoting from prior install)
-    if grep -q "alias apex=" "$SHELL_RC" 2>/dev/null; then
-      sed -i '' '/alias apex=/d' "$SHELL_RC" 2>/dev/null || true
-    fi
-    echo "" >> "$SHELL_RC"
-    echo "# Apex Forge CLI" >> "$SHELL_RC"
-    echo "$PATH_LINE" >> "$SHELL_RC"
-    echo "$ALIAS_LINE" >> "$SHELL_RC"
-    echo "[ok] Added to PATH in $SHELL_RC"
-  else
-    # Update alias in-place if it exists with old quoting
-    if grep -q 'alias apex="' "$SHELL_RC" 2>/dev/null; then
-      sed -i '' '/alias apex=/d' "$SHELL_RC" 2>/dev/null || true
-      echo "$ALIAS_LINE" >> "$SHELL_RC"
-      echo "[ok] Fixed apex alias quoting in $SHELL_RC"
-    else
-      echo "[ok] PATH already configured in $SHELL_RC"
-    fi
-  fi
-else
-  echo "[!] No shell RC file found. Add manually:"
-  echo "    $PATH_LINE"
-fi
+WRAPPER_DIR="${HOME}/.local/bin"
+WRAPPER_BIN="${WRAPPER_DIR}/apex"
+mkdir -p "$WRAPPER_DIR"
 
-# Create a proper 'apex' wrapper script in dist/ so PATH-based lookup
-# works in non-interactive shells (where aliases aren't loaded).
-cat > "$DIST_DIR/apex" << WRAPPER_EOF
+cat > "$WRAPPER_BIN" << WRAPPER_EOF
 #!/usr/bin/env bash
 exec "${APEX_BIN}" "\$@"
 WRAPPER_EOF
-chmod +x "$DIST_DIR/apex"
-echo "[ok] Created apex wrapper script"
+chmod +x "$WRAPPER_BIN"
+echo "[ok] Installed apex -> $WRAPPER_BIN"
+
+# Ensure ~/.local/bin is in PATH
+if [ -n "$SHELL_RC" ]; then
+  # Clean up old space-containing PATH/alias entries from prior installs
+  if grep -q "$DIST_DIR" "$SHELL_RC" 2>/dev/null || grep -q "alias apex=" "$SHELL_RC" 2>/dev/null; then
+    sed -i '' "\|${DIST_DIR}|d" "$SHELL_RC" 2>/dev/null || true
+    sed -i '' '/alias apex=/d' "$SHELL_RC" 2>/dev/null || true
+    sed -i '' '/# Apex Forge CLI/d' "$SHELL_RC" 2>/dev/null || true
+    echo "[ok] Cleaned old Apex Forge entries from $SHELL_RC"
+  fi
+
+  if ! echo "$PATH" | tr ':' '\n' | grep -qx "$WRAPPER_DIR"; then
+    if ! grep -qF "$WRAPPER_DIR" "$SHELL_RC" 2>/dev/null; then
+      echo "" >> "$SHELL_RC"
+      echo "# Local bin (apex-forge and other tools)" >> "$SHELL_RC"
+      echo "export PATH=\"\$PATH:$WRAPPER_DIR\"" >> "$SHELL_RC"
+      echo "[ok] Added $WRAPPER_DIR to PATH in $SHELL_RC"
+    fi
+  else
+    echo "[ok] $WRAPPER_DIR already in PATH"
+  fi
+else
+  echo "[!] No shell RC file found. Ensure $WRAPPER_DIR is in your PATH."
+fi
 
 # ─── 3b. Copy frontend assets to well-known path ─────────────────
 # Compiled binary can't resolve import.meta.dir to filesystem;

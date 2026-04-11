@@ -120,3 +120,21 @@ review:
     mode: review
     priority: 5
     concurrent: true
+
+# ─── Compound Stage ───────────────────────────────────────────
+
+compound:
+  - trigger: "iteration complete, work shipped, resolution captured, post-mortem"
+    skill: iteration-reflector
+    version: ">=1.0.0"
+    priority: 1
+    concurrent: false
+    output_schema:
+      status: [DONE, DONE_WITH_CONCERNS, BLOCKED, NEEDS_CONTEXT]
+      items_added: number
+      roadmap_path: string
+    mapping:
+      DONE:               { af_action: pipeline_complete }
+      DONE_WITH_CONCERNS: { af_action: pipeline_complete }
+      BLOCKED:            { af_action: block_and_handoff }
+      NEEDS_CONTEXT:      { af_action: request_info }
