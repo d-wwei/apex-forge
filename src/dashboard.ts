@@ -1,8 +1,9 @@
 #!/usr/bin/env bun
 
 import { readJSON } from "./utils/json.js";
-import { existsSync, readFileSync } from "fs";
+import { existsSync, readFileSync, readdirSync } from "fs";
 import { join, resolve, extname } from "path";
+import { execSync } from "child_process";
 import {
   autoPort,
   hubPort,
@@ -90,11 +91,118 @@ export interface DashboardOptions {
   projectPath?: string;
 }
 
+/**
+ * Check if a port is already listening (i.e. hub is already running).
+ */
+async function isPortListening(port: number): Promise<boolean> {
+  try {
+    const resp = await fetch(`http://localhost:${port}/api/projects`, {
+      signal: AbortSignal.timeout(1000),
+    });
+    return resp.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Open the Hub in the best available way:
+ * 1. macOS: try Chrome PWA app first (~/Applications/Chrome Apps/Apex Forge.app)
+ * 2. Fallback: open URL in default browser
+ */
+function openHub(hubUrl: string) {
+  const platform = process.platform;
+
+  if (platform === "darwin") {
+    // Chrome PWAs on macOS live in ~/Applications/Chrome Apps/
+    const chromeAppsDir = join(process.env.HOME || "", "Applications", "Chrome Apps.localized");
+    const chromeAppsDirAlt = join(process.env.HOME || "", "Applications", "Chrome Apps");
+    for (const dir of [chromeAppsDir, chromeAppsDirAlt]) {
+      if (existsSync(dir)) {
+        try {
+          const apps = readdirSync(dir);
+          const pwa = apps.find(a => a.toLowerCase().includes("apex forge") && a.endsWith(".app"));
+          if (pwa) {
+            execSync(`open "${join(dir, pwa)}"`, { stdio: "ignore" });
+            console.log(`  Opened PWA: ${pwa}`);
+            return;
+          }
+        } catch { /* fall through */ }
+      }
+    }
+    // No PWA found — open in browser (will show PWA install prompt)
+    try {
+      execSync(`open "${hubUrl}"`, { stdio: "ignore" });
+      console.log(`  Opened in browser (install as PWA for standalone experience)`);
+    } catch { /* ignore */ }
+  } else if (platform === "win32") {
+    try {
+      execSync(`start "" "${hubUrl}"`, { stdio: "ignore" });
+    } catch { /* ignore */ }
+  } else {
+    try {
+      execSync(`xdg-open "${hubUrl}"`, { stdio: "ignore" });
+    } catch { /* ignore */ }
+  }
+}
+
 export async function startDashboard(portOverride?: number, options?: DashboardOptions) {
-  const frontendDir = findFrontendDir();
   const projectDir = options?.projectPath || process.cwd();
   const projectName = getProjectName(projectDir);
-  const port = portOverride ?? autoPort(projectDir);
+
+  // ── Explicit --port: start a standalone per-project server ──
+  if (portOverride) {
+    return startStandaloneDashboard(portOverride, projectDir, projectName);
+  }
+
+  // ── Default mode: register project + ensure Hub is the single entry point ──
+  const hPort = hubPort();
+
+  // Register this project so Hub can discover it
+  const port = autoPort(projectDir);
+  const entry = {
+    name: projectName,
+    path: projectDir,
+    port, // kept for registry compat, but no server listens here
+    pid: process.pid,
+    startedAt: new Date().toISOString(),
+  };
+  register(entry);
+
+  // Re-register every 30s (heartbeat)
+  const heartbeat = setInterval(() => {
+    try { register(entry); } catch { /* ignore */ }
+  }, 30_000);
+
+  const cleanup = () => {
+    clearInterval(heartbeat);
+    try { unregister(projectDir); } catch {}
+  };
+  process.on("exit", cleanup);
+  process.on("SIGINT", () => { cleanup(); process.exit(0); });
+  process.on("SIGTERM", () => { cleanup(); process.exit(0); });
+
+  const hubUrl = `http://localhost:${hPort}`;
+
+  // If Hub is already running, just register and open
+  if (await isPortListening(hPort)) {
+    console.log(`Dashboard: ${hubUrl}`);
+    console.log(`  Project "${projectName}" registered with existing Hub.`);
+    openHub(hubUrl);
+    return;
+  }
+
+  // Hub not running — start it in this process, then open
+  await startHub();
+  console.log(`  Project "${projectName}" registered.`);
+  openHub(hubUrl);
+}
+
+/**
+ * Standalone per-project dashboard — only used with explicit --port override.
+ */
+async function startStandaloneDashboard(port: number, projectDir: string, projectName: string) {
+  const frontendDir = findFrontendDir();
 
   if (!frontendDir) {
     console.warn(
@@ -116,13 +224,10 @@ export async function startDashboard(portOverride?: number, options?: DashboardO
   };
   register(entry);
 
-  // Re-register every 30s to recover from registry clears (race conditions,
-  // file corruption, external tools). Cheap operation — single file write.
   const heartbeat = setInterval(() => {
     try { register(entry); } catch { /* ignore */ }
   }, 30_000);
 
-  // Cleanup on exit
   const cleanup = () => {
     clearInterval(heartbeat);
     try { unregister(projectDir); } catch {}
@@ -131,12 +236,11 @@ export async function startDashboard(portOverride?: number, options?: DashboardO
   process.on("SIGINT", () => { cleanup(); process.exit(0); });
   process.on("SIGTERM", () => { cleanup(); process.exit(0); });
 
-  const server = Bun.serve({
+  Bun.serve({
     port,
     async fetch(req) {
       const url = new URL(req.url);
 
-      // CORS: allow cross-port requests from other dashboard instances
       const corsHeaders = {
         "Access-Control-Allow-Origin": req.headers.get("Origin") || "*",
         "Access-Control-Allow-Methods": "GET, OPTIONS",
@@ -147,13 +251,11 @@ export async function startDashboard(portOverride?: number, options?: DashboardO
         return new Response(null, { status: 204, headers: corsHeaders });
       }
 
-      // API: state payload (includes project context)
       if (url.pathname === "/api/state") {
         const data = await buildStatePayload(projectDir, projectName);
         return Response.json(data, { headers: corsHeaders });
       }
 
-      // API: all active projects (for sidebar + hub), enriched with .apex/ state
       if (url.pathname === "/api/projects") {
         return Response.json(
           await buildEnrichedProjectList(projectDir),
@@ -161,7 +263,6 @@ export async function startDashboard(portOverride?: number, options?: DashboardO
         );
       }
 
-      // API: server-sent events
       if (url.pathname === "/api/events") {
         const stream = new ReadableStream({
           start(controller) {
@@ -172,9 +273,7 @@ export async function startDashboard(portOverride?: number, options?: DashboardO
                 controller.enqueue(
                   encoder.encode(`data: ${JSON.stringify(data)}\n\n`)
                 );
-              } catch {
-                // Ignore encoding errors on closed streams
-              }
+              } catch { /* ignore */ }
             }, 2000);
             req.signal.addEventListener("abort", () => clearInterval(interval));
           },
@@ -189,20 +288,17 @@ export async function startDashboard(portOverride?: number, options?: DashboardO
         });
       }
 
-      // API: list design images from .apex/designs/
       if (url.pathname === "/api/designs") {
         const designDir = join(projectDir, ".apex", "designs");
         const designs = listDesignFiles(designDir);
         return Response.json({ designs });
       }
 
-      // API: serve a design image file
       if (url.pathname === "/api/designs/file") {
         const filePath = url.searchParams.get("path");
         if (!filePath) {
           return Response.json({ error: "Missing path parameter" }, { status: 400 });
         }
-        // Security: only serve from .apex/designs/
         const designDir = join(projectDir, ".apex", "designs");
         const resolved = resolve(designDir, filePath.replace(/\.\./g, ""));
         if (!resolved.startsWith(designDir) || !existsSync(resolved)) {
@@ -214,7 +310,6 @@ export async function startDashboard(portOverride?: number, options?: DashboardO
         return new Response(content, { headers: { "Content-Type": mime } });
       }
 
-      // Serve static frontend — or fallback to legacy inline HTML
       if (!frontendDir) {
         if (url.pathname === "/" || url.pathname === "/index.html") {
           return new Response(_buildHTMLLegacy(), {
@@ -242,7 +337,6 @@ export async function startDashboard(portOverride?: number, options?: DashboardO
   console.log(`Apex Dashboard for "${projectName}" at http://localhost:${port}`);
   console.log(`  Project: ${projectDir}`);
   console.log(`  Hub:     http://localhost:${hubPort()}`);
-
 }
 
 /**
@@ -262,6 +356,23 @@ export async function startHub() {
     "Access-Control-Allow-Headers": "Content-Type",
   };
 
+  /**
+   * Resolve a project path from ?project= query param or fall back to the
+   * first registered project. Returns [projectDir, projectName] or null.
+   */
+  function resolveProject(url: URL): [string, string] | null {
+    const requested = url.searchParams.get("project");
+    if (requested) {
+      const name = requested.split("/").pop() || requested;
+      return [requested, name];
+    }
+    const projects = listProjects();
+    if (projects.length > 0) {
+      return [projects[0].path, projects[0].name];
+    }
+    return null;
+  }
+
   Bun.serve({
     port,
     async fetch(req) {
@@ -279,8 +390,13 @@ export async function startHub() {
         );
       }
 
-      // API: stub state (no project selected — frontend auto-selects first)
+      // API: state — serve real project data from .apex/ directory
       if (url.pathname === "/api/state") {
+        const proj = resolveProject(url);
+        if (proj) {
+          const data = await buildStatePayload(proj[0], proj[1]);
+          return Response.json(data, { headers: corsHeaders });
+        }
         return Response.json({
           project: { name: "Apex Hub", path: "" },
           tasks: { tasks: [], next_id: 1 },
@@ -291,26 +407,57 @@ export async function startHub() {
         }, { headers: corsHeaders });
       }
 
-      // API: empty SSE keep-alive
+      // API: SSE — stream real project data
       if (url.pathname === "/api/events") {
+        const proj = resolveProject(url);
         const stream = new ReadableStream({
           start(controller) {
             const encoder = new TextEncoder();
-            const interval = setInterval(() => {
-              try { controller.enqueue(encoder.encode(": keepalive\n\n")); }
-              catch { clearInterval(interval); }
-            }, 10_000);
+            const interval = setInterval(async () => {
+              try {
+                if (proj) {
+                  const data = await buildStatePayload(proj[0], proj[1]);
+                  controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+                } else {
+                  controller.enqueue(encoder.encode(": keepalive\n\n"));
+                }
+              } catch { /* ignore */ }
+            }, 2000);
             req.signal.addEventListener("abort", () => clearInterval(interval));
           },
         });
         return new Response(stream, {
-          headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" },
+          headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive", ...corsHeaders },
         });
       }
 
-      // API: empty designs
+      // API: designs — serve from resolved project
       if (url.pathname === "/api/designs") {
+        const proj = resolveProject(url);
+        if (proj) {
+          const designDir = join(proj[0], ".apex", "designs");
+          const designs = listDesignFiles(designDir);
+          return Response.json({ designs }, { headers: corsHeaders });
+        }
         return Response.json({ designs: [] }, { headers: corsHeaders });
+      }
+
+      // API: serve a design image file
+      if (url.pathname === "/api/designs/file") {
+        const proj = resolveProject(url);
+        const filePath = url.searchParams.get("path");
+        if (!filePath || !proj) {
+          return Response.json({ error: "Missing path or project" }, { status: 400 });
+        }
+        const designDir = join(proj[0], ".apex", "designs");
+        const resolved = resolve(designDir, filePath.replace(/\.\./g, ""));
+        if (!resolved.startsWith(designDir) || !existsSync(resolved)) {
+          return Response.json({ error: "File not found" }, { status: 404 });
+        }
+        const content = readFileSync(resolved);
+        const ext = extname(resolved);
+        const mime = ext === ".png" ? "image/png" : ext === ".jpg" || ext === ".jpeg" ? "image/jpeg" : ext === ".html" ? "text/html" : "application/octet-stream";
+        return new Response(content, { headers: { "Content-Type": mime } });
       }
 
       // Serve static frontend — or fallback to legacy hub HTML
@@ -334,7 +481,7 @@ export async function startHub() {
     },
   });
 
-  console.log(`Apex Hub at http://localhost:${port}`);
+  console.log(`Dashboard: http://localhost:${port}`);
 }
 
 function buildHubHTML(): string {

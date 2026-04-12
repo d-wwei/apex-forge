@@ -25,7 +25,7 @@ Call `AskUserQuestion` with:
   1. label: "启动 Dashboard (Recommended)", description: "在浏览器里查看任务看板、pipeline 进度和遥测数据"
   2. label: "跳过", description: "不启动，直接开始工作"
 
-If user selects "启动 Dashboard": run `nohup apex dashboard > /dev/null 2>&1 &`, then report the URL.
+If user selects "启动 Dashboard": run `apex dashboard 2>&1 &` — it auto-registers the project, starts Hub if needed, and opens the PWA app (or browser). No need to report a URL.
 If user selects "跳过": proceed silently.
 
 ## Initialization (silent, every invocation)
