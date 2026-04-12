@@ -345,10 +345,7 @@ function renderMemoryFact(f) {
 // ===== 6b. Design Comparison =====
 
 function renderDesignComparison() {
-  var designsUrl = '/api/designs';
-  if (currentProject && currentProject.port && String(currentProject.port) !== location.port) {
-    designsUrl = 'http://' + location.hostname + ':' + currentProject.port + '/api/designs';
-  }
+  var designsUrl = '/api/designs' + projectQueryParam();
   fetch(designsUrl).then(r => r.json()).then(data => {
     const designs = data.designs || [];
     const gallery = document.getElementById('variant-gallery');
@@ -397,13 +394,14 @@ function esc(s) {
 
 // ===== 8. SSE =====
 
+function projectQueryParam() {
+  return currentProject && currentProject.path ? '?project=' + encodeURIComponent(currentProject.path) : '';
+}
+
 function connectSSE() {
   if (evtSource) evtSource.close();
   sseConnected = false;
-  let sseUrl = '/api/events';
-  if (currentProject && currentProject.port && String(currentProject.port) !== location.port) {
-    sseUrl = `http://${location.hostname}:${currentProject.port}/api/events`;
-  }
+  const sseUrl = '/api/events' + projectQueryParam();
   evtSource = new EventSource(sseUrl);
   evtSource.onopen = () => { sseConnected = true; };
   evtSource.onmessage = (e) => { sseConnected = true; try { render(JSON.parse(e.data)); } catch {} };
@@ -412,11 +410,7 @@ function connectSSE() {
 
 async function initialLoad() {
   try {
-    // If the selected project runs on a different port, fetch from that port's API
-    let stateUrl = '/api/state';
-    if (currentProject && currentProject.port && String(currentProject.port) !== location.port) {
-      stateUrl = `http://${location.hostname}:${currentProject.port}/api/state`;
-    }
+    const stateUrl = '/api/state' + projectQueryParam();
     const res = await fetch(stateUrl);
     render(await res.json());
   } catch {
