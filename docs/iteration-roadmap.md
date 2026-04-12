@@ -1,6 +1,6 @@
 # Apex Forge 迭代计划
 
-> 最后更新：2026-04-10
+> 最后更新：2026-04-12
 
 ---
 
@@ -64,16 +64,25 @@
 | 3.1j Expert Panel Review skill | 完成 |
 | 3.1k Registry 增强（118 模板，新增 skill/persona/dispatch_mode） | 完成 |
 
-### 待做（最后一公里）
+| 3.2a Git worktree 隔离 | 完成。createWorkspace 用 git worktree add，fallback 到 mkdirSync |
+| 3.2b Agent cwd 绑定 | 完成。AdapterConfig.cwd，3 adapter 全部更新，含 retry/resume 路径 |
+| 3.2c Agent 权限预配置 | 完成。writePermissionConfig 生成 .claude/settings.json |
+| 3.2d 结果验证 | 完成。result-validator.ts 三层检查（exit code → 文件 → 结构） |
+| 3.2e E2E 集成测试 | 完成。4 场景 mock agent 测试（并行/依赖/重试/跨模型） |
 
-**3.2 端到端可用性（最高优先级）**
+### 待做（端到端完善）
 
-5 个问题必须解决才能真正跑通：
-1. Git worktree 隔离（当前是普通目录，并行 agent 操作同一个 git 工作区会冲突）
-2. Agent 在 workspace 内工作（spawn 时设置 cwd 为 workspace 路径）
-3. Agent 权限预配置（--dangerously-skip-permissions 或 workspace 内 settings.json）
-4. 结果验证逻辑（不只看 exit code，检查 result.json 存在性和格式）
-5. 端到端集成测试（mock agent 验证完整 dispatch → reap → retry → DAG 流程）
+**3.2f `consensus test-all` 超时修复（低优先级）**
+
+cli.test.ts 中 `consensus test-all` 因 bun:test 默认 5s 超时而失败（实际需 15s）。不影响功能，但影响 CI。修复方案：给该 test 加 `{ timeout: 20000 }` 选项。
+
+**3.2g partial 结果的差异化处理（中优先级）**
+
+当前 exit 0 但 result.json 不合格（status=partial）会触发自动重试，和 exit 1 的 failure 走同一路径。应区分：partial 可能只需要补充输出（轻量重试），failure 需要完全重新执行。
+
+**3.2h 权限配置按 adapter 类型分流（低优先级）**
+
+writePermissionConfig 生成的 .claude/settings.json 是 Claude 专属格式。Codex 和 Gemini 有各自的权限机制。当前无害（只是多一个无用文件），但应按 adapter.name() 生成对应格式。
 
 **3.3 共识算法（降低优先级）**
 
