@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 import { readJSON } from "./utils/json.js";
-import { existsSync, readFileSync, readdirSync } from "fs";
+import { existsSync, readFileSync, readdirSync, writeFileSync } from "fs";
 import { join, resolve, extname } from "path";
 import { execSync } from "child_process";
 import {
@@ -1027,6 +1027,126 @@ function deriveStageFromTasks(state: any, tasks: any[]): any {
   return { ...state, current_stage: derivedStage, history };
 }
 
+/**
+ * Git-based task reconciliation.
+ * For each non-done task, check if the described work has been committed.
+ * If evidence exists in git, auto-mark the task as done and persist to tasks.json.
+ * This eliminates the dependency on agents remembering to update task status.
+ */
+function reconcileTasksFromGit(projectDir: string, tasks: any): boolean {
+  if (!tasks.tasks || tasks.tasks.length === 0) return false;
+  const incompleteTasks = tasks.tasks.filter((t: any) => t.status !== "done");
+  if (incompleteTasks.length === 0) return false;
+
+  let changed = false;
+  for (const task of incompleteTasks) {
+    const createdAt = task.created_at || "";
+    if (!createdAt) continue;
+
+    // Extract keywords from title + description for matching
+    const searchText = `${task.title || ""} ${task.description || ""}`.toLowerCase();
+
+    // Strategy 1: Check git log for commits after task creation
+    let commitEvidence = "";
+    try {
+      const log = execSync(
+        `git -C "${projectDir}" log --oneline --after="${createdAt}" --all 2>/dev/null`,
+        { encoding: "utf-8", timeout: 3000 },
+      ).trim();
+
+      if (log) {
+        // Check if any commit message relates to this task
+        const commits = log.split("\n");
+        for (const commit of commits) {
+          const msg = commit.toLowerCase();
+          // Match by task ID (T13, T14...) or keywords from title
+          const titleWords = (task.title || "").toLowerCase().split(/\s+/).filter((w: string) => w.length > 3);
+          const idMatch = msg.includes(task.id.toLowerCase());
+          const keywordMatch = titleWords.length > 0 && titleWords.some((w: string) => msg.includes(w));
+          if (idMatch || keywordMatch) {
+            commitEvidence = `git: ${commit.trim()}`;
+            break;
+          }
+        }
+      }
+    } catch { /* git not available or timeout */ }
+
+    // Strategy 2: Check if files mentioned in description/title exist and were modified after task creation
+    if (!commitEvidence) {
+      const filePatterns = searchText.match(/[\w\-./]+\.(md|ts|js|yaml|json|css|html|tsx|jsx)/g) || [];
+      const createdTime = new Date(createdAt).getTime();
+      for (const pattern of filePatterns) {
+        const candidates = [
+          join(projectDir, pattern),
+          join(projectDir, "skills", pattern),
+          join(projectDir, "skill", pattern),
+          join(projectDir, "src", pattern),
+          join(projectDir, "docs", pattern),
+        ];
+        for (const filePath of candidates) {
+          try {
+            if (existsSync(filePath)) {
+              // File exists — check if modified after task creation via git
+              const gitTime = execSync(
+                `git -C "${projectDir}" log -1 --format=%aI -- "${filePath}" 2>/dev/null`,
+                { encoding: "utf-8", timeout: 2000 },
+              ).trim();
+              if (gitTime && new Date(gitTime).getTime() > createdTime) {
+                commitEvidence = `file verified: ${pattern} (committed ${gitTime.slice(0, 10)})`;
+                break;
+              }
+            }
+          } catch { /* skip */ }
+        }
+        if (commitEvidence) break;
+      }
+    }
+
+    // Strategy 3: Check git diff --stat for changed files matching keywords
+    if (!commitEvidence) {
+      try {
+        const diffStat = execSync(
+          `git -C "${projectDir}" log --after="${createdAt}" --all --name-only --format="" 2>/dev/null`,
+          { encoding: "utf-8", timeout: 3000 },
+        ).trim();
+        if (diffStat) {
+          const changedFiles = diffStat.split("\n").filter(Boolean);
+          const titleWords = (task.title || "").toLowerCase().split(/\s+/).filter((w: string) => w.length > 3);
+          for (const file of changedFiles) {
+            const fl = file.toLowerCase();
+            if (titleWords.some((w: string) => fl.includes(w))) {
+              commitEvidence = `related file: ${file}`;
+              break;
+            }
+          }
+        }
+      } catch { /* skip */ }
+    }
+
+    if (commitEvidence) {
+      task.status = "done";
+      task.updated_at = new Date().toISOString();
+      task.completed_at = task.updated_at;
+      task.evidence = task.evidence || [];
+      task.evidence.push({
+        content: `auto-reconciled: ${commitEvidence}`,
+        submitted_at: task.updated_at,
+      });
+      changed = true;
+    }
+  }
+
+  // Persist changes back to tasks.json
+  if (changed) {
+    try {
+      const tasksPath = join(projectDir, ".apex", "tasks.json");
+      writeFileSync(tasksPath, JSON.stringify(tasks, null, 2));
+    } catch { /* ignore write failures */ }
+  }
+
+  return changed;
+}
+
 async function buildStatePayload(projectDir: string, projectName: string) {
   const apexDir = join(projectDir, ".apex");
   const logDir = join(apexDir, "log");
@@ -1046,14 +1166,16 @@ async function buildStatePayload(projectDir: string, projectName: string) {
   }
 
   const tasks = await readJSON(join(apexDir, "tasks.json"), { tasks: [] as any[], next_id: 1 });
+
+  // Reconcile task status from git reality before building payload
+  reconcileTasksFromGit(projectDir, tasks);
+
   const state = await readJSON(join(apexDir, "state.json"), {
     current_stage: "idle",
     artifacts: {} as Record<string, string[]>,
     history: [] as any[],
   });
 
-  // Derive effective pipeline stage from task completion status.
-  // state.json may be stale — tasks are the source of truth.
   const derivedState = deriveStageFromTasks(state, tasks.tasks);
 
   return {
