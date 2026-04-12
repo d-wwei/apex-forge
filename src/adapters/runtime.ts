@@ -27,6 +27,7 @@ export interface AgentHandle {
 export interface AdapterConfig {
   command: string;
   args: string[];
+  cwd?: string;
 }
 
 // --- Task Dispatch Info (subset of Task for adapter consumption) ---

@@ -52,6 +52,7 @@ export class ClaudeAdapter implements RuntimeAdapter {
     const proc = spawn(cmd, args, {
       stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env, APEX_TASK_ID: task.id },
+      ...(config.cwd ? { cwd: config.cwd } : {}),
     });
 
     proc.stdout?.on("data", (chunk: Buffer) => appendFileSync(logPath, chunk));
@@ -103,6 +104,7 @@ export class ClaudeAdapter implements RuntimeAdapter {
     const proc = spawn(cmd, args, {
       stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env, ...(taskId ? { APEX_TASK_ID: taskId } : {}) },
+      ...(config.cwd ? { cwd: config.cwd } : {}),
     });
 
     proc.stdout?.on("data", (chunk: Buffer) => appendFileSync(logPath, chunk));

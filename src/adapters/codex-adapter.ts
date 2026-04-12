@@ -27,6 +27,7 @@ export class CodexAdapter implements RuntimeAdapter {
     const proc = spawn(cmd, args, {
       stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env, APEX_TASK_ID: task.id },
+      ...(config.cwd ? { cwd: config.cwd } : {}),
     });
 
     proc.stdout?.on("data", (chunk: Buffer) => appendFileSync(logPath, chunk));

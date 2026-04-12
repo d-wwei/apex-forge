@@ -40,6 +40,26 @@ describe("ClaudeAdapter", () => {
     adapter.kill(handle);
   });
 
+  test("spawn uses cwd from config when provided", async () => {
+    const { ClaudeAdapter } = await import("../adapters/claude-adapter.js");
+    const adapter = new ClaudeAdapter();
+    const tmpDir = "/tmp/apex-cwd-test";
+    mkdirSync(tmpDir, { recursive: true });
+
+    const handle = await adapter.spawn(
+      { id: "T-cwd", title: "Test", description: "test" },
+      "",
+      { command: "pwd", args: [], cwd: tmpDir }
+    );
+
+    // Wait for process to exit
+    await new Promise(r => setTimeout(r, 300));
+    const output = adapter.output(handle);
+    expect(output).toContain(tmpDir);
+
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
   test("monitor returns running for active process", async () => {
     const { ClaudeAdapter } = await import("../adapters/claude-adapter.js");
     const adapter = new ClaudeAdapter();
@@ -80,13 +100,22 @@ describe("ClaudeAdapter", () => {
 
 describe("Workspace", () => {
   const testWorkspaceRoot = ".test-workspaces";
+  const { spawnSync: gitSync } = require("child_process");
 
-  beforeEach(() => {
+  function cleanupTestWorkspaces() {
+    // Remove worktree dirs first, then prune, then delete branches
     rmSync(testWorkspaceRoot, { recursive: true, force: true });
-  });
+    gitSync("git", ["worktree", "prune"], { encoding: "utf-8" });
+    const branches = gitSync("git", ["branch", "--list", "apex/*"], { encoding: "utf-8" });
+    for (const b of (branches.stdout || "").trim().split("\n").filter(Boolean)) {
+      gitSync("git", ["branch", "-D", b.trim()], { encoding: "utf-8" });
+    }
+  }
+
+  beforeEach(cleanupTestWorkspaces);
 
   test("createWorkspace creates directory structure", async () => {
-    const { createWorkspace } = await import("../orchestrator/workspace.js");
+    const { createWorkspace, cleanupWorkspace } = await import("../orchestrator/workspace.js");
     const ws = await createWorkspace("T42", testWorkspaceRoot);
 
     expect(existsSync(ws.path)).toBe(true);
@@ -94,11 +123,12 @@ describe("Workspace", () => {
     expect(ws.taskId).toBe("T42");
     expect(ws.path).toContain("T42");
 
-    rmSync(testWorkspaceRoot, { recursive: true, force: true });
+    await cleanupWorkspace(ws.path);
+    cleanupTestWorkspaces();
   });
 
   test("injectArtifacts copies upstream results into workspace", async () => {
-    const { createWorkspace, injectArtifacts } = await import("../orchestrator/workspace.js");
+    const { createWorkspace, injectArtifacts, cleanupWorkspace } = await import("../orchestrator/workspace.js");
 
     // Create upstream workspace with result
     const upstream = await createWorkspace("T40", testWorkspaceRoot);
@@ -113,7 +143,9 @@ describe("Workspace", () => {
     const injected = JSON.parse(readFileSync(`${downstream.path}/input/T40-result.json`, "utf-8"));
     expect(injected.verdict).toBe("pass");
 
-    rmSync(testWorkspaceRoot, { recursive: true, force: true });
+    await cleanupWorkspace(upstream.path);
+    await cleanupWorkspace(downstream.path);
+    cleanupTestWorkspaces();
   });
 
   test("cleanupWorkspace removes directory", async () => {
@@ -124,7 +156,161 @@ describe("Workspace", () => {
     await cleanupWorkspace(ws.path);
     expect(existsSync(ws.path)).toBe(false);
 
+    cleanupTestWorkspaces();
+  });
+
+  test("createWorkspace uses git worktree when in a git repo", async () => {
+    const { createWorkspace } = await import("../orchestrator/workspace.js");
+    const ws = await createWorkspace("wt-test-1", testWorkspaceRoot);
+
+    expect(existsSync(ws.path)).toBe(true);
+    expect(existsSync(`${ws.path}/output`)).toBe(true);
+    expect(existsSync(`${ws.path}/input`)).toBe(true);
+
+    expect(ws.isWorktree).toBe(true);
+
+    // Check if it's a git worktree (HEAD file should exist)
+    const { spawnSync } = await import("child_process");
+    const result = spawnSync("git", ["worktree", "list"], { encoding: "utf-8" });
+    expect(result.stdout).toContain(`APEX-wt-test-1`);
+
+    // Cleanup via git worktree remove
+    const { cleanupWorkspace } = await import("../orchestrator/workspace.js");
+    await cleanupWorkspace(ws.path);
+
+    // Verify worktree is removed
+    const afterClean = spawnSync("git", ["worktree", "list"], { encoding: "utf-8" });
+    expect(afterClean.stdout).not.toContain(`APEX-wt-test-1`);
+
+    // Also clean up the branch
+    spawnSync("git", ["branch", "-D", `apex/wt-test-1`], { encoding: "utf-8" });
     rmSync(testWorkspaceRoot, { recursive: true, force: true });
+  });
+
+  test("createWorkspace falls back to mkdirSync when git worktree fails", async () => {
+    const { createWorkspace, cleanupWorkspace } = await import("../orchestrator/workspace.js");
+
+    // First call creates the branch; second call with same taskId will fail
+    // because the branch already exists
+    const ws1 = await createWorkspace("dup-branch", testWorkspaceRoot);
+    expect(ws1.isWorktree).toBe(true);
+
+    // Remove the worktree dir but keep the branch to force failure
+    rmSync(ws1.path, { recursive: true, force: true });
+    gitSync("git", ["worktree", "prune"], { encoding: "utf-8" });
+
+    // Second creation with same taskId: branch exists, worktree add fails, falls back
+    const ws2 = await createWorkspace("dup-branch", testWorkspaceRoot);
+    expect(existsSync(ws2.path)).toBe(true);
+    expect(existsSync(`${ws2.path}/output`)).toBe(true);
+    expect(ws2.isWorktree).toBe(false);
+
+    rmSync(ws2.path, { recursive: true, force: true });
+    gitSync("git", ["branch", "-D", "apex/dup-branch"], { encoding: "utf-8" });
+  });
+});
+
+// --- Permission pre-config tests ---
+
+describe("PermissionConfig", () => {
+  const testWs = ".test-perms-ws";
+
+  beforeEach(() => {
+    rmSync(testWs, { recursive: true, force: true });
+  });
+
+  test("writePermissionConfig creates .claude/settings.json in workspace", async () => {
+    const { writePermissionConfig } = await import("../orchestrator/workspace.js");
+    mkdirSync(`${testWs}/output`, { recursive: true });
+
+    writePermissionConfig(testWs);
+
+    const settingsPath = `${testWs}/.claude/settings.json`;
+    expect(existsSync(settingsPath)).toBe(true);
+
+    const settings = JSON.parse(readFileSync(settingsPath, "utf-8"));
+    expect(settings.permissions).toBeDefined();
+    expect(settings.permissions.allow).toBeInstanceOf(Array);
+    expect(settings.permissions.allow.length).toBeGreaterThan(0);
+
+    rmSync(testWs, { recursive: true, force: true });
+  });
+
+  test("writePermissionConfig includes essential tools", async () => {
+    const { writePermissionConfig } = await import("../orchestrator/workspace.js");
+    mkdirSync(`${testWs}/output`, { recursive: true });
+
+    writePermissionConfig(testWs);
+
+    const settings = JSON.parse(readFileSync(`${testWs}/.claude/settings.json`, "utf-8"));
+    const allowed = settings.permissions.allow;
+    // Should include Read, Write, Edit, Bash, Glob, Grep at minimum
+    expect(allowed.some((p: string) => p.includes("Read"))).toBe(true);
+    expect(allowed.some((p: string) => p.includes("Bash"))).toBe(true);
+
+    rmSync(testWs, { recursive: true, force: true });
+  });
+});
+
+// --- Result Validator tests ---
+
+describe("ResultValidator", () => {
+  const testWs = ".test-validator-ws";
+
+  beforeEach(() => {
+    rmSync(testWs, { recursive: true, force: true });
+  });
+
+  test("validates well-formed result.json as success", async () => {
+    const { validateResult } = await import("../orchestrator/result-validator.js");
+    mkdirSync(`${testWs}/output`, { recursive: true });
+    writeFileSync(`${testWs}/output/result.json`, JSON.stringify({
+      verdict: "pass",
+      findings: [{ severity: "note", description: "minor" }],
+    }));
+
+    const v = validateResult(testWs, 0);
+    expect(v.valid).toBe(true);
+    expect(v.status).toBe("success");
+    expect(v.verdict).toBe("pass");
+  });
+
+  test("exit code 0 but missing result.json yields partial", async () => {
+    const { validateResult } = await import("../orchestrator/result-validator.js");
+    mkdirSync(`${testWs}/output`, { recursive: true });
+
+    const v = validateResult(testWs, 0);
+    expect(v.valid).toBe(false);
+    expect(v.status).toBe("partial");
+  });
+
+  test("exit code 0 but malformed result.json yields partial", async () => {
+    const { validateResult } = await import("../orchestrator/result-validator.js");
+    mkdirSync(`${testWs}/output`, { recursive: true });
+    writeFileSync(`${testWs}/output/result.json`, "not json{{{");
+
+    const v = validateResult(testWs, 0);
+    expect(v.valid).toBe(false);
+    expect(v.status).toBe("partial");
+  });
+
+  test("exit code 0 but result.json missing verdict yields partial", async () => {
+    const { validateResult } = await import("../orchestrator/result-validator.js");
+    mkdirSync(`${testWs}/output`, { recursive: true });
+    writeFileSync(`${testWs}/output/result.json`, JSON.stringify({ foo: "bar" }));
+
+    const v = validateResult(testWs, 0);
+    expect(v.valid).toBe(false);
+    expect(v.status).toBe("partial");
+  });
+
+  test("non-zero exit code yields failure", async () => {
+    const { validateResult } = await import("../orchestrator/result-validator.js");
+    mkdirSync(`${testWs}/output`, { recursive: true });
+
+    const v = validateResult(testWs, 1);
+    expect(v.valid).toBe(false);
+    expect(v.status).toBe("failure");
   });
 });
 

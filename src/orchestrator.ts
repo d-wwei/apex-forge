@@ -7,10 +7,11 @@ import type { Task } from "./types/task.js";
 import type { ApexConfig } from "./types/config.js";
 import type { RuntimeAdapter, AgentHandle } from "./adapters/runtime.js";
 import { detectAdapters, resolveAdapter } from "./adapters/adapter-registry.js";
-import { createWorkspace, injectArtifacts } from "./orchestrator/workspace.js";
+import { createWorkspace, injectArtifacts, writePermissionConfig } from "./orchestrator/workspace.js";
 import { shouldRetry, backoffMs } from "./orchestrator/retry.js";
 import { buildAgentPrompt } from "./orchestrator/prompt-builder.js";
 import { collectResult, synthesizeFindings, type AgentResult } from "./orchestrator/result-collector.js";
+import { validateResult } from "./orchestrator/result-validator.js";
 
 // --- Registry template types ---
 
@@ -197,12 +198,15 @@ async function pollCycle(
 
     const duration = Math.round((Date.now() - entry.handle.startedAt) / 1000);
     const exitCode = status.exitCode ?? -1;
-    const success = exitCode === 0;
 
-    console.log(`  ${runKey}: ${success ? "completed" : "failed"} (${duration}s, exit ${exitCode}, adapter: ${entry.adapter.name()})`);
+    // Validate result quality
+    const wsPath = entry.task.workspace_path || `.workspaces/APEX-${runKey}`;
+    const validation = validateResult(wsPath, exitCode);
+    const effectiveSuccess = validation.status === "success";
+
+    console.log(`  ${runKey}: ${effectiveSuccess ? "completed" : validation.status} (${duration}s, exit ${exitCode}, adapter: ${entry.adapter.name()}${validation.reason ? `, ${validation.reason}` : ""})`);
 
     // Collect result
-    const wsPath = entry.task.workspace_path || `.workspaces/APEX-${runKey}`;
     const result = collectResult(wsPath, baseTaskId, entry.adapter.name(), exitCode, duration, entry.template?.persona);
 
     // Store for synthesis (Mode 2 tasks may have multiple results)
@@ -215,7 +219,7 @@ async function pollCycle(
       run_key: runKey,
       adapter: entry.adapter.name(),
       persona: entry.template?.persona,
-      outcome: success ? "success" : "error",
+      outcome: effectiveSuccess ? "success" : validation.status,
       exit_code: exitCode,
       duration_s: duration,
       attempt: entry.handle.attempt,
@@ -223,7 +227,7 @@ async function pollCycle(
     });
 
     // Retry logic for failures (only for Mode 1 single-adapter tasks)
-    if (!success && !isCrossModel && shouldRetry(entry.handle.attempt, config.max_retries, exitCode)) {
+    if (!effectiveSuccess && !isCrossModel && shouldRetry(entry.handle.attempt, config.max_retries, exitCode)) {
       const nextAttempt = entry.handle.attempt + 1;
       const delay = backoffMs(nextAttempt, config.retry_backoff_base_ms);
       console.log(`  ${runKey}: scheduling retry ${nextAttempt}/${config.max_retries} in ${Math.round(delay / 1000)}s`);
@@ -237,7 +241,7 @@ async function pollCycle(
 
     // Transition successful Mode 1 tasks to done so downstream DAG unblocks
     // Mode 2 tasks are transitioned after all cross-model agents complete (in synthesis step)
-    if (success && !isCrossModel) {
+    if (effectiveSuccess && !isCrossModel) {
       try {
         await taskSubmit(baseTaskId, `Agent completed (adapter: ${entry.adapter.name()}, ${duration}s)`);
         await taskVerify(baseTaskId, true);
@@ -268,7 +272,7 @@ async function pollCycle(
     const handle = await adapter.spawn(
       { id: retry.task.id, title: retry.task.title, description: retry.task.description },
       prompt,
-      { command: adapter.name(), args: [] },
+      { command: adapter.name(), args: [], cwd: retry.task.workspace_path },
     );
     handle.attempt = retry.attempt;
 
@@ -348,6 +352,7 @@ async function pollCycle(
         if (running.has(compositeKey)) continue;
 
         const ws = await createWorkspace(`${task.id}-${adapter.name()}`);
+        writePermissionConfig(ws.path);
         if (upstreamArtifacts.length > 0) {
           await injectArtifacts(ws.path, upstreamArtifacts);
         }
@@ -361,7 +366,7 @@ async function pollCycle(
         const handle = await adapter.spawn(
           { id: task.id, title: task.title, description: task.description },
           prompt,
-          { command: adapter.name(), args: [] },
+          { command: adapter.name(), args: [], cwd: ws.path },
         );
 
         running.set(compositeKey, {
@@ -375,6 +380,7 @@ async function pollCycle(
     } else {
       // Mode 1: Single adapter dispatch
       const ws = await createWorkspace(task.id);
+      writePermissionConfig(ws.path);
       if (upstreamArtifacts.length > 0) {
         await injectArtifacts(ws.path, upstreamArtifacts);
       }
@@ -389,7 +395,7 @@ async function pollCycle(
       const handle = await adapter.spawn(
         { id: task.id, title: task.title, description: task.description },
         prompt,
-        { command: adapter.name(), args: [] },
+        { command: adapter.name(), args: [], cwd: ws.path },
       );
 
       running.set(task.id, { handle, task: { ...task, workspace_path: ws.path }, template, adapter });
