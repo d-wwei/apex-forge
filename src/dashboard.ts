@@ -175,11 +175,22 @@ export async function startDashboard(portOverride?: number, options?: DashboardO
 
   const hubUrl = `http://localhost:${hPort}`;
 
-  // If Hub is already running, just register — don't open browser again.
-  // The existing Hub tab will discover the new project via SSE/polling.
+  // If Hub is already running, register and check if anyone is watching
   if (await isPortListening(hPort)) {
     console.log(`Dashboard: ${hubUrl}`);
     console.log(`  Project "${projectName}" registered with existing Hub.`);
+    // Check if a browser tab is actually open (SSE clients > 0)
+    try {
+      const status = await fetch(`http://localhost:${hPort}/status`, { signal: AbortSignal.timeout(1000) });
+      const data = await status.json() as any;
+      if (data.sseClients > 0) {
+        console.log(`  Hub has active viewer — skipping browser open.`);
+        return;
+      }
+    } catch { /* can't check — open to be safe */ }
+    // No active viewers — user probably closed the tab, reopen
+    console.log(`  No active viewer detected — opening browser.`);
+    openHub(hubUrl, projectDir);
     return;
   }
 
@@ -333,6 +344,9 @@ async function startStandaloneDashboard(port: number, projectDir: string, projec
 /**
  * Hub server — fixed port, lists all active project dashboards.
  */
+// Track active SSE clients — if > 0, someone has the Hub tab open
+let sseClientCount = 0;
+
 export async function startHub() {
   const port = hubPort();
 
@@ -375,7 +389,7 @@ export async function startHub() {
 
       // Extension API: health check
       if (url.pathname === "/status") {
-        return Response.json({ ok: true, port, projects: listProjects().length }, { headers: corsHeaders });
+        return Response.json({ ok: true, port, projects: listProjects().length, sseClients: sseClientCount }, { headers: corsHeaders });
       }
 
       // Extension API: activity stream (SSE) — reads event log from .apex/log/
@@ -479,6 +493,7 @@ export async function startHub() {
       // API: SSE — stream real project data
       if (url.pathname === "/api/events") {
         const proj = resolveProject(url);
+        sseClientCount++;
         const stream = new ReadableStream({
           start(controller) {
             const encoder = new TextEncoder();
@@ -492,7 +507,10 @@ export async function startHub() {
                 }
               } catch { /* ignore */ }
             }, 2000);
-            req.signal.addEventListener("abort", () => clearInterval(interval));
+            req.signal.addEventListener("abort", () => {
+              clearInterval(interval);
+              sseClientCount = Math.max(0, sseClientCount - 1);
+            });
           },
         });
         return new Response(stream, {
