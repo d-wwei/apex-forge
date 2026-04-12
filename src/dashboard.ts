@@ -118,10 +118,14 @@ function openHub(hubUrl: string, projectPath?: string) {
   const platform = process.platform;
 
   if (platform === "darwin") {
-    // Chrome PWAs on macOS live in ~/Applications/Chrome Apps/
-    const chromeAppsDir = join(process.env.HOME || "", "Applications", "Chrome Apps.localized");
-    const chromeAppsDirAlt = join(process.env.HOME || "", "Applications", "Chrome Apps");
-    for (const dir of [chromeAppsDir, chromeAppsDirAlt]) {
+    // PWAs on macOS can live in multiple locations
+    const home = process.env.HOME || "";
+    const searchDirs = [
+      join(home, "Applications"),                          // direct PWA install
+      join(home, "Applications", "Chrome Apps.localized"), // Chrome managed
+      join(home, "Applications", "Chrome Apps"),            // Chrome alt
+    ];
+    for (const dir of searchDirs) {
       if (existsSync(dir)) {
         try {
           const apps = readdirSync(dir);
