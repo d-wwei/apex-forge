@@ -110,7 +110,11 @@ async function isPortListening(port: number): Promise<boolean> {
  * 1. macOS: try Chrome PWA app first (~/Applications/Chrome Apps/Apex Forge.app)
  * 2. Fallback: open URL in default browser
  */
-function openHub(hubUrl: string) {
+function openHub(hubUrl: string, projectPath?: string) {
+  // Append project path as hash so frontend auto-selects it
+  const urlWithProject = projectPath
+    ? `${hubUrl}#project=${encodeURIComponent(projectPath)}`
+    : hubUrl;
   const platform = process.platform;
 
   if (platform === "darwin") {
@@ -132,16 +136,16 @@ function openHub(hubUrl: string) {
     }
     // No PWA found — open in browser (will show PWA install prompt)
     try {
-      execSync(`open "${hubUrl}"`, { stdio: "ignore" });
+      execSync(`open "${urlWithProject}"`, { stdio: "ignore" });
       console.log(`  Opened in browser (install as PWA for standalone experience)`);
     } catch { /* ignore */ }
   } else if (platform === "win32") {
     try {
-      execSync(`start "" "${hubUrl}"`, { stdio: "ignore" });
+      execSync(`start "" "${urlWithProject}"`, { stdio: "ignore" });
     } catch { /* ignore */ }
   } else {
     try {
-      execSync(`xdg-open "${hubUrl}"`, { stdio: "ignore" });
+      execSync(`xdg-open "${urlWithProject}"`, { stdio: "ignore" });
     } catch { /* ignore */ }
   }
 }
@@ -175,14 +179,14 @@ export async function startDashboard(portOverride?: number, options?: DashboardO
   if (await isPortListening(hPort)) {
     console.log(`Dashboard: ${hubUrl}`);
     console.log(`  Project "${projectName}" registered with existing Hub.`);
-    openHub(hubUrl);
+    openHub(hubUrl, projectDir);
     return;
   }
 
   // Hub not running — start it in this process (stays alive), then open
   await startHub();
   console.log(`  Project "${projectName}" registered.`);
-  openHub(hubUrl);
+  openHub(hubUrl, projectDir);
 }
 
 /**

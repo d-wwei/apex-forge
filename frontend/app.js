@@ -166,10 +166,19 @@ function loadProjectCards() {
     loadedProjects = projects.length ? projects : DEMO_PROJECTS;
     renderProjectCards(loadedProjects);
     renderSidebar(loadedProjects);
-    // Hub auto-select: if on hub port (3456) and no project chosen, pick first
+    // Hub auto-select: match #project=PATH from URL hash, or fall back to first
     if (currentView === 'home' && projects.length > 0
         && location.port === '3456' && !sessionStorage.getItem('hubExplicitHome')) {
-      navigateToProject(projects[0]);
+      let target = projects[0];
+      const hashMatch = location.hash.match(/project=([^&]*)/);
+      if (hashMatch) {
+        const requestedPath = decodeURIComponent(hashMatch[1]);
+        const found = projects.find(p => p.path === requestedPath);
+        if (found) target = found;
+        // Clear hash after consuming it
+        history.replaceState(null, '', location.pathname + location.search);
+      }
+      navigateToProject(target);
     }
   }).catch(() => {
     loadedProjects = DEMO_PROJECTS;
