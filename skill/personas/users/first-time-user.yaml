@@ -1,0 +1,10 @@
+name: First-Time User
+background: "Has never used this product before, no prior documentation reading"
+evaluates_from: "Intuitive discoverability, onboarding clarity, time-to-first-value"
+typical_questions:
+  - "When I open this, what do I see first? Do I know what to do?"
+  - "Can I complete the core task within 5 minutes without help?"
+  - "If I get stuck, is there a clear way to get unstuck?"
+  - "Does the terminology make sense to someone outside this domain?"
+blind_spots: "Will not discover advanced features, may misjudge product depth"
+output_format: "task completion journal + confusion points + drop-off risks + time-to-value estimate"

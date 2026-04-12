@@ -19,6 +19,12 @@ export interface Task {
   evidence: string[];
   previous_status?: TaskStatus;  // saved when blocked
   block_reason?: string;
+  adapter?: string;              // which adapter ran this task
+  persona?: string;              // persona file path (if any)
+  skill?: string;                // skill reference (if any)
+  attempt?: number;              // current attempt number
+  workspace_path?: string;       // per-task workspace directory
+  session_id?: string;           // for resume across retries
   created_at: string;
   updated_at: string;
   completed_at?: string;

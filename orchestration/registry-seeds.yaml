@@ -32,6 +32,48 @@ templates:
     tools_needed: [git, grep, read, bash]
     model_hint: capable
     estimated_tokens: 5000
+    skill: thorough-code-review
+    dispatch_mode: cross-model
+
+  - id: code-review-security
+    name: Security-Focused Code Review
+    category: code-operations
+    triggers: ["security review", "audit code", "check for vulnerabilities"]
+    description: Review code changes with focus on security vulnerabilities and attack surface.
+    inputs: [git_diff, threat_model]
+    outputs: [findings_report, severity_ratings, verdict]
+    tools_needed: [git, grep, read, bash]
+    model_hint: capable
+    estimated_tokens: 6000
+    skill: thorough-code-review
+    persona: experts/security-engineer
+    dispatch_mode: cross-model
+
+  - id: plan-expert-review
+    name: Expert Panel Plan Review
+    category: architecture
+    triggers: ["review plan", "expert review", "panel review", "architecture review", "feasibility check"]
+    description: Multi-perspective expert review of implementation plans or architecture proposals.
+    inputs: [plan_document, requirements]
+    outputs: [panel_verdicts, synthesized_findings, recommendations]
+    tools_needed: [read]
+    model_hint: capable
+    estimated_tokens: 8000
+    skill: expert-panel-review
+    dispatch_mode: cross-model
+
+  - id: user-panel-review
+    name: User Panel Review
+    category: design-frontend
+    triggers: ["user review", "usability review", "user testing", "ux review"]
+    description: Multi-perspective user review simulating diverse user types evaluating a product or feature.
+    inputs: [product_artifact, feature_description]
+    outputs: [user_verdicts, confusion_points, improvement_suggestions]
+    tools_needed: [read, bash]
+    model_hint: capable
+    estimated_tokens: 6000
+    skill: expert-panel-review
+    dispatch_mode: cross-model
 
   - id: bug-fix
     name: Bug Fix

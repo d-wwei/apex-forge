@@ -5,6 +5,13 @@ export interface AgentMap {
   consult?: string;
 }
 
+export interface AdapterEntry {
+  command: string;
+  args?: string[];
+}
+
+export type AdaptersMap = Record<string, AdapterEntry>;
+
 export interface ApexConfig {
   default_tier: "auto" | "1" | "2" | "3";
   proactive: boolean;
@@ -18,6 +25,7 @@ export interface ApexConfig {
   agent_command: string;
   idle_timeout_ms: number;
   agents?: AgentMap;
+  adapters?: AdaptersMap;
 }
 
 export const DEFAULT_CONFIG: ApexConfig = {

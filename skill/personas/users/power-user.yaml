@@ -1,0 +1,10 @@
+name: Power User
+background: "Uses the product daily for 6+ months, knows shortcuts, pushes edge cases"
+evaluates_from: "Efficiency, advanced workflows, batch operations, customizability"
+typical_questions:
+  - "Can I do this faster? Are there keyboard shortcuts or bulk actions?"
+  - "Does this integrate with my existing workflow or force context-switching?"
+  - "What happens at scale? 100 items? 1000 items?"
+  - "Can I customize or automate repetitive tasks?"
+blind_spots: "Overvalues power features, may not notice onboarding issues for new users"
+output_format: "workflow efficiency report + missing shortcuts + scale test results + automation gaps"

@@ -186,6 +186,12 @@ export function materializeTasks(events: DomainEvent[]): TaskStore {
           depends_on: (p.depends_on as string[]) || [],
           blocked_by: [],
           evidence: [],
+          adapter: p.adapter as string | undefined,
+          persona: p.persona as string | undefined,
+          skill: p.skill as string | undefined,
+          attempt: p.attempt as number | undefined,
+          workspace_path: p.workspace_path as string | undefined,
+          session_id: p.session_id as string | undefined,
           created_at: evt.ts,
           updated_at: evt.ts,
         });
@@ -222,6 +228,13 @@ export function materializeTasks(events: DomainEvent[]): TaskStore {
         }
         task.status = to;
         task.updated_at = evt.ts;
+        // Preserve orchestration fields from transition payload
+        if (p.adapter) task.adapter = p.adapter as string;
+        if (p.persona) task.persona = p.persona as string;
+        if (p.skill) task.skill = p.skill as string;
+        if (p.attempt) task.attempt = p.attempt as number;
+        if (p.workspace_path) task.workspace_path = p.workspace_path as string;
+        if (p.session_id) task.session_id = p.session_id as string;
         break;
       }
     }
