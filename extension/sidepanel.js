@@ -14,7 +14,7 @@ let eventSource = null;
 
 async function connect() {
   const stored = await chrome.storage.local.get(['apex_port', 'apex_token']);
-  port = stored.apex_port || 34567;
+  port = stored.apex_port || 3456;
   token = stored.apex_token || '';
 
   try {

@@ -369,6 +369,84 @@ export async function startHub() {
         return new Response(null, { status: 204, headers: corsHeaders });
       }
 
+      // Extension API: health check
+      if (url.pathname === "/status") {
+        return Response.json({ ok: true, port, projects: listProjects().length }, { headers: corsHeaders });
+      }
+
+      // Extension API: activity stream (SSE) — reads event log from .apex/log/
+      if (url.pathname === "/activity/stream") {
+        const proj = resolveProject(url);
+        let lastLineCount = 0;
+
+        function eventLogToActivity(entry: any) {
+          const type = entry.type || "";
+          const payload = entry.payload || {};
+          const command = type.toUpperCase().replace(/\./g, "_");
+          let result = "";
+          if (payload.stage) result = `stage: ${payload.stage}`;
+          else if (payload.title) result = payload.title;
+          else if (payload.id) result = `${payload.id}: ${payload.from || ""} → ${payload.to || ""}`;
+          return {
+            ts: entry.ts || new Date().toISOString(),
+            ok: !type.includes("fail") && !type.includes("block"),
+            command,
+            result: result.slice(0, 120),
+            duration_ms: 0,
+          };
+        }
+
+        function readLogLines(projectDir: string): string[] {
+          const logDir = join(projectDir, ".apex", "log");
+          if (!existsSync(logDir)) return [];
+          const files = readdirSync(logDir).filter(f => f.endsWith(".jsonl")).sort();
+          const lines: string[] = [];
+          for (const file of files) {
+            lines.push(...readFileSync(join(logDir, file), "utf-8").split("\n").filter(Boolean));
+          }
+          return lines;
+        }
+
+        const stream = new ReadableStream({
+          start(controller) {
+            const encoder = new TextEncoder();
+            // Send last 50 events as initial burst
+            if (proj) {
+              const lines = readLogLines(proj[0]);
+              lastLineCount = lines.length;
+              for (const line of lines.slice(-50)) {
+                try {
+                  const evt = eventLogToActivity(JSON.parse(line));
+                  controller.enqueue(encoder.encode(`data: ${JSON.stringify(evt)}\n\n`));
+                } catch { /* skip */ }
+              }
+            }
+            // Poll for new entries every 3s
+            const interval = setInterval(() => {
+              try {
+                if (proj) {
+                  const lines = readLogLines(proj[0]);
+                  if (lines.length > lastLineCount) {
+                    for (const line of lines.slice(lastLineCount)) {
+                      try {
+                        const evt = eventLogToActivity(JSON.parse(line));
+                        controller.enqueue(encoder.encode(`data: ${JSON.stringify(evt)}\n\n`));
+                      } catch { /* skip */ }
+                    }
+                    lastLineCount = lines.length;
+                  }
+                }
+                controller.enqueue(encoder.encode(": keepalive\n\n"));
+              } catch { /* ignore */ }
+            }, 3000);
+            req.signal.addEventListener("abort", () => clearInterval(interval));
+          },
+        });
+        return new Response(stream, {
+          headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive", ...corsHeaders },
+        });
+      }
+
       // API: enriched project list
       if (url.pathname === "/api/projects") {
         return Response.json(
