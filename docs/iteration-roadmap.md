@@ -48,21 +48,46 @@
 
 ## Phase 3：多 Agent 自动编排
 
-前提：Phase 1 完成，单 Agent pipeline 稳定可靠。
+### 已完成（v0.2.0，2026-04-12）
 
-### 3.1 Orchestrator 接入 pipeline
+| 项目 | 状态 |
+|------|------|
+| 3.1a RuntimeAdapter 接口 + 3 个内置 adapter（Claude/Codex/Gemini） | 完成 |
+| 3.1b Adapter 自动检测 + 注册表 | 完成 |
+| 3.1c 两种编排模式（并行分派 + 跨模型分派） | 完成 |
+| 3.1d Workspace 隔离（目录级） + DAG 产出注入 | 完成 |
+| 3.1e Retry + 指数退避 | 完成 |
+| 3.1f Prompt builder（task + skill + persona + 上下文） | 完成 |
+| 3.1g Result collector + 多 agent findings 合并去重 | 完成 |
+| 3.1h Task 状态转移（orchestrator 正确关闭 DAG） | 完成 |
+| 3.1i Persona 系统（6 个初始 persona，4 专家 + 2 用户） | 完成 |
+| 3.1j Expert Panel Review skill | 完成 |
+| 3.1k Registry 增强（118 模板，新增 skill/persona/dispatch_mode） | 完成 |
 
-`src/orchestrator.ts`（271 行）已实现。接入方式：plan 产出的独立任务 > 3 个时，execute 自动启用 orchestrator 并行派发。支持多种 Agent（Claude/Codex）按角色分配。
+### 待做（最后一公里）
 
-### 3.2 共识算法从测试到生产
+**3.2 端到端可用性（最高优先级）**
 
-四种算法（Raft/BFT/Gossip/CRDT）已实现有测试，但是同一进程内模拟。上生产需要进程间通信层。
+5 个问题必须解决才能真正跑通：
+1. Git worktree 隔离（当前是普通目录，并行 agent 操作同一个 git 工作区会冲突）
+2. Agent 在 workspace 内工作（spawn 时设置 cwd 为 workspace 路径）
+3. Agent 权限预配置（--dangerously-skip-permissions 或 workspace 内 settings.json）
+4. 结果验证逻辑（不只看 exit code，检查 result.json 存在性和格式）
+5. 端到端集成测试（mock agent 验证完整 dispatch → reap → retry → DAG 流程）
 
-接入顺序：CRDT（多 Agent 写 memory 不冲突）→ Gossip（Agent 间传播发现）→ Raft（Leader 选举）→ BFT（输出可靠性投票）。
+**3.3 共识算法（降低优先级）**
 
-### 3.3 端到端多 Agent 测试
+四种算法已有测试，但生产化的前提条件变了：
+- CRDT 仍然有价值（多 agent 写 memory 不冲突），优先级最高
+- Gossip/Raft/BFT 降低到 Phase 6（多机部署才需要）
 
-两个 Agent 同时执行不同任务不踩脚、依赖图正确等待、失败自动重分配、跨 Agent 审查结果聚合。
+**3.4 ACP 适配器（中期）**
+
+当 Agent Communication Protocol 标准成熟后，新增 ACPAdapter 替换手动 adapter。
+
+**3.5 发布后用户模拟测试（远期）**
+
+ship 之后用 Persona 模拟多元用户群体实际使用产品，反馈 bug 和 UX 问题。
 
 ---
 
