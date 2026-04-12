@@ -175,15 +175,15 @@ export async function startDashboard(portOverride?: number, options?: DashboardO
 
   const hubUrl = `http://localhost:${hPort}`;
 
-  // If Hub is already running, just register and open — no need to stay alive
+  // If Hub is already running, just register — don't open browser again.
+  // The existing Hub tab will discover the new project via SSE/polling.
   if (await isPortListening(hPort)) {
     console.log(`Dashboard: ${hubUrl}`);
     console.log(`  Project "${projectName}" registered with existing Hub.`);
-    openHub(hubUrl, projectDir);
     return;
   }
 
-  // Hub not running — start it in this process (stays alive), then open
+  // Hub not running — start it in this process, then open browser for the first time
   await startHub();
   console.log(`  Project "${projectName}" registered.`);
   openHub(hubUrl, projectDir);
