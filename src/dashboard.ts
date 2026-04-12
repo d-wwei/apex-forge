@@ -940,6 +940,8 @@ async function buildEnrichedProjectList(currentProjectDir?: string) {
  */
 function deriveStageFromTasks(state: any, tasks: any[]): any {
   if (!tasks || tasks.length === 0) return state;
+  // If explicitly set to idle, respect it — don't override with derived stage
+  if (state.current_stage === "idle") return state;
 
   const STAGE_ORDER = ["idle", "brainstorm", "plan", "execute", "review", "ship", "compound"];
   const currentIdx = STAGE_ORDER.indexOf(state.current_stage || "idle");
