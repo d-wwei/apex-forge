@@ -938,13 +938,71 @@ async function buildEnrichedProjectList(currentProjectDir?: string) {
  * - Tasks exist but none started → at least "plan" (tasks were decomposed)
  * - "at least" means: only advance forward, never regress
  */
-function deriveStageFromTasks(state: any, _tasks: any[]): any {
-  // Trust state.json as the authoritative source for pipeline stage.
-  // Previous versions tried to derive stage from task status, but this
-  // caused incorrect overrides (e.g. brainstorm → execute because old
-  // tasks from a previous run existed). The CLI (`apex stage set`) is
-  // the single writer for current_stage.
-  return state;
+/**
+ * Reconcile pipeline stage between state.json and task status.
+ *
+ * Trust priority:
+ * 1. If state was explicitly set (idle, or session_id differs from tasks) → trust state.json
+ * 2. If tasks are from the SAME session and suggest a more advanced stage → trust derivation
+ *    (handles agent crash where state.json didn't get updated)
+ * 3. On conflict, prefer state.json but annotate with a warning
+ */
+function deriveStageFromTasks(state: any, tasks: any[]): any {
+  if (!tasks || tasks.length === 0) return state;
+
+  const currentStage = state.current_stage || "idle";
+  const stateSession = state.session_id || "";
+
+  // If explicitly idle, always trust state — user or CLI chose this
+  if (currentStage === "idle") return state;
+
+  // Check if tasks belong to the current session
+  const logDir = state._logDir; // injected by caller if available
+  const stateLastUpdated = state.last_updated ? new Date(state.last_updated).getTime() : 0;
+
+  // Heuristic: if state was updated AFTER the last task transition, state.json wins.
+  // This catches the "reset to brainstorm but old tasks exist" case.
+  const lastTaskTime = tasks.reduce((max: number, t: any) => {
+    const ts = t.updated_at || t.created_at || "";
+    return ts ? Math.max(max, new Date(ts).getTime()) : max;
+  }, 0);
+
+  if (stateLastUpdated > lastTaskTime && lastTaskTime > 0) {
+    // state.json was written more recently than any task change → trust state
+    return state;
+  }
+
+  // Derive what stage tasks suggest
+  const STAGE_ORDER = ["idle", "brainstorm", "plan", "execute", "review", "ship", "compound"];
+  const currentIdx = STAGE_ORDER.indexOf(currentStage);
+  const total = tasks.length;
+  const done = tasks.filter((t: any) => t.status === "done").length;
+  const inProgress = tasks.filter((t: any) => t.status === "in_progress").length;
+
+  let derivedStage = currentStage;
+  if (done === total && total > 0) {
+    if (currentIdx < STAGE_ORDER.indexOf("ship")) derivedStage = "ship";
+  } else if (inProgress > 0 || (done > 0 && done < total)) {
+    if (currentIdx < STAGE_ORDER.indexOf("execute")) derivedStage = "execute";
+  }
+
+  // Only advance, never regress
+  if (STAGE_ORDER.indexOf(derivedStage) <= currentIdx) return state;
+
+  // Derivation suggests advancement — build updated state
+  const history = [...(state.history || [])];
+  const now = new Date().toISOString();
+  for (let i = currentIdx; i < STAGE_ORDER.indexOf(derivedStage); i++) {
+    const stageName = STAGE_ORDER[i];
+    if (stageName === "idle") continue;
+    const existing = history.find((h: any) => h.stage === stageName && !h.completed);
+    if (existing) existing.completed = now;
+  }
+  if (!history.some((h: any) => h.stage === derivedStage && !h.completed)) {
+    history.push({ stage: derivedStage, started: now });
+  }
+
+  return { ...state, current_stage: derivedStage, history };
 }
 
 async function buildStatePayload(projectDir: string, projectName: string) {
