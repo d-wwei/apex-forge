@@ -1136,15 +1136,108 @@ function reconcileTasksFromGit(projectDir: string, tasks: any): boolean {
     }
   }
 
-  // Persist changes back to tasks.json
-  if (changed) {
-    try {
-      const tasksPath = join(projectDir, ".apex", "tasks.json");
-      writeFileSync(tasksPath, JSON.stringify(tasks, null, 2));
-    } catch { /* ignore write failures */ }
-  }
+  // Do NOT persist — tasks.json is written by `apex task` CLI (single-writer).
+  // Reconciliation only affects the API response for display purposes.
 
   return changed;
+}
+
+/**
+ * Derive pipeline stage from filesystem reality when state.json is stale.
+ * Checks for artifacts that indicate which stages have been completed:
+ * - brainstorm: docs/brainstorms/ or docs/specs/ files exist
+ * - plan: docs/plans/ or docs/superpowers/plans/ files exist
+ * - execute: source code changes after plan files, or tasks exist
+ * - review: docs/reviews/ files exist
+ * - ship: git tags or release commits after review
+ */
+function reconcileStageFromFiles(projectDir: string, state: any): any {
+  if (state.current_stage !== "idle") return state; // only fix stale idle
+
+  // Only consider files created AFTER the current session started
+  const sessionStart = state.last_updated ? new Date(state.last_updated).getTime() : 0;
+
+  const checks: [string, string[]][] = [
+    ["brainstorm", ["docs/brainstorms", "docs/specs"]],
+    ["plan", ["docs/plans", "docs/superpowers/plans"]],
+    ["review", ["docs/reviews", ".apex/reviews"]],
+  ];
+
+  function hasRecentFiles(dir: string): boolean {
+    const fullPath = join(projectDir, dir);
+    if (!existsSync(fullPath)) return false;
+    try {
+      const files = readdirSync(fullPath).filter(f => !f.startsWith("."));
+      // Check if any file was created/modified after session start
+      for (const file of files) {
+        try {
+          const gitTime = execSync(
+            `git -C "${projectDir}" log -1 --format=%aI -- "${join(dir, file)}" 2>/dev/null`,
+            { encoding: "utf-8", timeout: 2000 },
+          ).trim();
+          if (gitTime && new Date(gitTime).getTime() > sessionStart) return true;
+        } catch { /* skip */ }
+        // Fallback: check filesystem mtime
+        try {
+          const filePath = join(fullPath, file);
+          const mtime = Bun.file(filePath).lastModified;
+          if (mtime > sessionStart) return true;
+        } catch { /* skip */ }
+      }
+    } catch { /* skip */ }
+    return false;
+  }
+
+  let latestStage = "idle";
+  const completedStages: string[] = [];
+
+  for (const [stage, dirs] of checks) {
+    for (const dir of dirs) {
+      if (hasRecentFiles(dir)) {
+        completedStages.push(stage);
+        latestStage = stage;
+        break;
+      }
+    }
+  }
+
+  // Check for execute: if plan completed in this session and tasks exist
+  if (completedStages.includes("plan")) {
+    const tasksPath = join(projectDir, ".apex", "tasks.json");
+    if (existsSync(tasksPath)) {
+      try {
+        const tasks = JSON.parse(readFileSync(tasksPath, "utf-8"));
+        const recentTasks = tasks.tasks?.filter((t: any) =>
+          t.created_at && new Date(t.created_at).getTime() > sessionStart
+        );
+        if (recentTasks && recentTasks.length > 0) {
+          completedStages.push("execute");
+          latestStage = "execute";
+        }
+      } catch { /* skip */ }
+    }
+  }
+
+  if (latestStage === "idle") return state;
+
+  // Current stage = the latest completed one (still in progress)
+  // or the next one if we're sure it's done
+  const STAGE_ORDER = ["brainstorm", "plan", "execute", "review", "ship", "compound"];
+  const latestIdx = STAGE_ORDER.indexOf(latestStage);
+  const currentStage = STAGE_ORDER[latestIdx]; // stay on the latest detected stage
+
+  const now = new Date().toISOString();
+  const history: any[] = completedStages.slice(0, -1).map(s => ({ stage: s, started: now, completed: now }));
+  // Last stage is current (not completed)
+  history.push({ stage: currentStage, started: now });
+
+  // Return derived state for display only — do NOT persist.
+  // state.json is only written by `apex stage set` (CLI single-writer).
+  return {
+    ...state,
+    current_stage: currentStage,
+    history,
+  };
 }
 
 async function buildStatePayload(projectDir: string, projectName: string) {
@@ -1170,11 +1263,14 @@ async function buildStatePayload(projectDir: string, projectName: string) {
   // Reconcile task status from git reality before building payload
   reconcileTasksFromGit(projectDir, tasks);
 
-  const state = await readJSON(join(apexDir, "state.json"), {
+  let state = await readJSON(join(apexDir, "state.json"), {
     current_stage: "idle",
     artifacts: {} as Record<string, string[]>,
     history: [] as any[],
   });
+
+  // Reconcile stage from filesystem reality if state.json is stale idle
+  state = reconcileStageFromFiles(projectDir, state);
 
   const derivedState = deriveStageFromTasks(state, tasks.tasks);
 
