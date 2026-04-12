@@ -131,6 +131,14 @@ function openHub(hubUrl: string, projectPath?: string) {
           const apps = readdirSync(dir);
           const pwa = apps.find(a => a.toLowerCase().includes("apex forge") && a.endsWith(".app"));
           if (pwa) {
+            // Check if PWA is already running — don't open another instance
+            try {
+              const running = execSync(`pgrep -f "Apex Forge" 2>/dev/null`, { encoding: "utf-8" }).trim();
+              if (running) {
+                console.log(`  PWA already running — skipping.`);
+                return;
+              }
+            } catch { /* not running, proceed to open */ }
             execSync(`open "${join(dir, pwa)}"`, { stdio: "ignore" });
             console.log(`  Opened PWA: ${pwa}`);
             return;
@@ -1042,94 +1050,90 @@ function reconcileTasksFromGit(projectDir: string, tasks: any): boolean {
   for (const task of incompleteTasks) {
     const createdAt = task.created_at || "";
     if (!createdAt) continue;
+    const createdTime = new Date(createdAt).getTime();
 
-    // Extract keywords from title + description for matching
-    const searchText = `${task.title || ""} ${task.description || ""}`.toLowerCase();
+    // Collect evidence from multiple independent sources.
+    // Require score >= 2 to mark as done (prevents false positives).
+    let score = 0;
+    const evidenceParts: string[] = [];
 
-    // Strategy 1: Check git log for commits after task creation
-    let commitEvidence = "";
+    // Evidence A (strong, +2): Task ID appears in a commit message after creation
     try {
       const log = execSync(
         `git -C "${projectDir}" log --oneline --after="${createdAt}" --all 2>/dev/null`,
         { encoding: "utf-8", timeout: 3000 },
       ).trim();
-
       if (log) {
-        // Check if any commit message relates to this task
-        const commits = log.split("\n");
-        for (const commit of commits) {
-          const msg = commit.toLowerCase();
-          // Match by task ID (T13, T14...) or keywords from title
-          const titleWords = (task.title || "").toLowerCase().split(/\s+/).filter((w: string) => w.length > 3);
-          const idMatch = msg.includes(task.id.toLowerCase());
-          const keywordMatch = titleWords.length > 0 && titleWords.some((w: string) => msg.includes(w));
-          if (idMatch || keywordMatch) {
-            commitEvidence = `git: ${commit.trim()}`;
+        const taskIdLower = task.id.toLowerCase();
+        for (const line of log.split("\n")) {
+          if (line.toLowerCase().includes(taskIdLower)) {
+            score += 2;
+            evidenceParts.push(`commit mentions ${task.id}: ${line.trim().slice(0, 80)}`);
             break;
           }
         }
       }
-    } catch { /* git not available or timeout */ }
+    } catch { /* skip */ }
 
-    // Strategy 2: Check if files mentioned in description/title exist and were modified after task creation
-    if (!commitEvidence) {
-      const filePatterns = searchText.match(/[\w\-./]+\.(md|ts|js|yaml|json|css|html|tsx|jsx)/g) || [];
-      const createdTime = new Date(createdAt).getTime();
-      for (const pattern of filePatterns) {
-        const candidates = [
-          join(projectDir, pattern),
-          join(projectDir, "skills", pattern),
-          join(projectDir, "skill", pattern),
-          join(projectDir, "src", pattern),
-          join(projectDir, "docs", pattern),
-        ];
-        for (const filePath of candidates) {
-          try {
-            if (existsSync(filePath)) {
-              // File exists — check if modified after task creation via git
-              const gitTime = execSync(
-                `git -C "${projectDir}" log -1 --format=%aI -- "${filePath}" 2>/dev/null`,
-                { encoding: "utf-8", timeout: 2000 },
-              ).trim();
-              if (gitTime && new Date(gitTime).getTime() > createdTime) {
-                commitEvidence = `file verified: ${pattern} (committed ${gitTime.slice(0, 10)})`;
-                break;
-              }
-            }
-          } catch { /* skip */ }
-        }
-        if (commitEvidence) break;
-      }
-    }
-
-    // Strategy 3: Check git diff --stat for changed files matching keywords
-    if (!commitEvidence) {
-      try {
-        const diffStat = execSync(
-          `git -C "${projectDir}" log --after="${createdAt}" --all --name-only --format="" 2>/dev/null`,
-          { encoding: "utf-8", timeout: 3000 },
-        ).trim();
-        if (diffStat) {
-          const changedFiles = diffStat.split("\n").filter(Boolean);
-          const titleWords = (task.title || "").toLowerCase().split(/\s+/).filter((w: string) => w.length > 3);
-          for (const file of changedFiles) {
-            const fl = file.toLowerCase();
-            if (titleWords.some((w: string) => fl.includes(w))) {
-              commitEvidence = `related file: ${file}`;
+    // Evidence B (+1 each): Files explicitly named in description exist and were committed after creation
+    const searchText = `${task.title || ""} ${task.description || ""}`;
+    const filePatterns = searchText.match(/[\w\-./]+\.(md|ts|js|yaml|json|css|html|tsx|jsx)/g) || [];
+    let filesVerified = 0;
+    for (const pattern of filePatterns) {
+      const candidates = [
+        join(projectDir, pattern),
+        join(projectDir, "skills", pattern),
+        join(projectDir, "skill", pattern),
+        join(projectDir, "src", pattern),
+        join(projectDir, "docs", pattern),
+      ];
+      for (const filePath of candidates) {
+        try {
+          if (existsSync(filePath)) {
+            const gitTime = execSync(
+              `git -C "${projectDir}" log -1 --format=%aI -- "${filePath}" 2>/dev/null`,
+              { encoding: "utf-8", timeout: 2000 },
+            ).trim();
+            if (gitTime && new Date(gitTime).getTime() > createdTime) {
+              filesVerified++;
+              evidenceParts.push(`file: ${pattern}`);
               break;
             }
+          }
+        } catch { /* skip */ }
+      }
+    }
+    score += Math.min(filesVerified, 2); // cap at +2
+
+    // Evidence C (+1): Multiple title keywords appear in changed file paths
+    if (score < 2) {
+      try {
+        const changedFiles = execSync(
+          `git -C "${projectDir}" log --after="${createdAt}" --all --name-only --format="" 2>/dev/null`,
+          { encoding: "utf-8", timeout: 3000 },
+        ).trim().split("\n").filter(Boolean);
+        // Require 2+ title words to match (not just one generic word)
+        const titleWords = (task.title || "").toLowerCase().split(/\s+/).filter((w: string) => w.length > 4);
+        if (titleWords.length >= 2) {
+          const matchCount = titleWords.filter((w: string) =>
+            changedFiles.some(f => f.toLowerCase().includes(w))
+          ).length;
+          if (matchCount >= 2) {
+            score += 1;
+            evidenceParts.push(`${matchCount} title keywords in changed files`);
           }
         }
       } catch { /* skip */ }
     }
 
-    if (commitEvidence) {
+    // Threshold: need score >= 2 from independent sources
+    if (score >= 2) {
       task.status = "done";
       task.updated_at = new Date().toISOString();
       task.completed_at = task.updated_at;
       task.evidence = task.evidence || [];
       task.evidence.push({
-        content: `auto-reconciled: ${commitEvidence}`,
+        content: `auto-reconciled (confidence ${score}): ${evidenceParts.join("; ")}`,
         submitted_at: task.updated_at,
       });
       changed = true;
