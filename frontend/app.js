@@ -295,18 +295,21 @@ function renderPipeline(state, tasks) {
   var current = state.current_stage || 'idle';
   var history = (state.history || []).map(function(h) { return h.stage; });
 
-  // If state.json has no history, derive progress from tasks
-  if (history.length === 0 && current === 'idle' && tasks && tasks.tasks && tasks.tasks.length > 0) {
+  // If explicitly idle, show clean slate — no inherited checkmarks
+  if (current === 'idle') {
+    history = [];
+  }
+
+  // If state.json has no history and not idle, derive progress from tasks
+  if (history.length === 0 && current !== 'idle' && tasks && tasks.tasks && tasks.tasks.length > 0) {
     var hasDone = tasks.tasks.some(function(t) { return t.status === 'done'; });
     var hasInProgress = tasks.tasks.some(function(t) { return t.status === 'in_progress'; });
     var allDone = tasks.tasks.every(function(t) { return t.status === 'done'; });
 
     if (allDone) {
-      // All tasks done → full cycle complete; enter compound (reflect + iterate)
       history = ['brainstorm', 'plan', 'execute', 'review', 'ship'];
       current = 'compound';
     } else if (hasDone || hasInProgress) {
-      // Some tasks done or in progress → executing
       history = ['brainstorm', 'plan'];
       current = 'execute';
     }
