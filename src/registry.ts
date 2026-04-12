@@ -89,49 +89,38 @@ export function unregister(projectPath: string) {
 }
 
 /**
- * List all registered projects, filtering out dead PIDs.
- * Does NOT write back to the registry file — pruning is deferred
- * to pruneRegistry() to avoid a read-modify-write race between
- * concurrent register() and listProjects() calls.
+ * List all registered projects.
+ * A project is considered active if its .apex/ directory exists
+ * (the registering process may have exited — that's normal in Hub mode).
  */
 export function listProjects(): ProjectEntry[] {
   const reg = readRegistry();
-  const alive: ProjectEntry[] = [];
-
-  for (const p of reg.projects) {
+  return reg.projects.filter((p) => {
     try {
-      // Check if process is still alive (signal 0 = existence check)
-      process.kill(p.pid, 0);
-      alive.push(p);
+      return existsSync(join(p.path, ".apex"));
     } catch {
-      // Process is dead, skip it
+      return false;
     }
-  }
-
-  return alive;
+  });
 }
 
 /**
- * Explicitly prune dead entries from registry.
- * Call this from a single owner (e.g. hub startup) rather than
- * on every list request, to avoid write races.
+ * Prune entries whose .apex/ directory no longer exists.
+ * Call from hub startup to clean up stale entries.
  */
 export function pruneRegistry(): number {
   const reg = readRegistry();
-  const alive: ProjectEntry[] = [];
-
-  for (const p of reg.projects) {
+  const valid = reg.projects.filter((p) => {
     try {
-      process.kill(p.pid, 0);
-      alive.push(p);
+      return existsSync(join(p.path, ".apex"));
     } catch {
-      // dead
+      return false;
     }
-  }
+  });
 
-  const pruned = reg.projects.length - alive.length;
+  const pruned = reg.projects.length - valid.length;
   if (pruned > 0) {
-    writeRegistry({ projects: alive });
+    writeRegistry({ projects: valid });
   }
   return pruned;
 }

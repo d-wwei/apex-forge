@@ -158,33 +158,20 @@ export async function startDashboard(portOverride?: number, options?: DashboardO
   // ── Default mode: register project + ensure Hub is the single entry point ──
   const hPort = hubPort();
 
-  // Register this project so Hub can discover it
+  // Register this project so Hub can discover it.
+  // No PID-based lifecycle — registry entries persist until .apex/ is removed.
   const port = autoPort(projectDir);
-  const entry = {
+  register({
     name: projectName,
     path: projectDir,
-    port, // kept for registry compat, but no server listens here
+    port,
     pid: process.pid,
     startedAt: new Date().toISOString(),
-  };
-  register(entry);
-
-  // Re-register every 30s (heartbeat)
-  const heartbeat = setInterval(() => {
-    try { register(entry); } catch { /* ignore */ }
-  }, 30_000);
-
-  const cleanup = () => {
-    clearInterval(heartbeat);
-    try { unregister(projectDir); } catch {}
-  };
-  process.on("exit", cleanup);
-  process.on("SIGINT", () => { cleanup(); process.exit(0); });
-  process.on("SIGTERM", () => { cleanup(); process.exit(0); });
+  });
 
   const hubUrl = `http://localhost:${hPort}`;
 
-  // If Hub is already running, just register and open
+  // If Hub is already running, just register and open — no need to stay alive
   if (await isPortListening(hPort)) {
     console.log(`Dashboard: ${hubUrl}`);
     console.log(`  Project "${projectName}" registered with existing Hub.`);
@@ -192,7 +179,7 @@ export async function startDashboard(portOverride?: number, options?: DashboardO
     return;
   }
 
-  // Hub not running — start it in this process, then open
+  // Hub not running — start it in this process (stays alive), then open
   await startHub();
   console.log(`  Project "${projectName}" registered.`);
   openHub(hubUrl);
