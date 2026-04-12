@@ -59,17 +59,31 @@ Read the plan and classify the work:
 9. `apex task verify T{N} pass` — mark done (updates Dashboard).
 
 ### Small Dispatch (Parallel)
+**BEFORE dispatching sub-agents**, update task status in the main project:
+```bash
+# Mark all tasks being dispatched as in_progress (updates Dashboard immediately)
+apex task assign T{N} && apex task start T{N}
+```
+
 For each independent task (no unfinished dependencies):
-1. Provide task ID, description, file paths, test paths, acceptance criteria.
-2. Enforce TDD: write test FIRST, see RED, then implement.
-3. Run two-stage review on each result (see below).
-4. Tasks with dependencies wait until upstream tasks are done.
+1. `apex task assign T{N} && apex task start T{N}` — **mandatory, do this BEFORE dispatch**.
+2. Provide task ID, description, file paths, test paths, acceptance criteria.
+3. Enforce TDD: write test FIRST, see RED, then implement.
+4. Run two-stage review on each result (see below).
+5. Tasks with dependencies wait until upstream tasks are done.
+
+**AFTER each sub-agent completes**, update from the main agent:
+```bash
+apex task submit T{N} "evidence: <summary>" && apex task verify T{N} pass
+```
 
 ### Large Dispatch (Hierarchical)
 1. Group tasks into batches of 3-5 based on dependency graph.
-2. Execute each batch as a Small dispatch.
-3. Between batches: verify outputs, check for integration issues.
-4. If a batch fails, do NOT proceed. Fix first.
+2. **Before each batch**: `apex task assign T{N} && apex task start T{N}` for all tasks in the batch.
+3. Execute each batch as a Small dispatch.
+4. **After each batch**: `apex task submit T{N} "evidence"` + `apex task verify T{N} pass` for completed tasks.
+5. Between batches: verify outputs, check for integration issues.
+6. If a batch fails, do NOT proceed. Fix first.
 
 ---
 
