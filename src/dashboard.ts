@@ -938,63 +938,13 @@ async function buildEnrichedProjectList(currentProjectDir?: string) {
  * - Tasks exist but none started → at least "plan" (tasks were decomposed)
  * - "at least" means: only advance forward, never regress
  */
-function deriveStageFromTasks(state: any, tasks: any[]): any {
-  if (!tasks || tasks.length === 0) return state;
-  // If explicitly set to idle, respect it — don't override with derived stage
-  if (state.current_stage === "idle") return state;
-
-  const STAGE_ORDER = ["idle", "brainstorm", "plan", "execute", "review", "ship", "compound"];
-  const currentIdx = STAGE_ORDER.indexOf(state.current_stage || "idle");
-
-  const total = tasks.length;
-  const done = tasks.filter((t: any) => t.status === "done").length;
-  const inProgress = tasks.filter((t: any) => t.status === "in_progress").length;
-
-  let derivedStage = state.current_stage || "idle";
-
-  if (done === total && total > 0) {
-    // All tasks complete → at least ship
-    if (currentIdx < STAGE_ORDER.indexOf("ship")) {
-      derivedStage = "ship";
-    }
-  } else if (inProgress > 0 || (done > 0 && done < total)) {
-    // Work in progress → at least execute
-    if (currentIdx < STAGE_ORDER.indexOf("execute")) {
-      derivedStage = "execute";
-    }
-  } else if (total > 0 && done === 0 && inProgress === 0) {
-    // Tasks exist, none started → at least plan
-    if (currentIdx < STAGE_ORDER.indexOf("plan")) {
-      derivedStage = "plan";
-    }
-  }
-
-  if (derivedStage === state.current_stage) return state;
-
-  // Build updated state with auto-completed history entries
-  const history = [...(state.history || [])];
-  const now = new Date().toISOString();
-
-  // Complete any stages between current and derived
-  const fromIdx = currentIdx;
-  const toIdx = STAGE_ORDER.indexOf(derivedStage);
-  for (let i = fromIdx; i < toIdx; i++) {
-    const stageName = STAGE_ORDER[i];
-    if (stageName === "idle") continue;
-    const existing = history.find((h: any) => h.stage === stageName && !h.completed);
-    if (existing) existing.completed = now;
-  }
-
-  // Add the derived stage if not already in history
-  if (!history.some((h: any) => h.stage === derivedStage && !h.completed)) {
-    history.push({ stage: derivedStage, started: now });
-  }
-
-  return {
-    ...state,
-    current_stage: derivedStage,
-    history,
-  };
+function deriveStageFromTasks(state: any, _tasks: any[]): any {
+  // Trust state.json as the authoritative source for pipeline stage.
+  // Previous versions tried to derive stage from task status, but this
+  // caused incorrect overrides (e.g. brainstorm → execute because old
+  // tasks from a previous run existed). The CLI (`apex stage set`) is
+  // the single writer for current_stage.
+  return state;
 }
 
 async function buildStatePayload(projectDir: string, projectName: string) {
