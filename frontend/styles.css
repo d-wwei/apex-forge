@@ -437,6 +437,10 @@ html, body {
   border-color: var(--accent-gold-light);
 }
 
+.kanban-board.kanban-collapsed {
+  align-items: start;
+}
+
 .kanban-board.kanban-collapsed .kanban-cards {
   max-height: 460px;
   overflow: hidden;
