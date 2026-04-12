@@ -24,6 +24,7 @@ const DEMO_PROJECTS = [];
 let currentView = 'home';
 let currentProject = null;
 let sidebarCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+let kanbanCollapsed = localStorage.getItem('kanbanCollapsed') !== 'false'; // default collapsed
 let evtSource = null;
 let sseConnected = false;
 let loadedProjects = null;
@@ -50,6 +51,26 @@ function navigateToProject(project) {
 
   updateSidebarActive(project);
   initialLoad();
+}
+
+function toggleKanban() {
+  kanbanCollapsed = !kanbanCollapsed;
+  localStorage.setItem('kanbanCollapsed', kanbanCollapsed);
+  applyKanbanCollapse();
+}
+
+function applyKanbanCollapse() {
+  const board = document.getElementById('kanban-board');
+  const btn = document.getElementById('kanban-toggle');
+  if (!board) return;
+  const totalTasks = board.querySelectorAll('.task-card').length;
+  board.classList.toggle('kanban-collapsed', kanbanCollapsed);
+  if (btn) btn.textContent = kanbanCollapsed ? 'EXPAND (' + totalTasks + ' TASKS)' : 'COLLAPSE';
+  // Mark columns that actually overflow
+  board.querySelectorAll('.kanban-column').forEach(col => {
+    const cards = col.querySelector('.kanban-cards');
+    if (cards) col.classList.toggle('has-overflow', cards.scrollHeight > cards.clientHeight + 2);
+  });
 }
 
 function toggleSidebar() {
@@ -222,6 +243,7 @@ function renderKanban(tasks) {
       }).join('');
     }
   }
+  applyKanbanCollapse();
 }
 
 function renderPipeline(state, tasks) {

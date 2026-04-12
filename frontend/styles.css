@@ -412,6 +412,58 @@ html, body {
   color: var(--text-dim);
 }
 
+/* --- Kanban Collapse/Expand --- */
+.kanban-section { position: relative; }
+
+.section-heading-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.kanban-toggle-btn {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  background: var(--bg-tag);
+  border: 1px solid var(--border-main);
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.kanban-toggle-btn:hover {
+  color: var(--accent-gold-light);
+  border-color: var(--accent-gold-light);
+}
+
+.kanban-board.kanban-collapsed .kanban-cards {
+  max-height: 460px;
+  overflow: hidden;
+  position: relative;
+}
+
+.kanban-board.kanban-collapsed .kanban-column {
+  position: relative;
+}
+
+/* Gradient fade at the bottom of collapsed columns */
+.kanban-board.kanban-collapsed .kanban-column::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: linear-gradient(transparent, var(--bg-main));
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.kanban-board.kanban-collapsed .kanban-column.has-overflow::after {
+  opacity: 1;
+}
+
 /* --- Two Column Row --- */
 .two-col-row {
   display: grid;

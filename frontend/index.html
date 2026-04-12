@@ -126,57 +126,7 @@
   <div id="view-dashboard" class="sub-view active">
     <div class="main-content">
 
-      <!-- Kanban Board Section -->
-      <section>
-        <div class="section-heading-row">
-          <h2 class="section-heading">Task Orchestration Board</h2>
-          <span class="section-badge" id="pipeline-status-badge">STATUS: RUNNING</span>
-        </div>
-        <div class="kanban-board" id="kanban-board">
-          <!-- Open -->
-          <div class="kanban-column" data-status="open">
-            <div class="kanban-column-header">
-              <span class="kanban-column-label status-open" id="col-label-open">OPEN [00]</span>
-              <span class="kanban-column-dot status-open"></span>
-            </div>
-            <div class="kanban-cards" id="col-open"></div>
-          </div>
-          <!-- Assigned -->
-          <div class="kanban-column" data-status="assigned">
-            <div class="kanban-column-header">
-              <span class="kanban-column-label status-assigned" id="col-label-assigned">ASSIGNED [00]</span>
-              <span class="kanban-column-dot status-assigned"></span>
-            </div>
-            <div class="kanban-cards" id="col-assigned"></div>
-          </div>
-          <!-- In Progress -->
-          <div class="kanban-column" data-status="in_progress">
-            <div class="kanban-column-header">
-              <span class="kanban-column-label status-in-progress" id="col-label-in_progress">IN PROGRESS [00]</span>
-              <span class="kanban-column-dot status-in-progress"></span>
-            </div>
-            <div class="kanban-cards" id="col-in_progress"></div>
-          </div>
-          <!-- To Verify -->
-          <div class="kanban-column" data-status="to_verify">
-            <div class="kanban-column-header">
-              <span class="kanban-column-label status-to-verify" id="col-label-to_verify">TO VERIFY [00]</span>
-              <span class="kanban-column-dot status-to-verify"></span>
-            </div>
-            <div class="kanban-cards" id="col-to_verify"></div>
-          </div>
-          <!-- Done -->
-          <div class="kanban-column" data-status="done">
-            <div class="kanban-column-header">
-              <span class="kanban-column-label status-done" id="col-label-done">DONE [00]</span>
-              <span class="kanban-column-dot status-done"></span>
-            </div>
-            <div class="kanban-cards" id="col-done"></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Pipeline + Telemetry Row -->
+      <!-- Pipeline + Telemetry Row (overview first) -->
       <div class="two-col-row">
 
         <!-- Pipeline Orchestration -->
@@ -224,6 +174,59 @@
           </div>
         </div>
       </div>
+
+      <!-- Kanban Board Section -->
+      <section class="kanban-section">
+        <div class="section-heading-row">
+          <h2 class="section-heading">Task Orchestration Board</h2>
+          <div class="section-heading-right">
+            <span class="section-badge" id="pipeline-status-badge">STATUS: RUNNING</span>
+            <button class="kanban-toggle-btn" id="kanban-toggle" onclick="toggleKanban()">COLLAPSE</button>
+          </div>
+        </div>
+        <div class="kanban-board" id="kanban-board">
+          <!-- Open -->
+          <div class="kanban-column" data-status="open">
+            <div class="kanban-column-header">
+              <span class="kanban-column-label status-open" id="col-label-open">OPEN [00]</span>
+              <span class="kanban-column-dot status-open"></span>
+            </div>
+            <div class="kanban-cards" id="col-open"></div>
+          </div>
+          <!-- Assigned -->
+          <div class="kanban-column" data-status="assigned">
+            <div class="kanban-column-header">
+              <span class="kanban-column-label status-assigned" id="col-label-assigned">ASSIGNED [00]</span>
+              <span class="kanban-column-dot status-assigned"></span>
+            </div>
+            <div class="kanban-cards" id="col-assigned"></div>
+          </div>
+          <!-- In Progress -->
+          <div class="kanban-column" data-status="in_progress">
+            <div class="kanban-column-header">
+              <span class="kanban-column-label status-in-progress" id="col-label-in_progress">IN PROGRESS [00]</span>
+              <span class="kanban-column-dot status-in-progress"></span>
+            </div>
+            <div class="kanban-cards" id="col-in_progress"></div>
+          </div>
+          <!-- To Verify -->
+          <div class="kanban-column" data-status="to_verify">
+            <div class="kanban-column-header">
+              <span class="kanban-column-label status-to-verify" id="col-label-to_verify">TO VERIFY [00]</span>
+              <span class="kanban-column-dot status-to-verify"></span>
+            </div>
+            <div class="kanban-cards" id="col-to_verify"></div>
+          </div>
+          <!-- Done -->
+          <div class="kanban-column" data-status="done">
+            <div class="kanban-column-header">
+              <span class="kanban-column-label status-done" id="col-label-done">DONE [00]</span>
+              <span class="kanban-column-dot status-done"></span>
+            </div>
+            <div class="kanban-cards" id="col-done"></div>
+          </div>
+        </div>
+      </section>
 
       <!-- Activity + Memory Row -->
       <div class="two-col-row">
