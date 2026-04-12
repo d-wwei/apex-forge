@@ -25,9 +25,40 @@ let currentView = 'home';
 let currentProject = null;
 let sidebarCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
 let kanbanCollapsed = localStorage.getItem('kanbanCollapsed') !== 'false'; // default collapsed
+let currentLang = localStorage.getItem('lang') || 'en';
 let evtSource = null;
 let sseConnected = false;
 let loadedProjects = null;
+
+// ===== 2b. i18n =====
+
+function t(key) {
+  const table = LOCALE[currentLang] || LOCALE.en;
+  return table[key] !== undefined ? table[key] : (LOCALE.en[key] || key);
+}
+
+function toggleLang() {
+  currentLang = currentLang === 'en' ? 'zh' : 'en';
+  localStorage.setItem('lang', currentLang);
+  applyLocale();
+  // Re-render dynamic content with new language
+  if (loadedProjects) {
+    renderProjectCards(loadedProjects);
+    renderSidebar(loadedProjects);
+  }
+}
+
+function applyLocale() {
+  // Update all static elements with data-i18n
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    const val = t(key);
+    if (val !== key) el.textContent = val;
+  });
+  // Update lang toggle buttons
+  const label = currentLang === 'en' ? '中' : 'EN';
+  document.querySelectorAll('.lang-toggle-btn').forEach(btn => { btn.textContent = label; });
+}
 
 // ===== 3. Navigation =====
 
@@ -46,7 +77,7 @@ function navigateToProject(project) {
   document.getElementById('view-project').classList.add('active');
 
   const name = project.name || 'UNKNOWN';
-  document.getElementById('top-bar-project').textContent = 'PROJECT: ' + name;
+  document.getElementById('top-bar-project').textContent = t('common.projectPrefix') + name;
   document.getElementById('top-bar-time').textContent = new Date().toISOString().replace('T', ' ').slice(0, 19);
 
   updateSidebarActive(project);
@@ -65,7 +96,7 @@ function applyKanbanCollapse() {
   if (!board) return;
   const totalTasks = board.querySelectorAll('.task-card').length;
   board.classList.toggle('kanban-collapsed', kanbanCollapsed);
-  if (btn) btn.textContent = kanbanCollapsed ? 'EXPAND (' + totalTasks + ' TASKS)' : 'COLLAPSE';
+  if (btn) btn.textContent = kanbanCollapsed ? t('kanban.expand') + ' (' + totalTasks + ' ' + t('kanban.tasks') + ')' : t('kanban.collapse');
   // Mark columns that actually overflow
   board.querySelectorAll('.kanban-column').forEach(col => {
     const cards = col.querySelector('.kanban-cards');
@@ -88,7 +119,7 @@ function renderProjectCards(projects) {
   const active = projects.filter(p => p.status !== 'archived').length;
   const archived = projects.filter(p => p.status === 'archived').length;
   const subtitle = document.getElementById('home-subtitle');
-  if (subtitle) subtitle.textContent = projects.length + ' projects \u00b7 ' + active + ' active \u00b7 ' + archived + ' archived';
+  if (subtitle) subtitle.textContent = t('home.subtitle').replace('{count}', projects.length).replace('{active}', active).replace('{archived}', archived);
 
   grid.innerHTML = projects.map((p, i) => {
     const dotClass = p.status === 'archived' ? 'gray' : (p.status === 'building' ? 'blue' : 'green');
@@ -167,7 +198,7 @@ function renderSidebar(projects) {
       '<div class="sidebar-project-dot" style="background:' + dotColor + '"></div>' +
       '<div class="sidebar-project-info">' +
         '<span class="sidebar-project-name">' + esc(p.name) + '</span>' +
-        '<span class="sidebar-project-meta">' + p.tasks + ' tasks \u00b7 ' + p.success.toFixed(1) + '%</span>' +
+        '<span class="sidebar-project-meta">' + p.tasks + t('common.tasks') + p.success.toFixed(1) + '%</span>' +
       '</div>' +
       '<div class="sidebar-project-compact">' +
         '<span class="compact-name">' + esc(abbr) + '</span>' +
@@ -211,7 +242,7 @@ function render(data) {
 
   if (data.project) {
     const name = (data.project.name || 'unknown').toUpperCase().replace(/[^A-Z0-9_-]/g, '_');
-    document.getElementById('top-bar-project').textContent = 'PROJECT: ' + name;
+    document.getElementById('top-bar-project').textContent = t('common.projectPrefix') + name;
     document.title = 'APEX FORGE \u2014 ' + data.project.name;
   }
 
@@ -219,27 +250,32 @@ function render(data) {
   const stageActive = (data.state.current_stage || 'idle') !== 'idle';
   const tasksActive = (data.tasks.tasks || []).some(function(t) { return t.status === 'in_progress'; });
   document.getElementById('pipeline-status').textContent =
-    'STATUS: ' + (stageActive || tasksActive ? 'RUNNING' : 'IDLE');
+    (stageActive || tasksActive ? t('pipeline.statusRunning') : t('pipeline.statusIdle'));
 }
+
+const KANBAN_LABEL_KEYS = {
+  open: 'kanban.open', assigned: 'kanban.assigned', in_progress: 'kanban.inProgress',
+  to_verify: 'kanban.toVerify', done: 'kanban.done'
+};
 
 function renderKanban(tasks) {
   const cols = { open: [], assigned: [], in_progress: [], to_verify: [], done: [] };
-  for (const t of (tasks.tasks || [])) {
-    const bucket = cols[t.status] !== undefined ? t.status : 'open';
-    cols[bucket].push(t);
+  for (const tk of (tasks.tasks || [])) {
+    const bucket = cols[tk.status] !== undefined ? tk.status : 'open';
+    cols[bucket].push(tk);
   }
   for (const [status, items] of Object.entries(cols)) {
     const label = document.getElementById('col-label-' + status);
-    if (label) label.textContent = status.replace(/_/g, ' ').toUpperCase() + ' [' + String(items.length).padStart(2, '0') + ']';
+    if (label) label.textContent = t(KANBAN_LABEL_KEYS[status]) + ' [' + String(items.length).padStart(2, '0') + ']';
     const container = document.getElementById('col-' + status);
     if (!container) continue;
     if (items.length === 0) {
-      container.innerHTML = '<div class="kanban-empty"><span class="kanban-empty-text">NO TASKS ' + (status === 'done' ? 'COMPLETED' : 'HERE') + '</span></div>';
+      container.innerHTML = '<div class="kanban-empty"><span class="kanban-empty-text">' + (status === 'done' ? t('kanban.noTasksDone') : t('kanban.noTasks')) + '</span></div>';
     } else {
-      container.innerHTML = items.map(t => {
+      container.innerHTML = items.map(tk => {
         const statusClass = 'status-' + status.replace(/_/g, '-');
-        const deps = t.depends_on && t.depends_on.length ? 'DEP: ' + esc(t.depends_on.join(', ')) : 'DEP: NULL';
-        return '<div class="task-card ' + statusClass + '"><div class="task-id">TASK_ID: ' + esc(t.id) + '</div><div class="task-title">' + esc(t.title) + '</div><div class="task-meta"><span class="task-dep">' + deps + '</span><span class="task-evidence">' + (t.evidence ? t.evidence.length : 0) + ' EVIDENCE</span></div></div>';
+        const deps = tk.depends_on && tk.depends_on.length ? t('kanban.dep') + esc(tk.depends_on.join(', ')) : t('kanban.depNull');
+        return '<div class="task-card ' + statusClass + '"><div class="task-id">' + t('kanban.taskId') + esc(tk.id) + '</div><div class="task-title">' + esc(tk.title) + '</div><div class="task-meta"><span class="task-dep">' + deps + '</span><span class="task-evidence">' + (tk.evidence ? tk.evidence.length : 0) + t('kanban.evidence') + '</span></div></div>';
       }).join('');
     }
   }
@@ -272,28 +308,28 @@ function renderPipeline(state, tasks) {
     const isActive = s === current, isCompleted = history.includes(s);
     const circleClass = isActive ? 'active' : isCompleted ? 'completed' : '';
     const icon = isCompleted ? CHECK_ICON : STAGE_ICONS[s];
-    return '<div class="pipeline-stage"><div class="stage-circle ' + circleClass + '">' + icon + '</div><span class="stage-label ' + circleClass + '">' + s + '</span></div>';
+    return '<div class="pipeline-stage"><div class="stage-circle ' + circleClass + '">' + icon + '</div><span class="stage-label ' + circleClass + '">' + t('stage.' + s) + '</span></div>';
   }).join('');
   const artEl = document.getElementById('pipeline-artifacts');
   if (state.artifacts && Object.keys(state.artifacts).length > 0) {
     const entries = Object.entries(state.artifacts).filter(([, v]) => v && v.length > 0);
     if (entries.length > 0) {
-      artEl.innerHTML = entries.map(([stageName, items]) => '<div><div class="artifact-section-label">' + esc(stageName) + ' Artifacts</div>' + items.map(item => '<div class="artifact-item"><span class="artifact-dot"></span><span class="artifact-name">' + esc(item) + '</span></div>').join('') + '</div>').join('');
+      artEl.innerHTML = entries.map(([stageName, items]) => '<div><div class="artifact-section-label">' + esc(stageName) + t('pipeline.artifacts') + '</div>' + items.map(item => '<div class="artifact-item"><span class="artifact-dot"></span><span class="artifact-name">' + esc(item) + '</span></div>').join('') + '</div>').join('');
       return;
     }
   }
   artEl.innerHTML = '<div class="empty-state">' +
     '<div class="empty-state-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.2" stroke-dasharray="3 2"/><path d="M8 5v6M5 8h6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></div>' +
-    '<div class="empty-state-title">No Artifacts</div>' +
-    '<div class="empty-state-hint">Artifacts are generated as you progress through pipeline stages.</div>' +
-    '<div class="empty-state-cmd">/apex-forge brainstorm</div>' +
+    '<div class="empty-state-title">' + t('pipeline.noArtifacts') + '</div>' +
+    '<div class="empty-state-hint">' + t('pipeline.noArtifactsHint') + '</div>' +
+    '<div class="empty-state-cmd">' + t('pipeline.noArtifactsCmd') + '</div>' +
   '</div>';
 }
 
 function renderTelemetry(analytics) {
   if (!analytics || analytics.length === 0) {
     document.getElementById('stat-total').textContent = '0';
-    document.getElementById('stat-avg').innerHTML = '0<span class="stat-unit">s</span>';
+    document.getElementById('stat-avg').innerHTML = '0<span class="stat-unit">' + t('telemetry.seconds') + '</span>';
     document.getElementById('stat-rate').textContent = '--';
     renderSkillBars([]);
     return;
@@ -301,7 +337,7 @@ function renderTelemetry(analytics) {
   const bySkill = {}; let totalDur = 0, successes = 0;
   for (const a of analytics) { const s = a.skill || a.name || 'unknown'; if (!bySkill[s]) bySkill[s] = { count: 0, dur: 0 }; bySkill[s].count++; const dur = a.duration_s != null ? a.duration_s : (a.duration || 0); bySkill[s].dur += dur; totalDur += dur; if ((a.outcome || a.result) === 'success') successes++; }
   document.getElementById('stat-total').textContent = analytics.length.toLocaleString();
-  document.getElementById('stat-avg').innerHTML = (totalDur / analytics.length).toFixed(1) + '<span class="stat-unit">s</span>';
+  document.getElementById('stat-avg').innerHTML = (totalDur / analytics.length).toFixed(1) + '<span class="stat-unit">' + t('telemetry.seconds') + '</span>';
   document.getElementById('stat-rate').textContent = (successes / analytics.length * 100).toFixed(1) + '%';
   const entries = Object.entries(bySkill).sort((a, b) => b[1].count - a[1].count).slice(0, 5);
   const maxCount = Math.max(...entries.map(([, v]) => v.count), 1);
@@ -311,10 +347,10 @@ function renderTelemetry(analytics) {
 function renderSkillBars(bars) {
   const el = document.getElementById('skill-bars');
   if (bars.length === 0) {
-    el.innerHTML = '<div style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim);text-align:center;padding:12px 0;">No skill data yet</div>';
+    el.innerHTML = '<div style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim);text-align:center;padding:12px 0;">' + t('telemetry.noSkillData') + '</div>';
     return;
   }
-  el.innerHTML = bars.map(b => '<div class="skill-bar-row"><div class="skill-bar-header"><span class="skill-bar-name">' + esc(b.name) + '</span><span class="skill-bar-count">' + b.count + ' CALLS</span></div><div class="skill-bar-track"><div class="skill-bar-fill" style="width:' + b.pct + '%"></div></div></div>').join('');
+  el.innerHTML = bars.map(b => '<div class="skill-bar-row"><div class="skill-bar-header"><span class="skill-bar-name">' + esc(b.name) + '</span><span class="skill-bar-count">' + b.count + t('telemetry.calls') + '</span></div><div class="skill-bar-track"><div class="skill-bar-fill" style="width:' + b.pct + '%"></div></div></div>').join('');
 }
 
 function renderActivity(analytics) {
@@ -322,8 +358,8 @@ function renderActivity(analytics) {
   if (!analytics || analytics.length === 0) {
     el.innerHTML = '<div class="empty-state">' +
       '<div class="empty-state-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M8 5v3.5l2.5 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>' +
-      '<div class="empty-state-title">No Activity</div>' +
-      '<div class="empty-state-hint">Skill invocations and tool calls will appear here as you work.</div>' +
+      '<div class="empty-state-title">' + t('activity.noActivity') + '</div>' +
+      '<div class="empty-state-hint">' + t('activity.noActivityHint') + '</div>' +
     '</div>';
     return;
   }
@@ -338,7 +374,7 @@ function renderActivity(analytics) {
 
 function renderActivityRow(r, highlighted) {
   const statusIcon = r.status === 'success' ? '<svg class="activity-status-icon" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="currentColor"/></svg>' : '<svg class="activity-status-icon" viewBox="0 0 10 10"><path d="M2 2L8 8M8 2L2 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
-  return '<div class="activity-row' + (highlighted ? ' highlighted' : '') + '"><span class="activity-time">' + esc(r.time) + '</span><span class="activity-skill">' + esc(r.skill) + '</span><span class="activity-status ' + r.status + '">' + (r.status === 'success' ? 'SUCCESS' : 'FAILED') + ' ' + statusIcon + '</span><span class="activity-duration">' + esc(r.dur) + '</span></div>';
+  return '<div class="activity-row' + (highlighted ? ' highlighted' : '') + '"><span class="activity-time">' + esc(r.time) + '</span><span class="activity-skill">' + esc(r.skill) + '</span><span class="activity-status ' + r.status + '">' + (r.status === 'success' ? t('activity.success') : t('activity.failed')) + ' ' + statusIcon + '</span><span class="activity-duration">' + esc(r.dur) + '</span></div>';
 }
 
 function renderMemory(memory) {
@@ -347,9 +383,9 @@ function renderMemory(memory) {
   if (facts.length === 0) {
     el.innerHTML = '<div class="empty-state">' +
       '<div class="empty-state-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" stroke="currentColor" stroke-width="1.2"/><path d="M5 6h6M5 8.5h4M5 11h2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></div>' +
-      '<div class="empty-state-title">No Memory Facts</div>' +
-      '<div class="empty-state-hint">Project knowledge and learned patterns are stored here.</div>' +
-      '<div class="empty-state-cmd">/apex-forge-memory add</div>' +
+      '<div class="empty-state-title">' + t('memory.noFacts') + '</div>' +
+      '<div class="empty-state-hint">' + t('memory.noFactsHint') + '</div>' +
+      '<div class="empty-state-cmd">' + t('memory.noFactsCmd') + '</div>' +
     '</div>';
     return;
   }
@@ -360,8 +396,8 @@ function renderMemory(memory) {
 }
 
 function renderMemoryFact(f) {
-  const levelLabel = f.level === 'high' ? 'HIGH' : f.level === 'med' ? 'MED' : 'LOW';
-  return '<div class="memory-fact confidence-' + f.level + '"><div class="memory-fact-header"><span class="memory-confidence-badge ' + f.level + '">' + levelLabel + '_CONFIDENCE (' + f.confidence.toFixed(2) + ')</span><div class="memory-tags">' + f.tags.map(t => '<span class="memory-tag">' + esc(t) + '</span>').join('') + '</div></div><div class="memory-fact-content">' + esc(f.content) + '</div></div>';
+  const levelLabel = f.level === 'high' ? t('memory.high') : f.level === 'med' ? t('memory.med') : t('memory.low');
+  return '<div class="memory-fact confidence-' + f.level + '"><div class="memory-fact-header"><span class="memory-confidence-badge ' + f.level + '">' + levelLabel + t('memory.confidence') + ' (' + f.confidence.toFixed(2) + ')</span><div class="memory-tags">' + f.tags.map(tg => '<span class="memory-tag">' + esc(tg) + '</span>').join('') + '</div></div><div class="memory-fact-content">' + esc(f.content) + '</div></div>';
 }
 
 // ===== 6b. Design Comparison =====
@@ -374,10 +410,10 @@ function renderDesignComparison() {
     const countEl = document.getElementById('variant-count');
     if (!gallery) return;
 
-    if (countEl) countEl.textContent = designs.length + ' VARIANTS';
+    if (countEl) countEl.textContent = designs.length + t('design.variants');
 
     if (designs.length === 0) {
-      gallery.innerHTML = '<div class="activity-empty">No designs yet. Run <code>apex design generate</code> or <code>apex design variants</code> to create designs.</div>';
+      gallery.innerHTML = '<div class="activity-empty">' + t('design.noDesigns') + '</div>';
       return;
     }
 
@@ -403,7 +439,7 @@ function renderDesignComparison() {
     }).join('');
   }).catch(() => {
     const gallery = document.getElementById('variant-gallery');
-    if (gallery) gallery.innerHTML = '<div class="activity-empty">Could not load designs.</div>';
+    if (gallery) gallery.innerHTML = '<div class="activity-empty">' + t('design.loadError') + '</div>';
   });
 }
 
@@ -452,6 +488,7 @@ async function initialLoad() {
 // ===== 9. Init =====
 
 document.addEventListener('DOMContentLoaded', () => {
+  applyLocale();
   loadProjectCards();
 
   // Sub-tab switching

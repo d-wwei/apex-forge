@@ -22,7 +22,7 @@
         <div></div>
         <div class="home-hero-status">
           <span class="status-dot"></span>
-          <span class="home-hero-status-text">CONNECTED</span>
+          <span class="home-hero-status-text" data-i18n="common.connected">CONNECTED</span>
           <div class="home-hero-avatar">E</div>
         </div>
       </div>
@@ -36,8 +36,9 @@
         <span class="sticky-nav-brand">APEX FORGE</span>
       </div>
       <div class="sticky-nav-right">
+        <button class="lang-toggle-btn" id="lang-toggle-home" onclick="toggleLang()">中</button>
         <span class="status-dot"></span>
-        <span class="sticky-nav-status">CONNECTED</span>
+        <span class="sticky-nav-status" data-i18n="common.connected">CONNECTED</span>
         <div class="home-hero-avatar">E</div>
       </div>
     </div>
@@ -46,18 +47,18 @@
     <div class="home-content">
       <div class="home-header">
         <div class="home-header-left">
-          <h2 class="home-title">YOUR PROJECTS</h2>
+          <h2 class="home-title" data-i18n="home.title">YOUR PROJECTS</h2>
           <span class="home-subtitle" id="home-subtitle">6 projects &middot; 4 active &middot; 2 archived</span>
         </div>
-        <button class="home-new-btn" id="home-new-btn">+ NEW PROJECT</button>
+        <button class="home-new-btn" id="home-new-btn" data-i18n="home.newProject">+ NEW PROJECT</button>
       </div>
 
       <div class="home-search">
         <div class="home-search-input">
-          <span class="home-search-placeholder">Search projects...</span>
+          <span class="home-search-placeholder" data-i18n="home.searchPlaceholder">Search projects...</span>
         </div>
-        <div class="home-filter-btn">Status: All</div>
-        <div class="home-filter-btn">Sort: Recent</div>
+        <div class="home-filter-btn" data-i18n="home.filterStatus">Status: All</div>
+        <div class="home-filter-btn" data-i18n="home.filterSort">Sort: Recent</div>
       </div>
 
       <div class="home-grid" id="project-grid">
@@ -82,18 +83,18 @@
       </div>
       <div class="sidebar-back-link" id="sidebar-back-link">
         <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8L10 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-        <span>ALL PROJECTS</span>
+        <span data-i18n="nav.allProjects">ALL PROJECTS</span>
       </div>
       <div class="sidebar-search-wrap">
         <div class="sidebar-search-box">
-          <span class="sidebar-search-text">Search projects...</span>
+          <span class="sidebar-search-text" data-i18n="home.searchPlaceholder">Search projects...</span>
         </div>
       </div>
-      <div class="sidebar-section-label">PROJECTS</div>
+      <div class="sidebar-section-label" data-i18n="nav.projects">PROJECTS</div>
       <div class="sidebar-list" id="sidebar-list">
         <!-- Project items rendered by JS -->
       </div>
-      <div class="sidebar-archived-label">ARCHIVED</div>
+      <div class="sidebar-archived-label" data-i18n="nav.archived">ARCHIVED</div>
       <div class="sidebar-archived-list" id="sidebar-archived-list">
         <!-- Archived items rendered by JS -->
       </div>
@@ -108,16 +109,19 @@
           <span class="top-bar-project" id="top-bar-project">PROJECT: APEX_FORGE_V4</span>
           <div class="top-bar-status">
             <span class="status-dot"></span>
-            <span class="top-bar-status-text">CONNECTED</span>
+            <span class="top-bar-status-text" data-i18n="common.connected">CONNECTED</span>
           </div>
         </div>
-        <span class="top-bar-time" id="top-bar-time">2026-03-31 14:38:00</span>
+        <div class="top-bar-right-group">
+          <button class="lang-toggle-btn" id="lang-toggle" onclick="toggleLang()">中</button>
+          <span class="top-bar-time" id="top-bar-time">2026-03-31 14:38:00</span>
+        </div>
       </div>
 
       <!-- Sub-Tab Navigation -->
       <nav class="sub-tabs">
-        <button class="sub-tab active" data-view="dashboard">DASHBOARD</button>
-        <button class="sub-tab" data-view="comparison">DESIGN COMPARISON</button>
+        <button class="sub-tab active" data-view="dashboard" data-i18n="nav.dashboard">DASHBOARD</button>
+        <button class="sub-tab" data-view="comparison" data-i18n="nav.designComparison">DESIGN COMPARISON</button>
       </nav>
 
   <!-- ================================================================
@@ -132,7 +136,7 @@
         <!-- Pipeline Orchestration -->
         <div class="panel">
           <div class="panel-header">
-            <span class="panel-title">Pipeline Orchestration</span>
+            <span class="panel-title" data-i18n="pipeline.title">Pipeline Orchestration</span>
             <span class="panel-badge" id="pipeline-status">STATUS: IDLE</span>
           </div>
           <div class="panel-body">
@@ -149,26 +153,26 @@
         <!-- System Telemetry -->
         <div class="panel">
           <div class="panel-header">
-            <span class="panel-title">System Telemetry</span>
+            <span class="panel-title" data-i18n="telemetry.title">System Telemetry</span>
             <button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:16px;letter-spacing:2px;">...</button>
           </div>
           <div class="panel-body">
             <div class="telemetry-stats" id="telemetry-stats">
               <div class="stat-card gold">
-                <span class="stat-label">Total Runs</span>
+                <span class="stat-label" data-i18n="telemetry.totalRuns">Total Runs</span>
                 <span class="stat-value" id="stat-total">0</span>
               </div>
               <div class="stat-card blue">
-                <span class="stat-label">Avg Duration</span>
+                <span class="stat-label" data-i18n="telemetry.avgDuration">Avg Duration</span>
                 <span class="stat-value" id="stat-avg">--<span class="stat-unit">s</span></span>
               </div>
               <div class="stat-card green">
-                <span class="stat-label">Success Rate</span>
+                <span class="stat-label" data-i18n="telemetry.successRate">Success Rate</span>
                 <span class="stat-value green" id="stat-rate">--%</span>
               </div>
             </div>
             <div class="skill-ranking" id="skill-ranking">
-              <div class="skill-ranking-title">Skill Performance Ranking</div>
+              <div class="skill-ranking-title" data-i18n="telemetry.skillRanking">Skill Performance Ranking</div>
               <div id="skill-bars"></div>
             </div>
           </div>
@@ -178,7 +182,7 @@
       <!-- Kanban Board Section -->
       <section class="kanban-section">
         <div class="section-heading-row">
-          <h2 class="section-heading">Task Orchestration Board</h2>
+          <h2 class="section-heading" data-i18n="kanban.title">Task Orchestration Board</h2>
           <div class="section-heading-right">
             <span class="section-badge" id="pipeline-status-badge">STATUS: RUNNING</span>
             <button class="kanban-toggle-btn" id="kanban-toggle" onclick="toggleKanban()">COLLAPSE</button>
@@ -234,13 +238,13 @@
         <!-- Activity Stream -->
         <div class="panel activity-panel">
           <div class="panel-header">
-            <span class="panel-title">Activity Stream</span>
+            <span class="panel-title" data-i18n="activity.title">Activity Stream</span>
           </div>
           <div class="panel-body" id="activity-stream">
             <div class="empty-state">
               <div class="empty-state-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M8 5v3.5l2.5 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-              <div class="empty-state-title">No Activity</div>
-              <div class="empty-state-hint">Skill invocations and tool calls will appear here as you work.</div>
+              <div class="empty-state-title" data-i18n="activity.noActivity">No Activity</div>
+              <div class="empty-state-hint" data-i18n="activity.noActivityHint">Skill invocations and tool calls will appear here as you work.</div>
             </div>
           </div>
         </div>
@@ -248,7 +252,7 @@
         <!-- Cognitive Memory -->
         <div class="panel memory-panel">
           <div class="panel-header">
-            <span class="panel-title">Cognitive Memory</span>
+            <span class="panel-title" data-i18n="memory.title">Cognitive Memory</span>
             <svg width="10.5" height="7" viewBox="0 0 11 7" fill="none" style="cursor:pointer;">
               <path d="M1 1L5.5 5.5L10 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-muted)"/>
             </svg>
@@ -256,8 +260,8 @@
           <div class="panel-body" id="memory-list">
             <div class="empty-state">
               <div class="empty-state-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" stroke="currentColor" stroke-width="1.2"/><path d="M5 6h6M5 8.5h4M5 11h2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></div>
-              <div class="empty-state-title">No Memory Facts</div>
-              <div class="empty-state-hint">Project knowledge and learned patterns are stored here.</div>
+              <div class="empty-state-title" data-i18n="memory.noFacts">No Memory Facts</div>
+              <div class="empty-state-hint" data-i18n="memory.noFactsHint">Project knowledge and learned patterns are stored here.</div>
               <div class="empty-state-cmd">/apex-forge-memory add</div>
             </div>
           </div>
@@ -274,11 +278,11 @@
     <div class="main-content">
 
       <div class="comparison-header">
-        <h1 class="comparison-title">Design Comparison</h1>
+        <h1 class="comparison-title" data-i18n="design.title">Design Comparison</h1>
         <div class="comparison-subtitle">
           <span class="comparison-count" id="variant-count">-- VARIANTS</span>
           <span class="comparison-separator">|</span>
-          <span class="comparison-info">SNAPSHOT DIFF ANALYSIS</span>
+          <span class="comparison-info" data-i18n="design.snapshotDiff">SNAPSHOT DIFF ANALYSIS</span>
         </div>
       </div>
 
@@ -298,6 +302,7 @@
 </div>
 
 <script>if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});</script>
+<script src="/locale.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

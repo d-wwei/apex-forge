@@ -154,7 +154,23 @@ After successful ship:
 
 > **Shipped.** Commit `{hash}` on branch `{branch}`.
 > {PR URL or "Push to remote and create PR manually."}
-> Next: proceed to the Compound stage to capture learnings.
+
+### Auto-advance to Compound (iteration reflection)
+
+After reporting the ship result, call `AskUserQuestion` with:
+- question: "交付完成。是否进入复盘迭代阶段？"
+- header: "Compound"
+- options:
+  1. label: "进入复盘 (Recommended)", description: "提取本次迭代的经验教训，更新路线图"
+  2. label: "跳过", description: "不复盘，直接结束本轮"
+
+If user selects "进入复盘":
+```bash
+apex stage set compound
+```
+Then follow `stages/compound.md`.
+
+If user selects "跳过": mark pipeline as complete without compound.
 
 | Status | When |
 |--------|------|

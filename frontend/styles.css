@@ -421,6 +421,30 @@ html, body {
   gap: 12px;
 }
 
+/* --- Language Toggle --- */
+.lang-toggle-btn {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--accent-gold-light);
+  background: transparent;
+  border: 1px solid var(--accent-gold-light);
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.lang-toggle-btn:hover {
+  background: var(--accent-gold-light);
+  color: var(--bg-main);
+}
+
+.top-bar-right-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .kanban-toggle-btn {
   font-family: var(--font-mono);
   font-size: 10px;

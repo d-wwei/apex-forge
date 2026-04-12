@@ -44,6 +44,19 @@ Then check `apex status --json` for interrupted sessions. Also check memory back
 If stage is not `idle` or tasks are `in_progress`/`to_verify`:
 > 上次中断在 {stage} 阶段。{N} 个任务未完成（{task IDs}）。要继续还是重新开始？
 
+### Compound stage reminder (fallback)
+
+If stage is `ship` and all tasks are `done`, but history does NOT include `compound`:
+Call `AskUserQuestion` with:
+- question: "上次交付已完成但未进行复盘。是否现在进入复盘迭代？"
+- header: "Compound"
+- options:
+  1. label: "进入复盘 (Recommended)", description: "提取经验教训，更新路线图"
+  2. label: "跳过，开始新任务", description: "跳过复盘，重置为 idle"
+
+If "进入复盘": `apex stage set compound`, then follow `stages/compound.md`.
+If "跳过": `apex stage set idle`.
+
 ---
 
 ## Command Modes
