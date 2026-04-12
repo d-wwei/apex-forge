@@ -41,7 +41,23 @@ Then check `apex status --json` for interrupted sessions. Also check memory back
 - Agent Recall backend: `getActiveTask()` returns cross-session task state across all platforms.
 - Local fallback: reads `.apex/tasks.json` for `in_progress` tasks.
 
-If stage is not `idle` or tasks are `in_progress`/`to_verify`:
+### Task state reconciliation (MANDATORY before resuming)
+
+If there are tasks that are NOT `done` (i.e. `open`, `assigned`, `in_progress`, `to_verify`):
+
+1. **Cross-check each incomplete task against the actual codebase:**
+   - Read the task's description and target files
+   - Check if those files exist, have been modified, or committed via `git log --oneline -5` / `git diff --stat`
+   - If the code is already done but the task status is stale (e.g. sub-agent completed in a worktree but status was never updated), fix it:
+     ```bash
+     apex task assign T{N} && apex task start T{N} && apex task submit T{N} "evidence: code verified in repo" && apex task verify T{N} pass
+     ```
+
+2. **After reconciliation**, report the corrected state to the user.
+
+This handles: sub-agent work merged but not reflected in dashboard, user commits outside AF, stale status from crashes.
+
+If stage is not `idle` or tasks are `in_progress`/`to_verify` (after reconciliation):
 > 上次中断在 {stage} 阶段。{N} 个任务未完成（{task IDs}）。要继续还是重新开始？
 
 ### Compound stage reminder (fallback)
