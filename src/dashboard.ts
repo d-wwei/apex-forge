@@ -916,52 +916,8 @@ function listDesignFiles(designDir: string): { name: string; path: string; size:
   }
 }
 
-function loadJSONL(filePath: string): any[] {
-  if (!existsSync(filePath)) return [];
-  try {
-    return readFileSync(filePath, "utf-8")
-      .trim()
-      .split("\n")
-      .filter(Boolean)
-      .map((l) => {
-        try { return JSON.parse(l); } catch { return null; }
-      })
-      .filter(Boolean);
-  } catch {
-    return [];
-  }
-}
-
-function loadEvents(apexDir: string) {
-  // Merge two sources: hook-written events + legacy telemetry analytics
-  const hookEvents = loadJSONL(join(apexDir, "events.jsonl"));
-  const legacyAnalytics = loadJSONL(join(apexDir, "analytics", "usage.jsonl"));
-
-  // Normalize hook events into a unified activity format
-  const activities = hookEvents.map((e) => ({
-    ts: e.ts,
-    skill: e.tool || "unknown",
-    outcome: "success", // hooks only fire on completed calls
-    duration_s: 0,
-    meta: e.meta || {},
-    source: "hook",
-  }));
-
-  // Normalize legacy analytics
-  const legacy = legacyAnalytics.map((a) => ({
-    ts: a.ts || a.timestamp || "",
-    skill: a.skill || a.name || "unknown",
-    outcome: a.outcome || a.result || "unknown",
-    duration_s: a.duration_s ?? a.duration ?? 0,
-    meta: {},
-    source: "telemetry",
-  }));
-
-  // Merge, sort by timestamp (newest last), cap at 50 most recent
-  return [...legacy, ...activities]
-    .sort((a, b) => (a.ts || "").localeCompare(b.ts || ""))
-    .slice(-50);
-}
+// Analytics loading extracted to utils/analytics.ts for testability
+import { loadJSONL, loadEvents } from "./utils/analytics.js";
 
 /** Enriched project list shared by project dashboards and hub. */
 async function buildEnrichedProjectList(currentProjectDir?: string) {
@@ -991,10 +947,31 @@ async function buildEnrichedProjectList(currentProjectDir?: string) {
       };
     })
   );
+  // Compute worktree groups (only groups with 2+ worktrees)
+  const wtGroups = groupProjectsByRepo(projects);
+  // Build a lookup: projectPath → group info
+  const projectGroupMap = new Map<string, { repoRoot: string; repoName: string; siblingCount: number }>();
+  for (const g of wtGroups) {
+    for (const pp of g.projectPaths) {
+      projectGroupMap.set(pp, { repoRoot: g.repoRoot, repoName: g.repoName, siblingCount: g.worktrees.length });
+    }
+  }
+  // Annotate each project with its worktree group (if any)
+  const annotated = enriched.map(p => {
+    const group = projectGroupMap.get(p.path);
+    return group ? { ...p, worktreeGroup: group } : p;
+  });
+
   return {
     current: currentProjectDir || null,
     hub: hubPort(),
-    projects: enriched,
+    projects: annotated,
+    worktreeGroups: wtGroups.map(g => ({
+      repoRoot: g.repoRoot,
+      repoName: g.repoName,
+      worktrees: g.worktrees.map(wt => wt.label),
+      projectPaths: g.projectPaths,
+    })),
   };
 }
 

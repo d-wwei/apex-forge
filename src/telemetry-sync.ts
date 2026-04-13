@@ -4,6 +4,9 @@
  * Telemetry Remote Sync
  *
  * Uploads local JSONL analytics to a configurable remote endpoint.
+ * Syncs three data sources: usage, orchestrator, and traces.
+ * Each file has an independent sync cursor for incremental uploads.
+ *
  * Supports two modes:
  *   - Supabase (if endpoint contains "supabase")
  *   - Generic webhook (POST JSON to any URL)
@@ -18,8 +21,11 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { dirname } from "path";
 
-const ANALYTICS_FILE = ".apex/analytics/usage.jsonl";
-const SYNC_STATE_FILE = ".apex/analytics/.sync-state";
+const ANALYTICS_FILES = [
+  { path: ".apex/analytics/usage.jsonl", stateFile: ".apex/analytics/.sync-state", source: "telemetry" },
+  { path: ".apex/analytics/orchestrator.jsonl", stateFile: ".apex/analytics/.sync-state-orchestrator", source: "orchestrator" },
+  { path: ".apex/analytics/traces.jsonl", stateFile: ".apex/analytics/.sync-state-traces", source: "trace" },
+];
 
 interface SyncConfig {
   endpoint: string;
@@ -67,12 +73,12 @@ async function loadSyncConfig(): Promise<SyncConfig | null> {
 }
 
 /**
- * Read the last synced line number from the sync state file.
+ * Read the last synced line number from a sync state file.
  */
-function readSyncState(): number {
-  if (!existsSync(SYNC_STATE_FILE)) return 0;
+function readSyncState(stateFile: string): number {
+  if (!existsSync(stateFile)) return 0;
   try {
-    return parseInt(readFileSync(SYNC_STATE_FILE, "utf-8").trim(), 10) || 0;
+    return parseInt(readFileSync(stateFile, "utf-8").trim(), 10) || 0;
   } catch {
     return 0;
   }
@@ -81,12 +87,12 @@ function readSyncState(): number {
 /**
  * Write the current sync position so we can resume next time.
  */
-function writeSyncState(lineCount: number): void {
-  const dir = dirname(SYNC_STATE_FILE);
+function writeSyncState(stateFile: string, lineCount: number): void {
+  const dir = dirname(stateFile);
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
   }
-  writeFileSync(SYNC_STATE_FILE, String(lineCount));
+  writeFileSync(stateFile, String(lineCount));
 }
 
 /**
@@ -108,8 +114,32 @@ function buildHeaders(config: SyncConfig): Record<string, string> {
 }
 
 /**
- * Main sync routine. Reads unsynced JSONL lines, POSTs them to the
- * configured endpoint, and updates the sync state on success.
+ * Collect unsynced events from a single JSONL file.
+ * Returns parsed events tagged with their source, and the total line count for cursor update.
+ */
+function collectUnsyncedEvents(filePath: string, stateFile: string, source: string): { events: any[]; totalLines: number } {
+  if (!existsSync(filePath)) return { events: [], totalLines: 0 };
+
+  const allLines = readFileSync(filePath, "utf-8").trim().split("\n").filter(Boolean);
+  const lastSynced = readSyncState(stateFile);
+  const newLines = allLines.slice(lastSynced);
+
+  const events = newLines
+    .map((line) => {
+      try {
+        return { ...JSON.parse(line), _source: source };
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean);
+
+  return { events, totalLines: allLines.length };
+}
+
+/**
+ * Main sync routine. Reads unsynced JSONL lines from all analytics files,
+ * POSTs them to the configured endpoint, and updates sync cursors on success.
  */
 export async function sync(): Promise<void> {
   const config = await loadSyncConfig();
@@ -119,38 +149,25 @@ export async function sync(): Promise<void> {
     return;
   }
 
-  if (!existsSync(ANALYTICS_FILE)) {
-    console.log("No analytics data to sync.");
-    return;
-  }
+  // Collect unsynced events from all sources
+  const collected = ANALYTICS_FILES.map((f) => ({
+    ...f,
+    ...collectUnsyncedEvents(f.path, f.stateFile, f.source),
+  }));
 
-  const lastSynced = readSyncState();
+  const allEvents = collected.flatMap((c) => c.events);
 
-  const allLines = readFileSync(ANALYTICS_FILE, "utf-8").trim().split("\n").filter(Boolean);
-  const newLines = allLines.slice(lastSynced);
-
-  if (newLines.length === 0) {
+  if (allEvents.length === 0) {
     console.log("Already up to date.");
     return;
   }
 
-  const events = newLines
-    .map((line) => {
-      try {
-        return JSON.parse(line);
-      } catch {
-        return null;
-      }
-    })
-    .filter(Boolean);
-
-  if (events.length === 0) {
-    console.log("No parseable events to sync.");
-    writeSyncState(allLines.length);
-    return;
+  console.log(`Syncing ${allEvents.length} event(s) to ${config.mode} (${config.endpoint})...`);
+  for (const c of collected) {
+    if (c.events.length > 0) {
+      console.log(`  ${c.source}: ${c.events.length} new event(s)`);
+    }
   }
-
-  console.log(`Syncing ${events.length} event(s) to ${config.mode} (${config.endpoint})...`);
 
   const headers = buildHeaders(config);
 
@@ -158,12 +175,17 @@ export async function sync(): Promise<void> {
     const response = await fetch(config.endpoint, {
       method: "POST",
       headers,
-      body: JSON.stringify({ events }),
+      body: JSON.stringify({ events: allEvents }),
     });
 
     if (response.ok) {
-      writeSyncState(allLines.length);
-      console.log(`Synced ${events.length} event(s) successfully.`);
+      // Update all cursors only on successful POST
+      for (const c of collected) {
+        if (c.totalLines > 0) {
+          writeSyncState(c.stateFile, c.totalLines);
+        }
+      }
+      console.log(`Synced ${allEvents.length} event(s) successfully.`);
     } else {
       const body = await response.text().catch(() => "");
       console.error(`Sync failed: ${response.status} ${response.statusText}`);
