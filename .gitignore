@@ -9,3 +9,8 @@ labloop-run.log
 front-end design/
 .assistant/
 .gstack/
+.claude/
+
+# Internal development docs (roadmaps, protocol decisions)
+docs/roadmaps/
+docs/solutions/protocol/
