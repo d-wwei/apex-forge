@@ -136,8 +136,18 @@ Review: docs/reviews/{name}-review.md
 
 Type mapping: feat (new feature), fix (bug fix), refactor, chore (config/build).
 
-### Step 5: Push
-Push the feature branch to remote. Skip if no remote is configured.
+### Step 5: Push (requires user confirmation)
+
+Before pushing, call `AskUserQuestion` with:
+- question: "是否推送到远程仓库？"
+- header: "Push"
+- options:
+  1. label: "推送 (Recommended)", description: "git push 到 remote，准备创建 PR"
+  2. label: "暂不推送", description: "仅保留本地提交，稍后手动推送"
+
+If user selects "推送": push the feature branch to remote.
+If user selects "暂不推送": skip push and Step 6 (PR). Record in ship result.
+Skip entirely if no remote is configured.
 
 ### Step 6: Pull Request
 Create a PR with summary, review status, artifact links, and test results.
@@ -160,6 +170,19 @@ Execute the chosen option. For options A, B, D: clean up worktree if one was use
 
 ---
 
+## Compound Prompt (mandatory, before Exit Gate)
+
+After branch completion, immediately call `AskUserQuestion` with:
+- question: "交付完成。是否进入复盘迭代阶段？"
+- header: "Compound"
+- options:
+  1. label: "进入复盘 (Recommended)", description: "提取本次迭代的经验教训，更新路线图"
+  2. label: "跳过", description: "不复盘，直接结束本轮"
+
+Record user's choice. This prompt MUST be issued before the Exit Gate runs.
+
+---
+
 ## Exit Gate
 
 Before `apex stage complete ship`, run the Stage Exit Gate (`gates/stage-exit-gate.md`).
@@ -170,7 +193,7 @@ Before `apex stage complete ship`, run the Stage Exit Gate (`gates/stage-exit-ga
 |---|-------|-----------|-------------|
 | S1 | Git commit exists | `git log -1 --oneline` returns a commit for this pipeline | git log |
 | S2 | Review status confirmed | Review artifact status is DONE or DONE_WITH_CONCERNS | File re-read |
-| S3 | Compound prompt issued | AskUserQuestion for Compound was called or will be called | Flow check |
+| S3 | Compound prompt issued | AskUserQuestion for Compound was **actually called** (not deferred). Verify the prompt appeared and user responded. | Flow check: user response recorded |
 
 ### Substance Prompts (Tier 2+)
 
@@ -183,27 +206,18 @@ Before `apex stage complete ship`, run the Stage Exit Gate (`gates/stage-exit-ga
 
 ## Completion
 
-After successful ship:
+After successful Exit Gate:
 
 > **Shipped.** Commit `{hash}` on branch `{branch}`.
 > {PR URL or "Push to remote and create PR manually."}
 
-### Auto-advance to Compound (iteration reflection)
-
-After reporting the ship result, call `AskUserQuestion` with:
-- question: "交付完成。是否进入复盘迭代阶段？"
-- header: "Compound"
-- options:
-  1. label: "进入复盘 (Recommended)", description: "提取本次迭代的经验教训，更新路线图"
-  2. label: "跳过", description: "不复盘，直接结束本轮"
-
-If user selects "进入复盘":
+If user selected "进入复盘":
 ```bash
 apex stage set compound
 ```
 Then follow `stages/compound.md`.
 
-If user selects "跳过": mark pipeline as complete without compound.
+If user selected "跳过": mark pipeline as complete without compound.
 
 | Status | When |
 |--------|------|
