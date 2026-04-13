@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach } from "bun:test";
+import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import {
   taskCreate,
   taskAssign,
@@ -12,11 +12,25 @@ import {
 } from "../state/tasks.js";
 import { writeJSON } from "../utils/json.js";
 import { mkdirSync, rmSync } from "fs";
+import { join } from "path";
+import { tmpdir } from "os";
+
+let testDir: string;
+let originalCwd: string;
 
 beforeEach(async () => {
-  rmSync(".apex", { recursive: true, force: true });
+  originalCwd = process.cwd();
+  testDir = join(tmpdir(), `apex-test-tasks-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+  mkdirSync(testDir, { recursive: true });
+  process.chdir(testDir);
+
   mkdirSync(".apex", { recursive: true });
   await writeJSON(".apex/tasks.json", { tasks: [], next_id: 1 });
+});
+
+afterEach(() => {
+  process.chdir(originalCwd);
+  rmSync(testDir, { recursive: true, force: true });
 });
 
 describe("Task State Machine", () => {

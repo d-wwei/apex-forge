@@ -1,8 +1,14 @@
-import { describe, test, expect, beforeEach } from "bun:test";
+import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { spawnSync } from "child_process";
-import { rmSync, existsSync } from "fs";
+import { rmSync, existsSync, mkdirSync } from "fs";
+import { join } from "path";
+import { tmpdir } from "os";
 
-const APEX = "./dist/apex-forge";
+const PROJECT_ROOT = process.cwd();
+const APEX = join(PROJECT_ROOT, "dist/apex-forge");
+
+let testDir: string;
+let originalCwd: string;
 
 function run(
   ...args: string[]
@@ -20,7 +26,15 @@ function run(
 }
 
 beforeEach(() => {
-  rmSync(".apex", { recursive: true, force: true });
+  originalCwd = process.cwd();
+  testDir = join(tmpdir(), `apex-test-cli-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+  mkdirSync(testDir, { recursive: true });
+  process.chdir(testDir);
+});
+
+afterEach(() => {
+  process.chdir(originalCwd);
+  rmSync(testDir, { recursive: true, force: true });
 });
 
 describe("CLI Integration", () => {

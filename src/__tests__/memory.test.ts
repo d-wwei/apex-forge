@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach } from "bun:test";
+import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import {
   memoryAdd,
   memoryList,
@@ -9,11 +9,25 @@ import {
 } from "../state/memory.js";
 import { writeJSON } from "../utils/json.js";
 import { mkdirSync, rmSync } from "fs";
+import { join } from "path";
+import { tmpdir } from "os";
+
+let testDir: string;
+let originalCwd: string;
 
 beforeEach(async () => {
-  rmSync(".apex", { recursive: true, force: true });
+  originalCwd = process.cwd();
+  testDir = join(tmpdir(), `apex-test-memory-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+  mkdirSync(testDir, { recursive: true });
+  process.chdir(testDir);
+
   mkdirSync(".apex", { recursive: true });
   await writeJSON(".apex/memory.json", { facts: [], next_id: 1 });
+});
+
+afterEach(() => {
+  process.chdir(originalCwd);
+  rmSync(testDir, { recursive: true, force: true });
 });
 
 describe("Memory System", () => {

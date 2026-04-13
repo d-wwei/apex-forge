@@ -9,6 +9,7 @@ import type { MemoryStore } from "../types/memory.js";
 const APEX_DIR = ".apex";
 
 const SUBDIRS = [
+  "log",
   "analytics",
   "screenshots",
   "worktrees",
