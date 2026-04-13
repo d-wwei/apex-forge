@@ -55,13 +55,38 @@ Before starting a new brainstorm:
 
 ### Roadmap Awareness
 
-5. Check if `docs/iteration-roadmap.md` exists.
-6. If it exists, read the **当前状态速览** and **建议的下一个迭代** sections.
-7. If the user's request aligns with a Roadmap item, mention it:
-   > "This aligns with a Roadmap item from the last iteration: {item}. I'll use that context."
-8. If the user starts a fresh brainstorm without a specific request, surface
-   the top 3 Roadmap items as suggestions:
-   > "The Roadmap from previous iterations suggests these priorities: ..."
+5. Check for roadmap sources in this order:
+   a. `docs/roadmaps/` directory exists and contains `roadmap-*.md` files → use **snapshot mode**
+      (If the directory exists but contains no `roadmap-*.md` files, treat as if it does not exist — fall through to 5b.)
+   b. `docs/iteration-roadmap.md` exists → **legacy mode**, read as single file (treat as before)
+   c. Neither exists → skip roadmap awareness
+
+6. **Snapshot mode reading algorithm**:
+   a. List all `roadmap-*.md` files in `docs/roadmaps/`, sort by filename (lexicographic = chronological).
+   b. Read the **latest** snapshot fully — this is the baseline.
+   c. Read its `based_on` frontmatter field to get the set of already-incorporated snapshots.
+   d. Identify **unmerged** snapshots: files NOT in `based_on` AND NOT the baseline itself.
+      Compare by **bare filename** (e.g., `roadmap-20260412T1100.md`), not full path.
+   e. If no unmerged snapshots exist → use baseline only (**fast path**, most common case).
+   f. If unmerged snapshots exist → scan each one, extract planning items NOT present in baseline.
+
+7. **Completion check** (for planning items in scope):
+   - For each item with a **验证** (verification) field: run the listed glob/grep checks against code
+     exactly as written in the hint. Mark as completed if all criteria pass, pending otherwise.
+   - For items **without** verification hints: leave as pending. Do NOT attempt a full codebase scan.
+   - If a verification hint errors out (malformed pattern, path no longer valid): leave as pending
+     and note the broken hint for the next iteration-reflector to fix.
+
+8. Synthesize and present:
+   - Read the **当前状态速览** and **建议的下一个迭代** sections from the baseline.
+   - If unmerged items were found, mention them:
+     > "I found {N} additional planning items from parallel iterations that aren't in the latest roadmap."
+   - If the user's request aligns with a Roadmap item, mention it:
+     > "This aligns with a Roadmap item from a previous iteration: {item}. I'll use that context."
+   - If the user starts a fresh brainstorm without a specific request, surface
+     the top 3 Roadmap items as suggestions (combining baseline + unmerged items):
+     > "The Roadmap from previous iterations suggests these priorities: ..."
+
 9. Do NOT auto-select a Roadmap item. The user decides what to work on next.
 
 ---

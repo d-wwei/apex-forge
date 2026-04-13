@@ -64,11 +64,11 @@ Delegate to the `iteration-reflector` skill.
 Pass Tracks 1-3 output as context. The skill handles:
 - 6-dimension reflection (unfinished edges, revealed complexity, new possibilities, tech debt, quality gaps, user-facing gaps)
 - Priority/effort/value assessment for each item
-- Roadmap file creation/update (`docs/iteration-roadmap.md`)
+- Roadmap snapshot generation (`docs/roadmaps/roadmap-{timestamp}.md`)
 
 See `bindings.yaml` compound section for dispatch configuration.
 
-**Output**: 3-8 concrete iteration opportunities + updated roadmap document.
+**Output**: 3-8 concrete iteration opportunities + new roadmap snapshot.
 
 ### Track 5: Memory Router
 
@@ -191,11 +191,12 @@ Update `docs/solutions/INDEX.md` with a row for the new solution
 
 ---
 
-## Roadmap Update
+## Roadmap Snapshot
 
 Handled by the `iteration-reflector` skill (invoked in Track 4).
-The skill manages `docs/iteration-roadmap.md` directly — creation, update rules,
-duplicate merging, and memory capture are all encapsulated in the skill.
+The skill generates a new immutable snapshot in `docs/roadmaps/roadmap-{timestamp}.md` —
+prior snapshot reading, verification-based completion detection, duplicate merging,
+and memory capture are all encapsulated in the skill.
 
 ---
 

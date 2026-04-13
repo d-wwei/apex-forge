@@ -132,7 +132,7 @@ compound:
     output_schema:
       status: [DONE, DONE_WITH_CONCERNS, BLOCKED, NEEDS_CONTEXT]
       items_added: number
-      roadmap_path: string
+      roadmap_path: string  # docs/roadmaps/roadmap-{YYYYMMDD}T{HHMM}.md
     mapping:
       DONE:               { af_action: pipeline_complete }
       DONE_WITH_CONCERNS: { af_action: pipeline_complete }
