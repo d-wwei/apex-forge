@@ -64,7 +64,16 @@ function loadRegistry(): RegistryTemplate[] {
         current.skill = m[1].trim();
       } else if ((m = line.match(/^\s+persona:\s+(.+)/))) {
         current.persona = m[1].trim();
+      } else if ((m = line.match(/^\s+triggers:\s*\[(.+)\]/))) {
+        // Inline array: triggers: ["review this", "check my diff", ...]
+        const items = m[1].match(/"([^"]+)"/g);
+        if (items) {
+          for (const item of items) {
+            current.triggers?.push(item.replace(/"/g, "").trim().toLowerCase());
+          }
+        }
       } else if ((m = line.match(/^\s+-\s+"(.+)"/))) {
+        // Multi-line array item:   - "review this"
         current.triggers?.push(m[1].trim().toLowerCase());
       }
     }
@@ -441,11 +450,17 @@ async function pollCycle(
   printStatus(running, config);
 }
 
+let _lastStatusLine = "";
 function printStatus(running: Map<string, RunningAgentEntry>, config: ApexConfig) {
   const adaptersUsed = new Set(Array.from(running.values()).map(e => e.adapter.name()));
   const statusParts = [
     `running: ${running.size}/${config.max_concurrent_agents}`,
     `adapters: ${adaptersUsed.size > 0 ? Array.from(adaptersUsed).join("+") : "none"}`,
   ];
-  console.log(`[${new Date().toISOString().slice(11, 19)}] ${statusParts.join(" | ")}`);
+  const line = statusParts.join(" | ");
+  // Only print when status changes to avoid flooding during drain loops
+  if (line !== _lastStatusLine) {
+    _lastStatusLine = line;
+    console.log(`[${new Date().toISOString().slice(11, 19)}] ${line}`);
+  }
 }
