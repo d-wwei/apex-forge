@@ -1009,8 +1009,23 @@ function deriveStageFromTasks(state: any, tasks: any[]): any {
   const currentStage = state.current_stage || "idle";
   const stateSession = state.session_id || "";
 
-  // If explicitly idle, always trust state — user or CLI chose this
-  if (currentStage === "idle") return state;
+  // If idle AND tasks show activity, the orchestrator dispatched without
+  // setting a stage — derive from tasks instead of bailing.
+  // Only honor "idle" as explicit if no tasks are active (or all done with
+  // state.json written AFTER the last task transition).
+  if (currentStage === "idle") {
+    const hasActive = tasks.some((t: any) =>
+      ["open", "assigned", "in_progress", "to_verify", "blocked"].includes(t.status)
+    );
+    const stateTs = state.last_updated ? new Date(state.last_updated).getTime() : 0;
+    const lastTaskTs = tasks.reduce((max: number, t: any) => {
+      const ts = t.updated_at || t.created_at || "";
+      return ts ? Math.max(max, new Date(ts).getTime()) : max;
+    }, 0);
+    // Idle is genuine when: no active tasks, or state was explicitly set after all tasks finished
+    if (!hasActive && (stateTs >= lastTaskTs || lastTaskTs === 0)) return state;
+    // Otherwise fall through to derivation logic below
+  }
 
   // Check if tasks belong to the current session
   const logDir = state._logDir; // injected by caller if available

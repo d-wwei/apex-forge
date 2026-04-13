@@ -10,6 +10,8 @@ import { appendJSONL } from "../utils/logger.js";
 import { isoTimestamp, sessionId } from "../utils/timestamp.js";
 import type { StageState } from "../types/state.js";
 import { appendEvent, rebuildAndCache } from "./event-log.js";
+import { existsSync } from "fs";
+import { readdir } from "fs/promises";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -72,9 +74,110 @@ export async function setStage(stage: string): Promise<StageState> {
 }
 
 /**
- * Mark the current history entry for a stage as completed.
+ * Structural gate check result for a single item.
  */
-export async function completeStage(stage: string): Promise<StageState> {
+export interface GateCheckItem {
+  id: string;
+  pass: boolean;
+  reason: string;
+}
+
+/**
+ * Run structural gate checks for a stage before allowing completion.
+ * Returns { pass, items } where items lists each check with pass/fail and reason.
+ */
+export async function runStructuralGate(stage: string): Promise<{ pass: boolean; items: GateCheckItem[] }> {
+  const state = await loadState();
+  const items: GateCheckItem[] = [];
+
+  const stageArtifacts = state.artifacts[stage] ?? [];
+  const hasArtifact = stageArtifacts.length > 0;
+
+  // Load task store for task-related checks
+  const taskStore = await readJSON<{ tasks: Array<{ id: string; status: string; depends_on: string[] }> }>(
+    ".apex/tasks.json",
+    { tasks: [] },
+  );
+  const allTasks = taskStore.tasks;
+
+  switch (stage) {
+    case "brainstorm": {
+      items.push({ id: "S1", pass: hasArtifact, reason: hasArtifact ? "Artifact registered" : "No artifact registered (run: apex stage artifact brainstorm <path>)" });
+      const artifactPath = stageArtifacts[0];
+      const fileExists = artifactPath ? existsSync(artifactPath) : false;
+      items.push({ id: "S2", pass: fileExists, reason: fileExists ? `File exists: ${artifactPath}` : "Artifact file not found on disk" });
+      break;
+    }
+    case "plan": {
+      items.push({ id: "S1", pass: hasArtifact, reason: hasArtifact ? "Artifact registered" : "No artifact registered (run: apex stage artifact plan <path>)" });
+      const artifactPath = stageArtifacts[0];
+      const fileExists = artifactPath ? existsSync(artifactPath) : false;
+      items.push({ id: "S2", pass: fileExists, reason: fileExists ? `File exists: ${artifactPath}` : "Artifact file not found on disk" });
+      const hasOpenTasks = allTasks.some(t => t.status === "open" || t.status === "assigned");
+      items.push({ id: "S3", pass: hasOpenTasks || allTasks.length > 0, reason: allTasks.length > 0 ? `${allTasks.length} tasks registered` : "No tasks registered (run: apex task create)" });
+      break;
+    }
+    case "execute": {
+      if (allTasks.length === 0) {
+        items.push({ id: "S1", pass: false, reason: "No tasks registered — create tasks first (apex task create)" });
+      } else {
+        const nonDone = allTasks.filter(t => t.status !== "done");
+        const allDone = nonDone.length === 0;
+        items.push({ id: "S1", pass: allDone, reason: allDone ? `All ${allTasks.length} tasks done` : `${nonDone.length} task(s) not done: ${nonDone.map(t => t.id).join(", ")}` });
+      }
+      break;
+    }
+    case "review": {
+      items.push({ id: "S1", pass: hasArtifact, reason: hasArtifact ? "Artifact registered" : "No review artifact registered" });
+      const artifactPath = stageArtifacts[0];
+      const fileExists = artifactPath ? existsSync(artifactPath) : false;
+      items.push({ id: "S2", pass: fileExists, reason: fileExists ? `File exists: ${artifactPath}` : "Review artifact file not found" });
+      break;
+    }
+    case "ship": {
+      // Check that a review artifact exists in state
+      const reviewArtifacts = state.artifacts["review"] ?? [];
+      items.push({ id: "S1", pass: reviewArtifacts.length > 0, reason: reviewArtifacts.length > 0 ? "Review artifact confirmed" : "No review artifact — complete Review first" });
+      break;
+    }
+    case "compound": {
+      // Check that a solution doc or roadmap snapshot exists
+      let hasSolution = false;
+      try {
+        const files = await readdir("docs/solutions", { recursive: true });
+        hasSolution = files.some(f => f.toString().endsWith(".md"));
+      } catch { /* dir doesn't exist */ }
+      let hasRoadmap = false;
+      try {
+        const files = await readdir("docs/roadmaps");
+        hasRoadmap = files.some(f => f.toString().endsWith(".md"));
+      } catch { /* dir doesn't exist */ }
+      items.push({ id: "S1", pass: hasSolution || hasRoadmap, reason: (hasSolution || hasRoadmap) ? "Solution/roadmap doc exists" : "No solution doc or roadmap snapshot found" });
+      break;
+    }
+    default: {
+      // Unknown stage — pass through (no gate defined)
+      items.push({ id: "S0", pass: true, reason: `No structural gate defined for stage: ${stage}` });
+    }
+  }
+
+  const pass = items.every(i => i.pass);
+  return { pass, items };
+}
+
+/**
+ * Mark the current history entry for a stage as completed.
+ * Runs structural gate checks first — refuses if any check fails.
+ */
+export async function completeStage(stage: string, skipGate = false): Promise<StageState> {
+  if (!skipGate) {
+    const gate = await runStructuralGate(stage);
+    if (!gate.pass) {
+      const failed = gate.items.filter(i => !i.pass);
+      const msg = failed.map(i => `  ${i.id}: FAIL — ${i.reason}`).join("\n");
+      throw new Error(`Stage gate BLOCKED for '${stage}':\n${msg}\n\nFix the issues above, then retry.`);
+    }
+  }
   appendEvent("state", "stage.completed", { stage });
   await rebuildAndCache("state");
   return loadState();

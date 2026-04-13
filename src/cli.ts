@@ -22,7 +22,7 @@ import {
   listTraceSummaries,
   getTraceSpans,
 } from "./tracing.js";
-import { addSkillInvocation, setStage, completeStage, addArtifact, getState } from "./state/state.js";
+import { addSkillInvocation, setStage, completeStage, addArtifact, getState, runStructuralGate } from "./state/state.js";
 import { satisfies } from "./utils/semver.js";
 import { cmdUpdate } from "./commands/update.js";
 import { cmdHeal } from "./commands/heal.js";
@@ -537,8 +537,24 @@ async function main() {
         } else if (sub === "complete") {
           const name = rest[1];
           if (!name) { console.error("Usage: apex stage complete <name>"); process.exit(1); }
-          const st = await completeStage(name);
-          console.log(`Stage completed: ${name}`);
+          const skipGate = rest.includes("--skip-gate");
+          try {
+            const gate = await runStructuralGate(name);
+            for (const item of gate.items) {
+              const icon = item.pass ? "✓" : "✗";
+              console.log(`  ${icon} ${item.id}: ${item.reason}`);
+            }
+            if (!gate.pass && !skipGate) {
+              console.error(`\nGate BLOCKED — fix the issues above, then retry.`);
+              console.error(`(Use --skip-gate to force completion)`);
+              process.exit(1);
+            }
+            await completeStage(name, true); // gate already checked above
+            console.log(`\nStage completed: ${name}`);
+          } catch (err: any) {
+            console.error(err.message);
+            process.exit(1);
+          }
         } else if (sub === "artifact") {
           const [stage, ...pathParts] = rest.slice(1);
           const path = pathParts.join(" ");

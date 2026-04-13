@@ -158,7 +158,7 @@ Single verified pass possible? → YES → Tier 1 (Single Pass)
                                                                     NO → Tier 2 (Round-Based)
 ```
 
-- **Tier 1**: One action, one verification, done.
+- **Tier 1**: One action, one verification, done. **No stage tracking** — does not call `apex stage set/complete`. Stage remains `idle` throughout.
 - **Tier 2**: PDCA rounds (clarify → explore → hypothesis → planning → execution → verification → hardening). Max 5 rounds.
 - **Tier 3**: Waves of 3-5 rounds. Each wave reads/writes state.
 
@@ -183,7 +183,7 @@ Tier 2 (Round-Based):   Brainstorm → Plan → Execute → Review → Ship → 
 Tier 3 (Wave-Based):    Brainstorm → Plan → Execute → Review → Ship → Compound (+ Wave management)
 ```
 
-Tier 1 skips Brainstorm, Plan, Review, and Compound because the task is trivially verifiable in a single pass. Tier 2 and Tier 3 MUST walk the full six-step chain. No exceptions.
+Tier 1 skips Brainstorm, Plan, Review, and Compound because the task is trivially verifiable in a single pass. **Tier 1 does NOT use `apex stage set` or `apex stage complete`** — the pipeline stage stays `idle`, the agent executes directly, verifies, and commits. No Dashboard stage tracking overhead for trivial tasks. Tier 2 and Tier 3 MUST walk the full six-step chain with stage tracking. No exceptions.
 
 #### Git Operations Interlock
 
