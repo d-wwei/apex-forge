@@ -65,9 +65,7 @@ to capture the right knowledge."
 
 ---
 
-## Parallel Analysis
-
-Run three analysis tracks simultaneously:
+## Parallel Analysis (5 Tracks)
 
 ### Track 1: Context Analyzer
 
@@ -95,6 +93,85 @@ Output: Solution summary with generalized pattern.
 - **Are there related docs that should cross-reference this solution?**
 
 Output: Related doc list with overlap assessment.
+
+### Track 4: Iteration Reflector
+
+Delegate to the `iteration-reflector` skill.
+
+Pass Tracks 1-3 output as context. The skill handles:
+- 6-dimension reflection (unfinished edges, revealed complexity, new possibilities, tech debt, quality gaps, user-facing gaps)
+- Priority/effort/value assessment for each item
+- Roadmap snapshot generation (`docs/roadmaps/roadmap-{timestamp}.md`)
+
+See `bindings.yaml` compound section for dispatch configuration.
+
+Output: 3-8 concrete iteration opportunities + new roadmap snapshot.
+
+### Track 5: Memory Router
+
+对 Track 1-4 提取出的每条知识，过三个筛子，决定写入哪个记忆层级。
+
+#### 筛子 1：泛化性测试
+
+把知识中的项目名、文件路径、技术栈名词全部去掉。
+剩下的内容还有没有指导意义？
+
+- **有** → 候选全局
+- **没有** → 项目级，跳过后续筛子
+
+#### 筛子 2：复现性测试
+
+这条经验在一个完全不同的项目（不同语言、不同领域）中会不会遇到？
+
+- **会** → 确认全局
+- **不会** → 项目级
+
+#### 筛子 3：衰减性测试
+
+这条知识一年后还成立吗？
+
+- **成立**（原理级）→ 全局
+- **可能过时**（工具/API/版本相关）→ 项目级
+
+#### 路由判定
+
+三个筛子的组合决定路由：
+
+- **三筛均通过** 且知识在本项目有具体实例（具体文件路径、具体配置值、具体错误信息）→ **双写**：全局写泛化版本，项目写具体版本
+- **三筛均通过** 且知识本身已是抽象原理 → **全局**
+- **任一筛子未通过** → **项目级**
+
+#### 路由动作
+
+| 分类 | 写入位置 | 示例 |
+|------|---------|------|
+| 全局模式 | `~/.claude/memory/` + 全局 `MEMORY.md` | "进程隔离三要素"、"TDD 和 Review 的互补性" |
+| 项目经验 | 项目级 `memory/` + 项目 `MEMORY.md` | "本项目 orchestrator 的 retry 路径在 L275" |
+| 两者都写 | 全局写泛化版本，项目写具体版本 | 全局："exit 0≠成功"；项目："result.json 必须含 verdict 字段" |
+
+#### 输出格式
+
+在 compound 结束前，输出路由决策表：
+
+```
+Memory Router 决策
+
+┌─────┬──────────────┬──────┬──────┬──────┬──────┐
+│  #  │ 知识点       │ 泛化 │ 复现 │ 衰减 │ 路由 │
+├─────┼──────────────┼──────┼──────┼──────┼──────┤
+│ 1   │ {知识描述}   │ ✓    │ ✓    │ 稳定 │ 全局 │
+├─────┼──────────────┼──────┼──────┼──────┼──────┤
+│ 2   │ {知识描述}   │ ✗    │ -    │ -    │ 项目 │
+├─────┼──────────────┼──────┼──────┼──────┼──────┤
+│ 3   │ {知识描述}   │ ✓    │ ✓    │ 易变 │ 项目 │
+├─────┼──────────────┼──────┼──────┼──────┼──────┤
+│ 4   │ {知识描述}   │ ✓    │ ✓    │ 稳定 │ 双写 │
+└─────┴──────────────┴──────┴──────┴──────┴──────┘
+```
+
+输出决策表后，按路由结果执行写入。
+
+Output: 路由决策表 + 对应层级的记忆文件已写入。
 
 ---
 
