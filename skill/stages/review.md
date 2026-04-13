@@ -19,6 +19,15 @@ changed. No rubber-stamping. Every claim backed by fresh evidence.
 2. Gather context: execution log from `docs/execution/`, git diff of changed files.
 3. If neither execution log nor diff is found, ask what to review.
 
+### Upstream Entry Verification
+
+Before starting Review work, verify Execute stage completeness:
+
+1. All tasks in `apex task list` must have status `done`.
+2. `docs/execution/{name}-log.md` must exist.
+3. Run test suite — all tests must pass.
+4. If any check fails: report which check failed. Instruct user to complete Execute first.
+
 ---
 
 ## Review Modes
@@ -155,6 +164,32 @@ When the review involves specific domains, load and invoke external skills per `
   "af_mapping": "<mapped AF review result>"
 }
 ```
+
+---
+
+## Exit Gate
+
+Before `apex stage complete review`, run the Stage Exit Gate (`gates/stage-exit-gate.md`).
+
+### Structural Checks
+
+| # | Check | Criterion | Verification |
+|---|-------|-----------|-------------|
+| S1 | Artifact exists | `docs/reviews/{name}-review.md` exists | File read |
+| S2 | Artifact registered | `apex stage artifact review` was called | .apex/state.json artifacts |
+| S3 | Security section | Document contains Security Reviewer findings section | Section scan |
+| S4 | Correctness section | Document contains Correctness Reviewer findings section | Section scan |
+| S5 | Spec Compliance section | Document contains Spec Compliance Reviewer findings section | Section scan |
+| S6 | Adversarial section | Document contains Adversarial Reviewer findings section | Section scan |
+| S7 | Status field | Status is DONE or DONE_WITH_CONCERNS | Frontmatter/content check |
+| S8 | No unresolved P0 | No finding with severity P0 has unresolved status | Content scan |
+
+### Substance Prompts (Tier 2+)
+
+| # | Prompt | Cross-reference |
+|---|--------|----------------|
+| Q1 | Are findings backed by specific file:line evidence? Read each finding and flag any that says "potential issue" or "might be problematic" without citing a specific file path and line number. | Review artifact |
+| Q2 | Is the adversarial section genuine? Does it identify real risks with concrete scenarios, or does it contain boilerplate like "no significant issues found"? A genuine adversarial section names at least one specific assumption violation or abuse case with a concrete scenario. | Review artifact |
 
 ---
 

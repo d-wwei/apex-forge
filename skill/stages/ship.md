@@ -20,6 +20,16 @@ changelog updated, committed, pushed, PR created.
    Do NOT ship unreviewed code.
 3. If review status is `BLOCKED` or `NEEDS_CONTEXT`, resolve issues first.
 
+### Upstream Entry Verification
+
+Before starting Ship work, verify Review artifact completeness:
+
+1. `docs/reviews/{name}-review.md` must exist.
+2. Status must be DONE or DONE_WITH_CONCERNS.
+3. No finding with severity P0 may have unresolved status.
+4. If status is BLOCKED or NEEDS_CONTEXT: instruct user to resolve Review issues first.
+5. If any check fails: report which check failed. Do NOT ship unreviewed code.
+
 ---
 
 ## Pre-Flight Checks
@@ -147,6 +157,29 @@ After push/PR, present exactly these options to the user:
 | **D. Discard** | `git branch -D <feature-branch>` and remove worktree if applicable |
 
 Execute the chosen option. For options A, B, D: clean up worktree if one was used (`apex worktree cleanup <TASK_ID>`).
+
+---
+
+## Exit Gate
+
+Before `apex stage complete ship`, run the Stage Exit Gate (`gates/stage-exit-gate.md`).
+
+### Structural Checks
+
+| # | Check | Criterion | Verification |
+|---|-------|-----------|-------------|
+| S1 | Git commit exists | `git log -1 --oneline` returns a commit for this pipeline | git log |
+| S2 | Review status confirmed | Review artifact status is DONE or DONE_WITH_CONCERNS | File re-read |
+| S3 | Compound prompt issued | AskUserQuestion for Compound was called or will be called | Flow check |
+
+### Substance Prompts (Tier 2+)
+
+| # | Prompt | Cross-reference |
+|---|--------|----------------|
+| Q1 | Does the commit message accurately describe what changed? Read `git log -1` and `git diff HEAD~1 --stat`. Does the message cover the actual scope, or is it generic? | git log, git diff |
+| Q2 | Are all changed files traceable to the plan? Read `git diff HEAD~1 --stat` and cross-reference against the plan's file manifest. Flag any changed file not in the plan (excluding version/changelog files). | `docs/plans/{name}-plan.md`, git diff |
+
+---
 
 ## Completion
 

@@ -29,6 +29,14 @@ Compound activates when any of these signals appear:
 If none of these signals are present, ask: "What was resolved? I need
 context to capture the right knowledge."
 
+### Upstream Entry Verification
+
+Before starting Compound work, verify Ship stage completeness:
+
+1. A git commit must exist for this pipeline run (check `git log` and .apex/state.json).
+2. Review artifact status must be DONE or DONE_WITH_CONCERNS.
+3. If neither condition is met: instruct user to complete Ship first.
+
 ---
 
 ## Parallel Analysis (5 Tracks)
@@ -114,6 +122,29 @@ If Track 3 identified stale docs:
 1. Read each stale doc.
 2. Update it or add a "Superseded by" note pointing to the new doc.
 3. Do NOT delete stale docs -- they may contain useful historical context.
+
+---
+
+## Exit Gate
+
+Before `apex stage complete compound`, run the Stage Exit Gate (`gates/stage-exit-gate.md`).
+
+### Structural Checks
+
+| # | Check | Criterion | Verification |
+|---|-------|-----------|-------------|
+| S1 | Solution doc exists | `docs/solutions/{category}/{name}.md` exists | File read |
+| S2 | Root Cause section | Document contains "Root Cause" or "Problem" + cause analysis section | Section scan |
+| S3 | Prevention section | Document contains "Prevention" section | Section scan |
+| S4 | Roadmap snapshot | `docs/roadmaps/roadmap-{date}.md` exists for current date | File existence |
+| S5 | Memory entry | At least 1 memory file written this session | Memory directory check |
+
+### Substance Prompts (Tier 2+)
+
+| # | Prompt | Cross-reference |
+|---|--------|----------------|
+| Q1 | Is the root cause analysis genuine? Does it identify an actual root cause (a specific code path, design decision, or missing constraint), or does it describe a symptom ("the test was failing")? A genuine root cause explains WHY the problem occurred. | Solution doc |
+| Q2 | Does the roadmap snapshot reflect current project state? Read the roadmap and cross-reference against actual code and recent git history. Flag any item that references files that don't exist or marks something pending that is actually done. | Roadmap file, git log, codebase |
 
 ---
 

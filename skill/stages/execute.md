@@ -22,6 +22,16 @@ verify each step. No design decisions here -- those belong in Plan.
 3. If a prior execution log exists, check which tasks are done vs pending
    and offer to resume.
 
+### Upstream Entry Verification
+
+Before starting Execute work, verify Plan artifact completeness:
+
+1. Read `docs/plans/{name}-plan.md` — file must exist.
+2. Frontmatter `status` must be `approved`.
+3. Document must contain: file manifest, test file paths, task decomposition.
+4. All tasks from plan must be registered in `apex task list`.
+5. If any check fails: report which check failed. Instruct user to complete Plan first.
+
 ---
 
 ## Phase Rule
@@ -208,6 +218,27 @@ When the current task matches a trigger in `bindings.yaml`, load and invoke the 
   "af_mapping": "<mapped AF evidence grade or action>"
 }
 ```
+
+---
+
+## Exit Gate
+
+Before `apex stage complete execute`, run the Stage Exit Gate (`gates/stage-exit-gate.md`).
+
+### Structural Checks
+
+| # | Check | Criterion | Verification |
+|---|-------|-----------|-------------|
+| S1 | All tasks done | Every task in `apex task list` has status `done` | CLI check |
+| S2 | Test files exist | Each test file path from the plan exists on disk | File existence |
+| S3 | Execution log | `docs/execution/{name}-log.md` exists | File read |
+
+### Substance Prompts (Tier 2+)
+
+| # | Prompt | Cross-reference |
+|---|--------|----------------|
+| Q1 | Do the tests actually test the acceptance criteria? Read test files and cross-reference against brainstorm acceptance criteria. Flag any criterion only covered by a trivial assertion (e.g., `expect(fn).toBeDefined()`). | `docs/brainstorms/{name}-requirements.md`, test files |
+| Q2 | Are there untested edge cases from the plan's test scenarios? Read the plan's test scenarios and compare against actual test files. | `docs/plans/{name}-plan.md`, test files |
 
 ---
 

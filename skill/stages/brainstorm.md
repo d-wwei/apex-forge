@@ -247,6 +247,30 @@ Update `status: rejected`. Offer to start over or shelve.
 
 ---
 
+## Exit Gate
+
+Before `apex stage complete brainstorm`, run the Stage Exit Gate (`gates/stage-exit-gate.md`).
+
+### Structural Checks
+
+| # | Check | Criterion | Verification |
+|---|-------|-----------|-------------|
+| S1 | Artifact exists | `docs/brainstorms/{name}-requirements.md` exists | File read |
+| S2 | Artifact registered | `apex stage artifact brainstorm` was called | .apex/state.json artifacts |
+| S3 | Acceptance criteria | Document contains "Acceptance Criteria" section with >= 1 item | Section scan |
+| S4 | Constraints | Document contains "Constraints" section | Section scan |
+| S5 | Scope classification | Frontmatter contains `scope:` field (Lightweight/Standard/Deep) | Frontmatter check |
+| S6 | Status approved | Frontmatter `status: approved` | Frontmatter check |
+
+### Substance Prompts (Tier 2+)
+
+| # | Prompt | Cross-reference |
+|---|--------|----------------|
+| Q1 | Are the acceptance criteria specific and testable? Could a developer write a test for each one without asking clarifying questions? Flag any that are vague ("should be fast", "should look good"). | None |
+| Q2 | Do the constraints reflect real project limitations? Is there evidence (codebase references, dependency versions, API contracts) backing each constraint, or are they assumptions? | Codebase scan |
+
+---
+
 ## Completion
 
 After writing the approved artifact:

@@ -211,6 +211,41 @@ Sidecar characteristics:
 | Git ops outside Ship | git commit/push while stage != ship | Stop. Git operations only execute inside Ship stage. |
 | Skip Compound prompt | Ship done → end session without asking | Must call AskUserQuestion for Compound. User may decline, but must be asked. |
 
+#### Stage Gates: Exit + Entry Verification
+
+Each stage has two automated quality checks run by SubAgents:
+
+**Exit Gate** (at `apex stage complete <stage>`):
+Dispatches SubAgents per `gates/stage-exit-gate.md` to validate output artifact quality.
+Two layers: structural (binary, 1 SubAgent) → substance (qualitative, N SubAgents parallel).
+
+| Tier / Scope | Structural | Substance | Evidence Grade |
+|-------------|-----------|-----------|----------------|
+| Tier 1 / Lightweight | 1 SubAgent | 0 (skip) | E2 |
+| Tier 2 / Standard | 1 SubAgent | 2 SubAgents | E3 |
+| Tier 3 / Deep | 1 SubAgent | 3 SubAgents | E3+ |
+
+Substance confidence aggregation:
+- All agree + high confidence → PASS (DONE)
+- Majority agree + medium+ → PASS_WITH_NOTE (DONE_WITH_CONCERNS)
+- No majority or low confidence → ESCALATE (NEEDS_CONTEXT)
+- Any P0 + high confidence → BLOCK (BLOCKED)
+
+**Upstream Entry Verification** (BEFORE `apex stage set <stage>`):
+Inline check (no SubAgent). Verifies previous stage's artifact exists and is structurally complete.
+Run upstream check first. Only call `apex stage set` after all checks pass. This prevents Dashboard from showing a stage the agent hasn't actually entered.
+
+| Stage | Upstream Artifact Required |
+|-------|--------------------------|
+| Brainstorm | None (first stage) |
+| Plan | Brainstorm requirements with `status: approved` |
+| Execute | Plan with `status: approved` + tasks registered |
+| Review | All tasks `done` + execution log exists + tests pass |
+| Ship | Review artifact with status DONE or DONE_WITH_CONCERNS |
+| Compound | Git commit exists + review artifact confirmed |
+
+Gate procedure: `gates/stage-exit-gate.md`. Per-stage checklists: each stage file's "Exit Gate" section.
+
 **State tracking (mandatory — Dashboard reads from these):**
 - Entering a stage: `apex stage set <name>` (e.g., `apex stage set brainstorm`)
 - Completing a stage: `apex stage complete <name>`
@@ -268,5 +303,6 @@ EVIDENCE:  E0 → E1 → E2 → E3 → E4
 ESCALATE:  L0 → L1 → L2 → L3 → L4
 GATE:      Identify → Run → Read → Confirm → Claim
 GIT LOCK:  git commit/push/pr → ONLY inside Ship stage
+GATES:     Structural (1 SubAgent) → Substance (2-3 SubAgents) → Aggregate → Verdict
 STATUS:    DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT
 ```

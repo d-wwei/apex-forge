@@ -24,6 +24,15 @@ No implementation code -- plans are decision artifacts.
 3. If an in-progress plan exists (`status: draft`), offer to resume.
    If an approved plan exists, offer to proceed to Execute.
 
+### Upstream Entry Verification
+
+Before starting Plan work, verify Brainstorm artifact completeness:
+
+1. Read `docs/brainstorms/{name}-requirements.md` — file must exist.
+2. Frontmatter `status` must be `approved`.
+3. Document must contain: Acceptance Criteria section, Constraints section, scope classification.
+4. If any check fails: report which check failed. Instruct user to complete Brainstorm first.
+
 ---
 
 ## Process
@@ -125,6 +134,31 @@ apex stage artifact plan "docs/plans/{name}-plan.md"
 ```
 
 This is mandatory. Without `apex task create`, the Dashboard Kanban board stays empty.
+
+---
+
+## Exit Gate
+
+Before `apex stage complete plan`, run the Stage Exit Gate (`gates/stage-exit-gate.md`).
+
+### Structural Checks
+
+| # | Check | Criterion | Verification |
+|---|-------|-----------|-------------|
+| S1 | Artifact exists | `docs/plans/{name}-plan.md` exists | File read |
+| S2 | Artifact registered | `apex stage artifact plan` was called | .apex/state.json artifacts |
+| S3 | File manifest | Document contains file manifest with exact paths | Section scan |
+| S4 | Test file paths | Document contains test file paths section | Section scan |
+| S5 | Task decomposition | Document contains tasks (T1, T2...) with ID, description, files, dependencies | Section scan |
+| S6 | Tasks registered | All T{N} from plan exist in `apex task list` | CLI check |
+| S7 | Status approved | Frontmatter `status: approved` | Frontmatter check |
+
+### Substance Prompts (Tier 2+)
+
+| # | Prompt | Cross-reference |
+|---|--------|----------------|
+| Q1 | Does every task trace back to at least one acceptance criterion? Are there acceptance criteria with no corresponding task? | `docs/brainstorms/{name}-requirements.md` |
+| Q2 | Are test scenarios meaningful — do they test behavior (given/when/then) or just existence? Flag any test that merely checks "function is callable" without verifying behavior. | Test scenario section in plan |
 
 ---
 
