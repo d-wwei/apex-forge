@@ -34,22 +34,33 @@ export class ClaudeAdapter implements RuntimeAdapter {
     mkdirSync(logDir, { recursive: true });
     const logPath = `${logDir}/${task.id}.log`;
 
-    const cmd = config.command;
-    let args: string[];
+    // Always save prompt to file for auditability
+    const promptFile = writePromptFile(task.id, prompt);
 
-    if (cmd === "claude") {
-      // Write prompt to temp file to avoid ARG_MAX and ps visibility
-      const promptFile = writePromptFile(task.id, prompt);
-      args = [...(config.args || []), "--print", "-p", `$(cat ${promptFile})`];
-      // Actually, spawn doesn't expand $(), so read the file and pass directly
-      // For long prompts, this is still better than nothing — the real fix is stdin
-      args = [...(config.args || []), "--print", "-p", prompt];
+    let spawnCmd: string;
+    let args: string[];
+    const baseCmd = config.command;
+
+    if (baseCmd === "claude") {
+      const promptBytes = Buffer.byteLength(prompt);
+      // macOS ARG_MAX is 256KB; stay well under with 200KB threshold
+      if (promptBytes > 200_000) {
+        // Long prompt: use shell to read from file, avoids ARG_MAX
+        const extraArgs = (config.args || []).join(" ");
+        spawnCmd = "sh";
+        args = ["-c", `${baseCmd} ${extraArgs} --print -p "$(cat '${promptFile}')"`.trim()];
+      } else {
+        // Normal prompt: pass directly as argument
+        spawnCmd = baseCmd;
+        args = [...(config.args || []), "--print", "-p", prompt];
+      }
     } else {
       // For testing: allow overriding with any command (e.g. "echo", "sleep")
+      spawnCmd = baseCmd;
       args = [...(config.args || []), ...(prompt ? [prompt] : [])];
     }
 
-    const proc = spawn(cmd, args, {
+    const proc = spawn(spawnCmd, args, {
       stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env, APEX_TASK_ID: task.id },
       ...(config.cwd ? { cwd: config.cwd } : {}),
@@ -96,12 +107,27 @@ export class ClaudeAdapter implements RuntimeAdapter {
     mkdirSync(logDir, { recursive: true });
     const logPath = `${logDir}/resume-${sessionId}.log`;
 
-    const cmd = config.command || "claude";
-    const args = cmd === "claude"
-      ? ["--print", "--resume", sessionId, "-p", prompt]
-      : [...(config.args || []), prompt];
+    const baseCmd = config.command || "claude";
+    const promptFile = writePromptFile(taskId || sessionId, prompt);
 
-    const proc = spawn(cmd, args, {
+    let spawnCmd: string;
+    let args: string[];
+
+    if (baseCmd === "claude") {
+      const promptBytes = Buffer.byteLength(prompt);
+      if (promptBytes > 200_000) {
+        spawnCmd = "sh";
+        args = ["-c", `${baseCmd} --print --resume ${sessionId} -p "$(cat '${promptFile}')"`.trim()];
+      } else {
+        spawnCmd = baseCmd;
+        args = ["--print", "--resume", sessionId, "-p", prompt];
+      }
+    } else {
+      spawnCmd = baseCmd;
+      args = [...(config.args || []), prompt];
+    }
+
+    const proc = spawn(spawnCmd, args, {
       stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env, ...(taskId ? { APEX_TASK_ID: taskId } : {}) },
       ...(config.cwd ? { cwd: config.cwd } : {}),

@@ -162,16 +162,17 @@ export async function runOrchestrator(args: string[]): Promise<void> {
     await Bun.sleep(config.polling_interval_ms);
   }
 
-  // Drain
+  // Drain: wait for running agents, then reap results
   if (running.size > 0) {
-    console.log(`Waiting for ${running.size} running agent(s)...`);
-    const deadline = Date.now() + 30000;
-    while (running.size > 0 && Date.now() < deadline) {
+    // --once mode: wait for agents to finish their work (up to idle_timeout)
+    // SIGINT/SIGTERM: short grace period (30s) then exit
+    const drainTimeout = once ? config.idle_timeout_ms : 30000;
+    console.log(`Waiting for ${running.size} running agent(s)... (timeout: ${Math.round(drainTimeout / 1000)}s)`);
+    const deadline = Date.now() + drainTimeout;
+    while ((running.size > 0 || retryQueue.length > 0) && Date.now() < deadline && !shuttingDown) {
       await Bun.sleep(1000);
-      for (const [taskId, entry] of running) {
-        const status = entry.adapter.monitor(entry.handle);
-        if (status.state === "exited") running.delete(taskId);
-      }
+      // Run a full poll cycle to reap completed agents, collect results, and handle retries
+      await pollCycle(config, adapters, registry, running, retryQueue, completedResults, false);
     }
   }
 

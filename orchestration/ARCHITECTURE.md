@@ -736,6 +736,21 @@ LLM agents are expensive per-second. An agent waiting for an orchestrator
 response is burning tokens (or at minimum, holding a context window open).
 The ledger pattern ensures agents are always doing useful work.
 
+### Event Sourcing: Source of Truth
+
+**WARNING**: The `.apex/tasks.json` file is a **materialized cache**, not the
+source of truth. The actual source of truth is `.apex/log/tasks.jsonl` — an
+append-only event log. Every state transition calls `rebuildAndCache()` which
+replays all events and regenerates `tasks.json`.
+
+**Do NOT edit `tasks.json` directly.** Any manual changes will be silently
+overwritten on the next state transition. Always use the `apex task` CLI
+commands to create or modify tasks.
+
+This is by design: event sourcing ensures concurrent-safe mutations (appends
+to JSONL are atomic under POSIX for writes < PIPE_BUF) and full auditability
+(every state change is recorded with timestamp and session ID).
+
 ---
 
 ## 9. Skills Registry
