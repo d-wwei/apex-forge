@@ -21,7 +21,10 @@ export interface Finding {
 export interface SynthesizedResult {
   taskId: string;
   agents: string[];
-  verdict: string;   // "pass" | "fail" | "mixed"
+  contributed: string[];  // agents that produced structured findings
+  partial: string[];      // agents that completed without result.json
+  failed: string[];       // agents that exited non-zero
+  verdict: string;        // "pass" | "fail" | "mixed"
   blockers: Finding[];
   concerns: Finding[];
   notes: Finding[];
@@ -84,6 +87,21 @@ export function synthesizeFindings(results: AgentResult[]): SynthesizedResult {
   const taskId = results[0]?.taskId || "unknown";
   const agents = results.map(r => `${r.adapter}${r.persona ? `(${r.persona})` : ""}`);
 
+  // Classify agents by contribution quality
+  const contributed: string[] = [];
+  const partial: string[] = [];
+  const failed: string[] = [];
+  for (const r of results) {
+    const label = `${r.adapter}${r.persona ? `(${r.persona})` : ""}`;
+    if (r.exitCode !== 0) {
+      failed.push(label);
+    } else if ((r.findings?.length ?? 0) === 0 && !r.verdict) {
+      partial.push(label);
+    } else {
+      contributed.push(label);
+    }
+  }
+
   // Collect all findings with source attribution
   const allFindings: Finding[] = [];
   for (const result of results) {
@@ -118,15 +136,20 @@ export function synthesizeFindings(results: AgentResult[]): SynthesizedResult {
 
   // Build summary
   const summaryParts = [
-    `${results.length} agents reviewed`,
+    `${contributed.length}/${results.length} agents contributed`,
     `${unique.length} unique findings`,
   ];
+  if (partial.length > 0) summaryParts.push(`${partial.length} partial`);
+  if (failed.length > 0) summaryParts.push(`${failed.length} failed`);
   if (blockers.length > 0) summaryParts.push(`${blockers.length} blockers`);
   if (concerns.length > 0) summaryParts.push(`${concerns.length} concerns`);
 
   return {
     taskId,
     agents,
+    contributed,
+    partial,
+    failed,
     verdict,
     blockers,
     concerns,

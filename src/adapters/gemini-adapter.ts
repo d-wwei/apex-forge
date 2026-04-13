@@ -32,20 +32,29 @@ export class GeminiAdapter implements RuntimeAdapter {
     mkdirSync(logDir, { recursive: true });
     const logPath = `${logDir}/${task.id}-gemini.log`;
 
-    // Save prompt for auditability
-    writePromptFile(task.id, prompt);
-
-    const cmd = config.command || "gemini";
+    // Save prompt for auditability + use as fallback for long prompts
+    const promptFile = writePromptFile(task.id, prompt);
+    const baseCmd = config.command || "gemini";
+    let spawnCmd: string;
     let args: string[];
 
-    if (cmd === "gemini") {
-      // gemini -p: headless mode; --yolo: auto-approve all tool calls
-      args = [...(config.args || []), "--yolo", "-p", prompt];
+    if (baseCmd === "gemini") {
+      const promptBytes = Buffer.byteLength(prompt);
+      if (promptBytes > 200_000) {
+        // Long prompt: use shell to read from file, avoids ARG_MAX
+        const extraArgs = (config.args || []).join(" ");
+        spawnCmd = "sh";
+        args = ["-c", `${baseCmd} ${extraArgs} --yolo -p "$(cat '${promptFile}')"`.trim()];
+      } else {
+        spawnCmd = baseCmd;
+        args = [...(config.args || []), "--yolo", "-p", prompt];
+      }
     } else {
+      spawnCmd = baseCmd;
       args = [...(config.args || []), ...(prompt ? [prompt] : [])];
     }
 
-    const proc = spawn(cmd, args, {
+    const proc = spawn(spawnCmd, args, {
       stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env, APEX_TASK_ID: task.id },
       ...(config.cwd ? { cwd: config.cwd } : {}),

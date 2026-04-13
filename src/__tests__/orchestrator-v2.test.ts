@@ -523,6 +523,9 @@ describe("ResultCollector", () => {
     expect(synthesis.concerns).toHaveLength(1); // deduplicated
     expect(synthesis.notes).toHaveLength(1);
     expect(synthesis.agents).toHaveLength(2);
-    expect(synthesis.summary).toContain("2 agents reviewed");
+    expect(synthesis.contributed).toHaveLength(2);
+    expect(synthesis.partial).toHaveLength(0);
+    expect(synthesis.failed).toHaveLength(0);
+    expect(synthesis.summary).toContain("2/2 agents contributed");
   });
 });

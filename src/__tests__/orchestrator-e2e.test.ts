@@ -283,7 +283,8 @@ describe("Orchestrator E2E", () => {
     expect(synthesis.blockers).toHaveLength(1);
     expect(synthesis.concerns).toHaveLength(1); // deduplicated
     expect(synthesis.notes).toHaveLength(1);
-    expect(synthesis.summary).toContain("2 agents reviewed");
+    expect(synthesis.contributed).toHaveLength(2);
+    expect(synthesis.summary).toContain("2/2 agents contributed");
 
     await cleanupWorkspace(wsA.path);
     await cleanupWorkspace(wsB.path);

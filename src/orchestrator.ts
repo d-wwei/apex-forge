@@ -7,7 +7,7 @@ import type { Task } from "./types/task.js";
 import type { ApexConfig } from "./types/config.js";
 import type { RuntimeAdapter, AgentHandle } from "./adapters/runtime.js";
 import { detectAdapters, resolveAdapter } from "./adapters/adapter-registry.js";
-import { createWorkspace, injectArtifacts, writePermissionConfig } from "./orchestrator/workspace.js";
+import { createWorkspace, injectArtifacts, writePermissionConfig, cleanupWorkspace } from "./orchestrator/workspace.js";
 import { shouldRetry, backoffMs } from "./orchestrator/retry.js";
 import { buildAgentPrompt } from "./orchestrator/prompt-builder.js";
 import { collectResult, synthesizeFindings, type AgentResult } from "./orchestrator/result-collector.js";
@@ -173,9 +173,9 @@ export async function runOrchestrator(args: string[]): Promise<void> {
   console.log(`Orchestrator started (max_concurrent: ${config.max_concurrent_agents}, poll: ${config.polling_interval_ms}ms)`);
 
   while (!shuttingDown) {
-    await pollCycle(config, adapters, registry, running, retryQueue, completedResults, dryRun);
+    const allDone = await pollCycle(config, adapters, registry, running, retryQueue, completedResults, dryRun);
 
-    if (once || dryRun) break;
+    if (once || dryRun || allDone) break;
     await Bun.sleep(config.polling_interval_ms);
   }
 
@@ -188,14 +188,15 @@ export async function runOrchestrator(args: string[]): Promise<void> {
     const deadline = Date.now() + drainTimeout;
     while ((running.size > 0 || retryQueue.length > 0) && Date.now() < deadline && !shuttingDown) {
       await Bun.sleep(1000);
-      // Run a full poll cycle to reap completed agents, collect results, and handle retries
-      await pollCycle(config, adapters, registry, running, retryQueue, completedResults, false);
+      // Reap completed agents and collect results, but don't dispatch new tasks
+      await pollCycle(config, adapters, registry, running, retryQueue, completedResults, false, true);
     }
   }
 
   console.log("Orchestrator stopped");
 }
 
+/** Returns true when all tasks are done and the orchestrator should stop. */
 async function pollCycle(
   config: ApexConfig,
   adapters: Map<string, RuntimeAdapter>,
@@ -204,7 +205,8 @@ async function pollCycle(
   retryQueue: Array<{ task: Task; attempt: number; retryAfter: number; template: RegistryTemplate | null }>,
   completedResults: Map<string, AgentResult[]>,
   dryRun: boolean,
-) {
+  reapOnly: boolean = false,
+): Promise<boolean> {
   // 1. Reap completed agents + kill timed-out agents
   for (const [runKey, entry] of running) {
     const status = entry.adapter.monitor(entry.handle);
@@ -276,6 +278,8 @@ async function pollCycle(
         await taskSubmit(baseTaskId, `Agent completed (adapter: ${entry.adapter.name()}, ${duration}s)`);
         await taskVerify(baseTaskId, true);
         console.log(`  ${baseTaskId}: → done`);
+        // Clean up workspace (worktree + branch) after successful completion
+        await cleanupWorkspace(wsPath).catch(() => {});
       } catch (e: any) {
         console.log(`  ${baseTaskId}: state transition warning: ${e.message}`);
       }
@@ -284,6 +288,7 @@ async function pollCycle(
     running.delete(runKey);
   }
 
+  if (!reapOnly) {
   // 2. Process retry queue
   const now = Date.now();
   const readyRetries = retryQueue.filter(r => r.retryAfter <= now);
@@ -312,10 +317,7 @@ async function pollCycle(
 
   // 3. Find dispatchable tasks
   const availableSlots = config.max_concurrent_agents - running.size;
-  if (availableSlots <= 0) {
-    printStatus(running, config);
-    return;
-  }
+  if (availableSlots > 0) {
 
   const allTasks = await taskList();
   const openTasks = allTasks.filter(t => t.status === "open");
@@ -329,14 +331,6 @@ async function pollCycle(
       return dep && dep.status === "done";
     });
   });
-
-  if (dispatchable.length === 0 && openTasks.length === 0 && running.size === 0 && retryQueue.length === 0) {
-    const remaining = allTasks.filter(t => t.status !== "done");
-    if (remaining.length === 0) {
-      console.log("All tasks complete.");
-      return;
-    }
-  }
 
   // 4. Dispatch
   const toDispatch = dispatchable.slice(0, availableSlots);
@@ -433,6 +427,9 @@ async function pollCycle(
     }
   }
 
+  } // end if (availableSlots > 0)
+  } // end if (!reapOnly)
+
   // 5. Check for completed cross-model tasks — synthesize when all agents done
   for (const [taskId, results] of completedResults) {
     // Count how many cross-model agents are still running for this task
@@ -460,6 +457,11 @@ async function pollCycle(
       await taskSubmit(taskId, `Cross-model synthesis: ${synthesis.summary}`);
       await taskVerify(taskId, synthesis.verdict !== "fail");
       console.log(`  ${taskId}: → ${synthesis.verdict === "fail" ? "needs attention" : "done"}`);
+      // Clean up all cross-model workspaces for this task
+      for (const agent of synthesis.agents) {
+        const adapterName = agent.split("(")[0]; // strip persona suffix
+        await cleanupWorkspace(`.workspaces/APEX-${taskId}-${adapterName}`).catch(() => {});
+      }
     } catch (e: any) {
       console.log(`  ${taskId}: state transition warning: ${e.message}`);
     }
@@ -468,6 +470,17 @@ async function pollCycle(
   }
 
   printStatus(running, config);
+
+  // Check if all tasks are done (auto-exit signal)
+  if (running.size === 0 && retryQueue.length === 0) {
+    const allTasks = await taskList();
+    const remaining = allTasks.filter(t => t.status !== "done");
+    if (remaining.length === 0 && allTasks.length > 0) {
+      console.log("All tasks complete.");
+      return true;
+    }
+  }
+  return false;
 }
 
 let _lastStatusLine = "";
