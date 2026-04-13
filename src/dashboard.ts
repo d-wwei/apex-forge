@@ -1009,22 +1009,39 @@ function deriveStageFromTasks(state: any, tasks: any[]): any {
   const currentStage = state.current_stage || "idle";
   const stateSession = state.session_id || "";
 
-  // If idle AND tasks show activity, the orchestrator dispatched without
-  // setting a stage — derive from tasks instead of bailing.
-  // Only honor "idle" as explicit if no tasks are active (or all done with
-  // state.json written AFTER the last task transition).
+  // When idle, decide whether to derive stage from tasks or trust state.json.
+  //
+  // Case A: Orchestrator dispatched tasks but never wrote stage transitions.
+  //   Signal: history is empty, but tasks exist with active statuses.
+  //   Action: fall through to derivation → show "execute" or "ship".
+  //
+  // Case B: Session actively managed stages and returned to idle.
+  //   Signal: history has entries (brainstorm→execute→idle cycle completed).
+  //   Action: trust state.json → stay idle.
+  //
+  // Case C: Default idle with no activity at all.
+  //   Signal: no tasks or all tasks done with stale timestamps.
+  //   Action: trust state.json → stay idle.
   if (currentStage === "idle") {
     const hasActive = tasks.some((t: any) =>
       ["open", "assigned", "in_progress", "to_verify", "blocked"].includes(t.status)
     );
-    const stateTs = state.last_updated ? new Date(state.last_updated).getTime() : 0;
-    const lastTaskTs = tasks.reduce((max: number, t: any) => {
-      const ts = t.updated_at || t.created_at || "";
-      return ts ? Math.max(max, new Date(ts).getTime()) : max;
-    }, 0);
-    // Idle is genuine when: no active tasks, or state was explicitly set after all tasks finished
-    if (!hasActive && (stateTs >= lastTaskTs || lastTaskTs === 0)) return state;
-    // Otherwise fall through to derivation logic below
+    const hasHistory = (state.history || []).length > 0;
+
+    // Case B: session completed a stage cycle and explicitly returned to idle
+    if (hasHistory && !hasActive) return state;
+
+    // Case C: truly idle — no active tasks, no history, nothing happening
+    if (!hasActive && !hasHistory) {
+      const stateTs = state.last_updated ? new Date(state.last_updated).getTime() : 0;
+      const lastTaskTs = tasks.reduce((max: number, t: any) => {
+        const ts = t.updated_at || t.created_at || "";
+        return ts ? Math.max(max, new Date(ts).getTime()) : max;
+      }, 0);
+      // State was set after tasks → genuinely idle
+      if (stateTs >= lastTaskTs || lastTaskTs === 0) return state;
+    }
+    // Case A (or C with stale state): fall through to derive from tasks
   }
 
   // Check if tasks belong to the current session
