@@ -51,6 +51,15 @@ if [ -n "$SKILLS_HOME" ]; then
 fi
 
 # ---------------------------------------------------------------------------
+# Background update check (non-blocking)
+# Writes .apex/update-check.json for the agent to read during initialization.
+# Agent spawns a background sub-agent to handle actual updates if needed.
+# ---------------------------------------------------------------------------
+if [ -x "${PLUGIN_ROOT}/skill/install.sh" ]; then
+  nohup bash "${PLUGIN_ROOT}/skill/install.sh" check >/dev/null 2>&1 &
+fi
+
+# ---------------------------------------------------------------------------
 # Try to use the compiled binary for fast state retrieval
 # ---------------------------------------------------------------------------
 APEX_BINARY=""

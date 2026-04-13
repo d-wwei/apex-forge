@@ -15,6 +15,68 @@ CMD="${1:-install}"
 
 case "$CMD" in
   install) ;;
+  check)
+    # Fast update check — git fetch + compare, write JSON results
+    # Guards: require git and python3, exit silently if missing
+    command -v python3 &>/dev/null || exit 0
+    command -v git &>/dev/null || exit 0
+
+    SKILLS_HOME=""
+    for dir in "$HOME/.claude/skills" "$HOME/.codex/skills" "$HOME/.gemini/skills" "$HOME/.opencode/skills"; do
+      if [ -d "$dir" ]; then SKILLS_HOME="$dir"; break; fi
+    done
+    [ -z "$SKILLS_HOME" ] && exit 0
+
+    UPDATES="[]"
+    FETCHED=0
+    for dir in "$SKILLS_HOME"/*/; do
+      name="$(basename "$dir")"
+      [ "$name" = "apex-forge" ] && continue
+      [ -d "$dir/.git" ] || continue
+      git -C "$dir" fetch --quiet 2>/dev/null || continue
+      FETCHED=1
+      LOCAL=$(git -C "$dir" rev-parse HEAD 2>/dev/null)
+      REMOTE_REF=$(git -C "$dir" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null || echo "")
+      if [ -n "$REMOTE_REF" ]; then
+        REMOTE=$(git -C "$dir" rev-parse "$REMOTE_REF" 2>/dev/null || echo "")
+      else
+        REMOTE=$(git -C "$dir" rev-parse origin/main 2>/dev/null \
+                 || git -C "$dir" rev-parse origin/master 2>/dev/null \
+                 || echo "")
+      fi
+      [ -z "$REMOTE" ] && continue
+      if [ "$LOCAL" != "$REMOTE" ]; then
+        SHORT_LOCAL="${LOCAL:0:7}"
+        SHORT_REMOTE="${REMOTE:0:7}"
+        # Pipe data through stdin to avoid shell injection via directory names
+        UPDATES=$(printf '%s\n%s\n%s\n%s' "$UPDATES" "$name" "$SHORT_LOCAL" "$SHORT_REMOTE" | python3 -c "
+import sys, json
+lines = sys.stdin.read().split('\n')
+arr = json.loads(lines[0])
+arr.append({'skill': lines[1], 'local': lines[2], 'remote': lines[3]})
+json.dump(arr, sys.stdout)
+")
+      fi
+    done
+
+    # Don't write misleading "all clear" if no fetch succeeded (e.g. no network)
+    [ "$FETCHED" -eq 0 ] && exit 0
+
+    # Write results — pipe UPDATES through stdin to avoid triple-quote injection
+    APEX_DIR="${REPO_DIR}/.apex"
+    mkdir -p "$APEX_DIR"
+    printf '%s' "$UPDATES" | python3 -c "
+import json, sys, datetime
+updates = json.load(sys.stdin)
+result = {
+    'checked_at': datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+    'updates_available': updates
+}
+with open('${APEX_DIR}/update-check.json', 'w') as f:
+    json.dump(result, f, indent=2)
+"
+    exit 0
+    ;;
   update)
     echo "Updating apex-forge core..."
     (cd "$REPO_DIR" && git pull --ff-only && bun install && bun run build) 2>/dev/null || echo "  [warn] Core update failed"
@@ -37,7 +99,7 @@ case "$CMD" in
     exit 0
     ;;
   *)
-    echo "Usage: install.sh [install|update]"
+    echo "Usage: install.sh [install|update|check]"
     exit 1
     ;;
 esac
@@ -221,13 +283,13 @@ fi
 echo ""
 echo "Installing companion skills to $SKILLS_HOME..."
 
-# Format: name|url|tag (empty tag = HEAD)
+# Format: name|url|tag (empty tag = HEAD, always latest)
 DEPS=(
-  "systematic-debugging|https://github.com/d-wwei/systematic-debugging|v1.0.0"
-  "thorough-code-review|https://github.com/d-wwei/thorough-code-review|v1.0.0"
-  "security-audit|https://github.com/d-wwei/security-audit|v1.0.0"
-  "browser-qa-testing|https://github.com/d-wwei/browser-qa-testing|v1.0.0"
-  "iteration-reflector|https://github.com/d-wwei/iteration-reflector|v1.0.0"
+  "systematic-debugging|https://github.com/d-wwei/systematic-debugging|"
+  "thorough-code-review|https://github.com/d-wwei/thorough-code-review|"
+  "security-audit|https://github.com/d-wwei/security-audit|"
+  "browser-qa-testing|https://github.com/d-wwei/browser-qa-testing|"
+  "iteration-reflector|https://github.com/d-wwei/iteration-reflector|"
   "tasteful-frontend|https://github.com/d-wwei/tasteful-frontend|"
   "design-to-code-runner|https://github.com/d-wwei/design-to-code-runner|"
   "product-review|https://github.com/d-wwei/product-review|"
@@ -286,3 +348,4 @@ echo "  /security-audit           Standalone security audit"
 echo ""
 echo "Maintenance:"
 echo "  install.sh update         Pull latest for all companion skills"
+echo "  install.sh check          Check for available updates (writes .apex/update-check.json)"

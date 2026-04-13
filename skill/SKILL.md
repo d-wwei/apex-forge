@@ -88,9 +88,14 @@ After init, unconditionally spawn a **background Agent** (fire-and-forget) with 
 **The main agent MUST NOT read the JSON, check conditions, or do any update logic itself.**
 All update-related work is isolated in the sub-agent. If the sub-agent fails, the main agent is unaffected.
 
-**When the sub-agent completes and sends a notification back: IGNORE IT. Do not reload skills,
-do not change course, do not report to the user.** Skills already loaded in the current conversation
-are unaffected by disk updates. New versions take effect at next invocation via the upgrade notes below.
+**Stage-aware update adoption:**
+
+- **Current stage already using that skill** → Do NOT interrupt. Finish the current stage with the loaded version.
+- **Skill not yet used / will be used in a later stage** → No action now. The upgrade notes at
+  `.apex/upgrade-notes/` will be checked automatically when that skill is invoked (per "Upgrade notes" below).
+  This gives the user better results without disruption.
+- **Sub-agent completion notifications** → Ignore them. All information flows through `.apex/upgrade-notes/`,
+  not through notification events. Never interrupt the user's flow to announce updates.
 
 ### Upgrade notes
 

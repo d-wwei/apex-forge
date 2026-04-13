@@ -1,6 +1,6 @@
 # bindings.yaml — AF Stage → External Skill Bindings
 # These skills are installed by install.sh. Pipeline stages MUST invoke them.
-# Version constraints use semver. Skills without version pin use latest.
+# All skills use latest (HEAD). No version pinning — background update keeps them current.
 
 version: "1.0"
 
@@ -9,7 +9,6 @@ version: "1.0"
 brainstorm:
   - trigger: "产品决策、新功能规划、写 PRD、产品需求文档、市场分析、要不要做、product decision"
     skill: product-prd
-    version: ">=2.0.0"
     priority: 1
     concurrent: false
     output_schema:
@@ -25,7 +24,6 @@ brainstorm:
 execute:
   - trigger: "bug, test failure, unexpected behavior, error investigation"
     skill: systematic-debugging
-    version: ">=1.0.0"
     priority: 1
     concurrent: false
     output_schema:
@@ -39,19 +37,16 @@ execute:
 
   - trigger: "task involves frontend UI design or implementation"
     skill: tasteful-frontend
-    version: ">=1.0.0"
     priority: 3
     concurrent: true
 
   - trigger: "implementing from design mockup, screenshot, or Figma"
     skill: design-to-code-runner
-    version: ">=1.0.0"
     priority: 2
     concurrent: false
 
   - trigger: "browser verification needed — deployment check, UI regression, functional test"
     skill: browser-qa-testing
-    version: ">=1.0.0"
     priority: 4
     concurrent: false
     output_schema:
@@ -67,7 +62,6 @@ review:
   - trigger: "pre-merge code review"
     skill: thorough-code-review
     mode: outgoing
-    version: ">=1.0.0"
     priority: 1
     concurrent: false
     output_schema:
@@ -81,13 +75,11 @@ review:
   - trigger: "received external review feedback"
     skill: thorough-code-review
     mode: incoming
-    version: ">=1.0.0"
     priority: 1
     concurrent: false
 
   - trigger: "changes touch authentication, data handling, network, or dependencies"
     skill: security-audit
-    version: ">=1.0.0"
     priority: 2
     concurrent: true
     output_schema:
@@ -106,12 +98,10 @@ review:
       - gate: design-baseline
         verdict_on_fail: REJECTED
       - skill: tasteful-frontend
-        version: ">=1.0.0"
         verdict_on_fail: APPROVED_WITH_FIXES
 
   - trigger: "product experience or UX evaluation"
     skill: product-review
-    version: ">=1.0.0"
     priority: 4
     concurrent: true
 
@@ -126,7 +116,6 @@ review:
 compound:
   - trigger: "iteration complete, work shipped, resolution captured, post-mortem"
     skill: iteration-reflector
-    version: ">=1.0.0"
     priority: 1
     concurrent: false
     output_schema:
