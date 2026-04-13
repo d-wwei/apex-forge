@@ -95,11 +95,23 @@ export function buildAgentPrompt(
   // Standard rules
   lines.push("");
   lines.push("## Rules");
-  lines.push("1. Follow TDD: write failing test first, then implement");
-  lines.push("2. Stay scoped: only work on this task");
-  lines.push("3. Write output to `output/result.json` in your workspace");
-  lines.push("4. When done, exit with code 0");
-  lines.push("5. If blocked, exit with code 1");
+  lines.push("1. Stay scoped: only work on this task");
+  lines.push("2. When the task involves writing code, follow TDD where appropriate");
+  lines.push("3. When done, exit with code 0. If blocked, exit with code 1");
+  lines.push("");
+  lines.push("## REQUIRED OUTPUT (do this BEFORE exiting)");
+  lines.push("You MUST create the file `output/result.json` in your workspace.");
+  lines.push("This file is how the orchestrator knows what you accomplished.");
+  lines.push("Without it, your work is considered incomplete.");
+  lines.push("");
+  lines.push("Format:");
+  lines.push("```json");
+  lines.push("{");
+  lines.push('  "verdict": "pass" or "fail",');
+  lines.push('  "findings": [{"severity": "high|medium|low", "description": "..."}],');
+  lines.push('  "summary": "One-sentence summary of what was done"');
+  lines.push("}");
+  lines.push("```");
 
   return lines.filter(l => l !== undefined).join("\n");
 }

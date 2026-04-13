@@ -24,6 +24,7 @@ export interface ApexConfig {
   retry_backoff_base_ms: number;
   agent_command: string;
   idle_timeout_ms: number;
+  agent_timeout_ms: number;
   agents?: AgentMap;
   adapters?: AdaptersMap;
 }
@@ -40,4 +41,5 @@ export const DEFAULT_CONFIG: ApexConfig = {
   retry_backoff_base_ms: 10000,
   agent_command: "claude",
   idle_timeout_ms: 1800000,
+  agent_timeout_ms: 300000, // 5 minutes per agent
 };

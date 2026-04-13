@@ -1,8 +1,17 @@
 import { spawn, spawnSync } from "child_process";
-import { mkdirSync, appendFileSync, readFileSync } from "fs";
+import { mkdirSync, appendFileSync, readFileSync, writeFileSync } from "fs";
+import { join } from "path";
 import type { RuntimeAdapter, AgentHandle, AdapterStatus, AdapterConfig, TaskDispatchInfo } from "./runtime.js";
 
 let handleCounter = 0;
+
+function writePromptFile(taskId: string, prompt: string): string {
+  const dir = ".apex/orchestrator-prompts";
+  mkdirSync(dir, { recursive: true });
+  const path = join(dir, `${taskId}-codex-${Date.now()}.txt`);
+  writeFileSync(path, prompt, "utf-8");
+  return path;
+}
 
 export class CodexAdapter implements RuntimeAdapter {
   name(): string {
@@ -10,8 +19,12 @@ export class CodexAdapter implements RuntimeAdapter {
   }
 
   available(): boolean {
-    const result = spawnSync("which", ["codex"], { encoding: "utf-8" });
-    return result.status === 0;
+    try {
+      const result = spawnSync("codex", ["--version"], { encoding: "utf-8", timeout: 5000 });
+      return result.status === 0;
+    } catch {
+      return false;
+    }
   }
 
   async spawn(task: TaskDispatchInfo, prompt: string, config: AdapterConfig): Promise<AgentHandle> {
@@ -19,16 +32,33 @@ export class CodexAdapter implements RuntimeAdapter {
     mkdirSync(logDir, { recursive: true });
     const logPath = `${logDir}/${task.id}-codex.log`;
 
+    // Save prompt for auditability
+    writePromptFile(task.id, prompt);
+
     const cmd = config.command || "codex";
-    const args = cmd === "codex"
-      ? ["-q", prompt]
-      : [...(config.args || []), ...(prompt ? [prompt] : [])];
+    let args: string[];
+    let useStdin = false;
+
+    if (cmd === "codex") {
+      // codex exec: non-interactive mode
+      // --full-auto enables workspace-write sandbox + auto-approval
+      // Prompt via stdin (codex reads from stdin when no prompt arg given)
+      args = [...(config.args || []), "exec", "--full-auto"];
+      useStdin = true;
+    } else {
+      args = [...(config.args || []), ...(prompt ? [prompt] : [])];
+    }
 
     const proc = spawn(cmd, args, {
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: [useStdin ? "pipe" : "ignore", "pipe", "pipe"],
       env: { ...process.env, APEX_TASK_ID: task.id },
       ...(config.cwd ? { cwd: config.cwd } : {}),
     });
+
+    if (useStdin && proc.stdin) {
+      proc.stdin.write(prompt);
+      proc.stdin.end();
+    }
 
     proc.stdout?.on("data", (chunk: Buffer) => appendFileSync(logPath, chunk));
     proc.stderr?.on("data", (chunk: Buffer) => appendFileSync(logPath, chunk));
@@ -66,12 +96,12 @@ export class CodexAdapter implements RuntimeAdapter {
     }
   }
 
-  async resume(sessionId: string, prompt: string, config: AdapterConfig): Promise<AgentHandle> {
-    // Codex doesn't support --resume; spawn fresh with context
+  async resume(sessionId: string, prompt: string, config: AdapterConfig, taskId?: string): Promise<AgentHandle> {
+    // Codex supports resume via `codex exec resume --last`; fall back to fresh spawn
     return this.spawn(
-      { id: `resume-${sessionId}`, title: "Resume", description: prompt },
+      { id: taskId || `resume-${sessionId}`, title: "Resume", description: prompt },
       prompt,
-      config
+      config,
     );
   }
 }

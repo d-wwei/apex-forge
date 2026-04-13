@@ -25,6 +25,7 @@ export interface RegistryTemplate {
   skill?: string;
   persona?: string;
   dispatch_mode?: "same-model" | "cross-model";
+  adapter?: string; // Force a specific adapter: "claude" | "codex" | "gemini"
 }
 
 // --- Running agent tracking ---
@@ -64,6 +65,8 @@ function loadRegistry(): RegistryTemplate[] {
         current.skill = m[1].trim();
       } else if ((m = line.match(/^\s+persona:\s+(.+)/))) {
         current.persona = m[1].trim();
+      } else if ((m = line.match(/^\s+adapter:\s+(.+)/))) {
+        current.adapter = m[1].trim();
       } else if ((m = line.match(/^\s+triggers:\s*\[(.+)\]/))) {
         // Inline array: triggers: ["review this", "check my diff", ...]
         const items = m[1].match(/"([^"]+)"/g);
@@ -108,6 +111,11 @@ function resolveAdapterForTemplate(
   template: RegistryTemplate | null,
 ): RuntimeAdapter {
   if (!template) return resolveAdapter(adapters);
+
+  // Explicit adapter override takes highest priority
+  if (template.adapter && adapters.has(template.adapter)) {
+    return adapters.get(template.adapter)!;
+  }
 
   const hint = template.model_hint?.toLowerCase() || "";
 
@@ -197,9 +205,21 @@ async function pollCycle(
   completedResults: Map<string, AgentResult[]>,
   dryRun: boolean,
 ) {
-  // 1. Reap completed agents
+  // 1. Reap completed agents + kill timed-out agents
   for (const [runKey, entry] of running) {
     const status = entry.adapter.monitor(entry.handle);
+
+    // Check for timeout on still-running agents
+    if (status.state === "running" && config.agent_timeout_ms > 0) {
+      const elapsed = Date.now() - entry.handle.startedAt;
+      if (elapsed > config.agent_timeout_ms) {
+        console.log(`  ${runKey}: timed out after ${Math.round(elapsed / 1000)}s, killing`);
+        entry.adapter.kill(entry.handle);
+        // Will be reaped as exited (non-zero) on next poll cycle
+        continue;
+      }
+    }
+
     if (status.state !== "exited") continue;
 
     // runKey is either "T5" (Mode 1) or "T5:claude" (Mode 2 composite)
