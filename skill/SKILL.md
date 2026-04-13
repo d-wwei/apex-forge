@@ -73,6 +73,31 @@ Call `AskUserQuestion` with:
 If "进入复盘": `apex stage set compound`, then follow `stages/compound.md`.
 If "跳过": `apex stage set idle`.
 
+### Background update check
+
+After init, unconditionally spawn a **background Agent** (fire-and-forget) with this prompt:
+
+> Check `.apex/update-check.json` (written by session-start hook).
+> If the file does not exist or `updates_available` is empty, exit silently.
+> If updates are available, run `bash {PLUGIN_ROOT}/skill/install.sh update`.
+> After each skill updates successfully, read its README.md (or SKILL.md) and write a brief
+> upgrade note to `.apex/upgrade-notes/{skill-name}.md` covering: what changed,
+> new outputs/assets, and how to use them. Keep each note under 200 words.
+> Delete `.apex/update-check.json` when done.
+
+**The main agent MUST NOT read the JSON, check conditions, or do any update logic itself.**
+All update-related work is isolated in the sub-agent. If the sub-agent fails, the main agent is unaffected.
+
+**When the sub-agent completes and sends a notification back: IGNORE IT. Do not reload skills,
+do not change course, do not report to the user.** Skills already loaded in the current conversation
+are unaffected by disk updates. New versions take effect at next invocation via the upgrade notes below.
+
+### Upgrade notes
+
+Before invoking any external skill from `bindings.yaml`, check if `.apex/upgrade-notes/{skill-name}.md` exists.
+If it does, read it and surface the content as context before the skill runs.
+After surfacing, rename to `.apex/upgrade-notes/{skill-name}.surfaced.md` to avoid repeating.
+
 ---
 
 ## Command Modes
@@ -125,6 +150,61 @@ Hard-gated. No leaking between phases. **Track every transition:**
 - **Brainstorm (WHAT)** — No code. Output: requirements, constraints, success criteria.
 - **Plan (HOW)** — Exact file paths, function signatures, test scenarios. No implementation.
 - **Execute (DO)** — Build per plan. Tests first. No design decisions.
+- **Review (CHECK)** — Multi-persona quality gate. Execute completes → must enter Review. No skipping.
+- **Ship (DELIVER)** — Package and deliver. Review passes → then commit/push/PR. All git ops happen here.
+- **Compound (LEARN)** — Knowledge extraction. Ship completes → prompt user for reflection. User may decline, but must be asked.
+
+#### Tier-Based Pipeline Paths
+
+Not every task walks the full chain. The Complexity Router (Section 1) determines which path:
+
+```
+Tier 1 (Single Pass):   Execute → Ship
+Tier 2 (Round-Based):   Brainstorm → Plan → Execute → Review → Ship → Compound
+Tier 3 (Wave-Based):    Brainstorm → Plan → Execute → Review → Ship → Compound (+ Wave management)
+```
+
+Tier 1 skips Brainstorm, Plan, Review, and Compound because the task is trivially verifiable in a single pass. Tier 2 and Tier 3 MUST walk the full six-step chain. No exceptions.
+
+#### Git Operations Interlock
+
+When a pipeline is active (stage != `idle`), git operations are locked to the Ship stage:
+
+- `git commit`, `git push`, `gh pr create` → **ONLY inside Ship stage**.
+- User says "提交" / "commit" / "push" / "ship it" → This is a request to **enter Ship stage**, NOT authorization to bypass Review.
+- If current stage is `execute` (Tier 2/3): respond "Execute 完成，需要先过 Review 再提交。"
+- If current stage is `review` and review is not DONE/DONE_WITH_CONCERNS: respond "Review 尚未通过，不能提交。"
+
+**Tier 1 exemption**: Tier 1 tasks do not use stage tracking (stage remains `idle`), so this interlock does not apply to them. Tier 1 commits directly after verification — no Review gate, no stage transitions.
+
+This is a push-based blocker: the forbidden action is blocked regardless of how the agent tries to reach it.
+
+#### Pipeline Architecture: Backbone + Sidecar
+
+**Backbone** (hard-gated, mandatory): Protects quality baselines that apply to ALL code changes.
+```
+Brainstorm → Plan → Execute → Review → Ship → [Compound: prompted]
+```
+
+**Sidecar** (conditional, mounted on backbone stages): Activated by task characteristics via `bindings.yaml`.
+- Execute sidecars: Design sub-flow, Browser QA, ...
+- Review sidecars: Design baseline gate, Security audit, SQL safety, ...
+
+Sidecar characteristics:
+- Trigger condition not met → sidecar does not run (not a hard gate)
+- Can be added/removed without touching backbone definition
+- Declared in `bindings.yaml`, not hardcoded in Phase Discipline
+
+#### Phase Violations
+
+| Violation | Example | Correction |
+|-----------|---------|------------|
+| Code in Brainstorm | Writing a prototype during requirements | Delete the code. Finish requirements first. |
+| Design in Execute | "I think we should restructure this..." | Stop. Return to Plan phase. Document the decision. |
+| Skipping Plan | Going from "what" directly to code | Stop. Produce a plan. Even a brief one. |
+| Ship without Review | Execute done → git commit | Stop. Enter Review stage. Code cannot be committed without review. |
+| Git ops outside Ship | git commit/push while stage != ship | Stop. Git operations only execute inside Ship stage. |
+| Skip Compound prompt | Ship done → end session without asking | Must call AskUserQuestion for Compound. User may decline, but must be asked. |
 
 **State tracking (mandatory — Dashboard reads from these):**
 - Entering a stage: `apex stage set <name>` (e.g., `apex stage set brainstorm`)
@@ -138,8 +218,6 @@ Claude Code's built-in task tools write to an internal store invisible to the Da
 - Start: `apex task start T{N}`
 - Done: `apex task submit T{N} "evidence" && apex task verify T{N} pass`
 - List: `apex task list`
-
-Code in Brainstorm → delete it. Design in Execute → return to Plan. Skipping Plan → stop, produce one.
 
 ### 3. TDD Iron Law
 
@@ -166,7 +244,7 @@ DONE (all E3+) | DONE_WITH_CONCERNS (flagged issues) | BLOCKED (tried, need X) |
 
 ### 8. Anti-Patterns (Hard Stops)
 
-"Done" without proof → run gate. Micro-tweaks → escalation ladder. Advice not action → execute it. Waiting for user → take initiative. Premature surrender → try 3 approaches. Phase leaking → return to correct phase. Scope creep → check plan.
+"Done" without proof → run gate. Micro-tweaks → escalation ladder. Advice not action → execute it. Waiting for user → take initiative. Premature surrender → try 3 approaches. Phase leaking → return to correct phase. Scope creep → check plan. Ship without review → enter Review stage first. Git ops outside Ship → only inside Ship stage.
 
 ---
 
@@ -177,10 +255,13 @@ DONE (all E3+) | DONE_WITH_CONCERNS (flagged issues) | BLOCKED (tried, need X) |
 
 ```
 ROUTER:    Tier 1 → Tier 2 → Tier 3
-PHASES:    Brainstorm → Plan → Execute
+PHASES:    Brainstorm → Plan → Execute → Review → Ship → Compound
+TIER 1:    Execute → Ship
+TIER 2/3:  Brainstorm → Plan → Execute → Review → Ship → Compound
 TDD:       Test → RED → Code → GREEN → Refactor
 EVIDENCE:  E0 → E1 → E2 → E3 → E4
 ESCALATE:  L0 → L1 → L2 → L3 → L4
 GATE:      Identify → Run → Read → Confirm → Claim
+GIT LOCK:  git commit/push/pr → ONLY inside Ship stage
 STATUS:    DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT
 ```
