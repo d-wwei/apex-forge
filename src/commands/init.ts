@@ -55,9 +55,10 @@ export async function cmdInit(): Promise<void> {
     await writeJSON(`${APEX_DIR}/memory.json`, initialMemory);
   }
 
-  // Install pre-commit hook if in a git repo
+  // Install pre-commit hook if in a git repo (skip in worktrees where .git is a file)
   const gitDir = path.join(process.cwd(), ".git");
-  if (existsSync(gitDir)) {
+  const isGitDir = existsSync(gitDir) && lstatSync(gitDir).isDirectory();
+  if (isGitDir) {
     const hooksDir = path.join(gitDir, "hooks");
     mkdirSync(hooksDir, { recursive: true });
 
@@ -77,7 +78,7 @@ export async function cmdInit(): Promise<void> {
   }
 
   // Add .apex/ to .gitignore if in git repo and not already there
-  if (existsSync(gitDir)) {
+  if (isGitDir) {
     const gitignorePath = path.join(process.cwd(), ".gitignore");
     if (existsSync(gitignorePath)) {
       const content = (await Bun.file(gitignorePath).text()).trim();

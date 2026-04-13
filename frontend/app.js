@@ -30,6 +30,13 @@ let evtSource = null;
 let sseConnected = false;
 let loadedProjects = null;
 
+// Worktree aggregation state
+let worktreeMode = 'single';   // 'single' | 'aggregated' | 'filter'
+let worktreeExpanded = false;   // pipeline expand/collapse
+let worktreeFilter = null;      // selected worktree label in filter mode
+let currentRepoRoot = null;     // repo root for aggregated SSE
+let currentWorktrees = null;    // worktree data from last SSE payload
+
 // ===== 2b. i18n =====
 
 function t(key) {
@@ -79,6 +86,20 @@ function navigateToProject(project) {
   const name = project.name || 'UNKNOWN';
   document.getElementById('top-bar-project').textContent = t('common.projectPrefix') + name;
   document.getElementById('top-bar-time').textContent = new Date().toISOString().replace('T', ' ').slice(0, 19);
+
+  // Detect worktree group membership
+  const wg = project.worktreeGroup;
+  if (wg && wg.siblingCount > 1) {
+    worktreeMode = 'aggregated';
+    currentRepoRoot = wg.repoRoot;
+    worktreeFilter = null;
+    worktreeExpanded = false;
+  } else {
+    worktreeMode = 'single';
+    currentRepoRoot = null;
+    currentWorktrees = null;
+  }
+  updateWtControls();
 
   updateSidebarActive(project);
   initialLoad();
@@ -132,6 +153,7 @@ function renderProjectCards(projects) {
         '<div class="project-card-name-group">' +
           '<div class="project-card-dot ' + dotClass + '"></div>' +
           '<span class="project-card-name">' + esc(p.name) + '</span>' +
+          (p.worktreeGroup && p.worktreeGroup.siblingCount > 1 ? '<span class="project-card-wt-badge">' + p.worktreeGroup.siblingCount + ' WT</span>' : '') +
         '</div>' +
         '<span class="project-card-badge ' + p.status + '">' + p.status.toUpperCase() + '</span>' +
       '</div>' +
@@ -163,6 +185,7 @@ function loadProjectCards() {
       lastActive: p.last_active || 'unknown',
       port: p.port || null,
       path: p.path || '',
+      worktreeGroup: p.worktreeGroup || null,
     }));
     loadedProjects = projects.length ? projects : DEMO_PROJECTS;
     renderProjectCards(loadedProjects);
@@ -242,23 +265,73 @@ function updateSidebarActive(project) {
   });
 }
 
+// ===== 5b. Worktree Controls =====
+
+function updateWtControls() {
+  var el = document.getElementById('wt-controls');
+  if (!el) return;
+  if (worktreeMode === 'single') { el.style.display = 'none'; return; }
+  el.style.display = 'inline-flex';
+
+  var allBtn = el.querySelector('.wt-mode-btn');
+  allBtn.classList.toggle('active', worktreeMode === 'aggregated');
+  allBtn.onclick = function() { switchToAggregated(); };
+
+  var sel = document.getElementById('wt-filter-select');
+  if (worktreeMode === 'filter') {
+    sel.style.display = '';
+    if (currentWorktrees && sel.options.length !== currentWorktrees.length + 1) {
+      sel.innerHTML = '<option value="">-- select --</option>';
+      currentWorktrees.forEach(function(wt) {
+        var opt = document.createElement('option');
+        opt.value = wt.label;
+        opt.textContent = wt.label + (wt.isMain ? ' (main)' : '');
+        if (wt.label === worktreeFilter) opt.selected = true;
+        sel.appendChild(opt);
+      });
+    }
+    sel.onchange = function() { worktreeFilter = sel.value || null; connectSSE(); };
+  } else {
+    sel.style.display = 'none';
+  }
+}
+
+function switchToAggregated() {
+  worktreeMode = 'aggregated';
+  worktreeFilter = null;
+  worktreeExpanded = false;
+  updateWtControls();
+  connectSSE();
+}
+
+function switchToFilter(label) {
+  worktreeMode = 'filter';
+  worktreeFilter = label;
+  worktreeExpanded = false;
+  updateWtControls();
+  connectSSE();
+}
+
 // ===== 6. Dashboard Rendering (preserved) =====
 
 function render(data) {
-  renderKanban(data.tasks);
-  renderPipeline(data.state, data.tasks);
+  renderKanban(data.tasks, data._worktrees);
+  renderPipeline(data.state, data.tasks, data._worktrees);
   renderTelemetry(data.analytics);
   renderActivity(data.analytics);
   renderMemory(data.memory);
 
-  // Project name is set by navigateToProject() — don't override from SSE data
-  // to avoid flashing back to a previous project during SSE reconnection.
+  // Update worktree controls if worktree data available
+  if (data._worktrees) updateWtControls();
 
   // Derive status from state + tasks
   const stageActive = (data.state.current_stage || 'idle') !== 'idle';
   const tasksActive = (data.tasks.tasks || []).some(function(t) { return t.status === 'in_progress'; });
-  document.getElementById('pipeline-status').textContent =
-    (stageActive || tasksActive ? t('pipeline.statusRunning') : t('pipeline.statusIdle'));
+  var statusText = stageActive || tasksActive ? t('pipeline.statusRunning') : t('pipeline.statusIdle');
+  if (data._summary && data._summary.activeWorktrees > 1) {
+    statusText += ' (' + data._summary.activeWorktrees + ' worktrees)';
+  }
+  document.getElementById('pipeline-status').textContent = statusText;
 }
 
 const KANBAN_LABEL_KEYS = {
@@ -266,9 +339,14 @@ const KANBAN_LABEL_KEYS = {
   to_verify: 'kanban.toVerify', done: 'kanban.done'
 };
 
-function renderKanban(tasks) {
+function renderKanban(tasks, wtData) {
+  var taskList = (tasks.tasks || []);
+  // In filter mode with worktree data, filter to selected worktree
+  if (worktreeMode === 'filter' && worktreeFilter && wtData) {
+    taskList = taskList.filter(function(tk) { return tk._worktree === worktreeFilter; });
+  }
   const cols = { open: [], assigned: [], in_progress: [], to_verify: [], done: [] };
-  for (const tk of (tasks.tasks || [])) {
+  for (const tk of taskList) {
     const bucket = cols[tk.status] !== undefined ? tk.status : 'open';
     cols[bucket].push(tk);
   }
@@ -283,14 +361,15 @@ function renderKanban(tasks) {
       container.innerHTML = items.map(tk => {
         const statusClass = 'status-' + status.replace(/_/g, '-');
         const deps = tk.depends_on && tk.depends_on.length ? t('kanban.dep') + esc(tk.depends_on.join(', ')) : t('kanban.depNull');
-        return '<div class="task-card ' + statusClass + '"><div class="task-id">' + t('kanban.taskId') + esc(tk.id) + '</div><div class="task-title">' + esc(tk.title) + '</div><div class="task-meta"><span class="task-dep">' + deps + '</span><span class="task-evidence">' + (tk.evidence ? tk.evidence.length : 0) + t('kanban.evidence') + '</span></div></div>';
+        const wtBadge = tk._worktree ? '<div class="task-wt-badge">' + esc(tk._worktree) + '</div>' : '';
+        return '<div class="task-card ' + statusClass + '"><div class="task-id">' + t('kanban.taskId') + esc(tk.id) + '</div>' + wtBadge + '<div class="task-title">' + esc(tk.title) + '</div><div class="task-meta"><span class="task-dep">' + deps + '</span><span class="task-evidence">' + (tk.evidence ? tk.evidence.length : 0) + t('kanban.evidence') + '</span></div></div>';
       }).join('');
     }
   }
   applyKanbanCollapse();
 }
 
-function renderPipeline(state, tasks) {
+function renderPipeline(state, tasks, wtData) {
   var current = state.current_stage || 'idle';
   var history = (state.history || []).map(function(h) { return h.stage; });
 
@@ -314,13 +393,57 @@ function renderPipeline(state, tasks) {
     }
   }
 
+  // Compute per-stage worktree counts for aggregated mode
+  var stageCounts = {};
+  var stageAllCompleted = {};
+  if (wtData && wtData.length > 1 && worktreeMode === 'aggregated') {
+    STAGES.forEach(function(s) { stageCounts[s] = 0; stageAllCompleted[s] = true; });
+    wtData.forEach(function(wtp) {
+      var wtState = wtp.state && wtp.state.state ? wtp.state.state : {};
+      var wtCurrent = wtState.current_stage || 'idle';
+      var wtHistory = (wtState.history || []).map(function(h) { return h.stage; });
+      STAGES.forEach(function(s) {
+        if (s === wtCurrent) stageCounts[s]++;
+        if (!wtHistory.includes(s) && s !== wtCurrent) stageAllCompleted[s] = false;
+      });
+    });
+    // Override: in aggregated mode, stage is "active" if any worktree is there
+    // stage is "completed" if ALL worktrees have passed it
+    current = null; // no single current in aggregated
+    history = [];
+  }
+
   const stagesEl = document.getElementById('pipeline-stages');
-  stagesEl.innerHTML = '<div class="pipeline-line"></div>' + STAGES.map(s => {
-    const isActive = s === current, isCompleted = history.includes(s);
-    const circleClass = isActive ? 'active' : isCompleted ? 'completed' : '';
-    const icon = isCompleted ? CHECK_ICON : STAGE_ICONS[s];
-    return '<div class="pipeline-stage"><div class="stage-circle ' + circleClass + '">' + icon + '</div><span class="stage-label ' + circleClass + '">' + t('stage.' + s) + '</span></div>';
-  }).join('');
+  var isAgg = wtData && wtData.length > 1 && worktreeMode === 'aggregated';
+
+  stagesEl.innerHTML = '<div class="pipeline-line"></div>' + STAGES.map(function(s) {
+    var isActive, isCompleted;
+    if (isAgg) {
+      isActive = stageCounts[s] > 0;
+      isCompleted = stageAllCompleted[s] && !isActive;
+    } else {
+      isActive = s === current;
+      isCompleted = history.includes(s);
+    }
+    var circleClass = isActive ? 'active' : isCompleted ? 'completed' : '';
+    var icon = isCompleted ? CHECK_ICON : STAGE_ICONS[s];
+    var badge = (isAgg && stageCounts[s] > 0)
+      ? '<div class="wt-count-badge">' + stageCounts[s] + '</div>' : '';
+    return '<div class="pipeline-stage"><div class="stage-circle ' + circleClass + '">' + icon + '</div><span class="stage-label ' + circleClass + '">' + t('stage.' + s) + '</span>' + badge + '</div>';
+  }).join('') + (isAgg ? '<button class="wt-expand-btn" id="wt-expand-btn">' + (worktreeExpanded ? '▴' : '▾') + '</button>' : '');
+
+  // Bind expand/collapse
+  var expandBtn = document.getElementById('wt-expand-btn');
+  if (expandBtn) {
+    expandBtn.onclick = function() {
+      worktreeExpanded = !worktreeExpanded;
+      renderWtExpandedRows(wtData);
+      expandBtn.textContent = worktreeExpanded ? '▴' : '▾';
+    };
+  }
+
+  // Render expanded rows
+  renderWtExpandedRows(wtData);
   const artEl = document.getElementById('pipeline-artifacts');
   if (state.artifacts && Object.keys(state.artifacts).length > 0) {
     const entries = Object.entries(state.artifacts).filter(([, v]) => v && v.length > 0);
@@ -335,6 +458,38 @@ function renderPipeline(state, tasks) {
     '<div class="empty-state-hint">' + t('pipeline.noArtifactsHint') + '</div>' +
     '<div class="empty-state-cmd">' + t('pipeline.noArtifactsCmd') + '</div>' +
   '</div>';
+}
+
+function renderWtExpandedRows(wtData) {
+  var container = document.getElementById('wt-expanded-rows');
+  if (!container) return;
+  if (!worktreeExpanded || !wtData || wtData.length < 2) {
+    container.style.display = 'none';
+    container.innerHTML = '';
+    return;
+  }
+  container.style.display = '';
+  container.innerHTML = wtData.map(function(wtp) {
+    var wtState = wtp.state && wtp.state.state ? wtp.state.state : {};
+    var wtCurrent = wtState.current_stage || 'idle';
+    var wtHistory = (wtState.history || []).map(function(h) { return h.stage; });
+    var circles = STAGES.map(function(s) {
+      var cls = 'wt-mini-circle';
+      if (s === wtCurrent) cls += ' active';
+      else if (wtHistory.includes(s)) cls += ' completed';
+      return '<div class="' + cls + '"></div>';
+    }).join('');
+    return '<div class="wt-row" data-wt-label="' + esc(wtp.label) + '">' +
+      '<span class="wt-row-label">' + esc(wtp.label) + (wtp.isMain ? ' ★' : '') + '</span>' +
+      '<div class="wt-row-stages">' + circles + '</div>' +
+    '</div>';
+  }).join('');
+  // Click row → filter mode
+  container.querySelectorAll('.wt-row').forEach(function(row) {
+    row.addEventListener('click', function() {
+      switchToFilter(row.dataset.wtLabel);
+    });
+  });
 }
 
 function renderTelemetry(analytics) {
@@ -467,23 +622,71 @@ function projectQueryParam() {
   return currentProject && currentProject.path ? '?project=' + encodeURIComponent(currentProject.path) : '';
 }
 
+function sseEndpoint() {
+  if (worktreeMode === 'aggregated' && currentRepoRoot) {
+    return '/api/events/aggregated?repo=' + encodeURIComponent(currentRepoRoot);
+  }
+  if (worktreeMode === 'filter' && worktreeFilter && currentWorktrees) {
+    var wt = currentWorktrees.find(function(w) { return w.label === worktreeFilter; });
+    if (wt) return '/api/events?project=' + encodeURIComponent(wt.path);
+  }
+  return '/api/events' + projectQueryParam();
+}
+
+function stateEndpoint() {
+  if (worktreeMode === 'aggregated' && currentRepoRoot) {
+    return '/api/state/aggregated?repo=' + encodeURIComponent(currentRepoRoot);
+  }
+  if (worktreeMode === 'filter' && worktreeFilter && currentWorktrees) {
+    var wt = currentWorktrees.find(function(w) { return w.label === worktreeFilter; });
+    if (wt) return '/api/state?project=' + encodeURIComponent(wt.path);
+  }
+  return '/api/state' + projectQueryParam();
+}
+
 function connectSSE() {
   if (evtSource) evtSource.close();
   sseConnected = false;
-  const sseUrl = '/api/events' + projectQueryParam();
-  evtSource = new EventSource(sseUrl);
+  var url = sseEndpoint();
+  evtSource = new EventSource(url);
   evtSource.onopen = () => { sseConnected = true; };
-  evtSource.onmessage = (e) => { sseConnected = true; try { render(JSON.parse(e.data)); } catch {} };
+  evtSource.onmessage = (e) => { sseConnected = true; try { renderWithMode(JSON.parse(e.data)); } catch {} };
   evtSource.onerror = () => { if (evtSource.readyState === EventSource.CLOSED) { sseConnected = false; setTimeout(connectSSE, 5000); } };
+}
+
+function renderWithMode(data) {
+  if (data.mode === 'aggregated' && data.worktrees) {
+    currentWorktrees = data.worktrees;
+    // Merge analytics and memory from all worktrees
+    var allAnalytics = [];
+    var allFacts = [];
+    data.worktrees.forEach(function(wtp) {
+      if (wtp.state.analytics) allAnalytics = allAnalytics.concat(wtp.state.analytics);
+      if (wtp.state.memory && wtp.state.memory.facts) {
+        wtp.state.memory.facts.forEach(function(f) { allFacts.push(Object.assign({}, f, { _worktree: wtp.label })); });
+      }
+    });
+    render({
+      tasks: data.tasks,
+      state: data.worktrees[0] ? data.worktrees[0].state.state : { current_stage: 'idle', history: [], artifacts: {} },
+      analytics: allAnalytics,
+      memory: { facts: allFacts, next_id: 1 },
+      project: data.repo,
+      _worktrees: data.worktrees,
+      _summary: data.summary,
+    });
+  } else {
+    currentWorktrees = null;
+    render(data);
+  }
 }
 
 async function initialLoad() {
   try {
-    const stateUrl = '/api/state' + projectQueryParam();
-    const res = await fetch(stateUrl);
-    render(await res.json());
+    var url = stateEndpoint();
+    var res = await fetch(url);
+    renderWithMode(await res.json());
   } catch {
-    // API unavailable — render empty state
     render({
       tasks: { tasks: [] },
       state: { current_stage: 'idle', history: [], artifacts: {} },

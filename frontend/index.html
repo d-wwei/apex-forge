@@ -137,6 +137,10 @@
         <div class="panel">
           <div class="panel-header">
             <span class="panel-title" data-i18n="pipeline.title">Pipeline Orchestration</span>
+            <div id="wt-controls" class="wt-controls" style="display:none">
+              <button class="wt-mode-btn active" data-mode="aggregated">ALL</button>
+              <select id="wt-filter-select" class="wt-filter-select" style="display:none"></select>
+            </div>
             <span class="panel-badge" id="pipeline-status">STATUS: IDLE</span>
           </div>
           <div class="panel-body">
@@ -144,6 +148,8 @@
               <div class="pipeline-line"></div>
               <!-- Stages rendered by JS -->
             </div>
+            <!-- Worktree expand/collapse rows -->
+            <div id="wt-expanded-rows" class="wt-expanded-rows" style="display:none"></div>
             <div class="pipeline-artifacts" id="pipeline-artifacts">
               <!-- Artifacts rendered by JS -->
             </div>

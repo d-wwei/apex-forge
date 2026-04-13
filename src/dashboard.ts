@@ -12,7 +12,7 @@ import {
   listProjects,
   pruneRegistry,
 } from "./registry.js";
-import { discoverWorktrees, groupProjectsByRepo, type WorktreeInfo } from "./worktree-discovery.js";
+import { discoverWorktrees, groupProjectsByRepo } from "./worktree-discovery.js";
 
 /** Human-readable relative time string. */
 function timeAgo(iso: string): string {
@@ -500,19 +500,18 @@ export async function startHub() {
       // API: aggregated SSE — stream multi-worktree data
       if (url.pathname === "/api/events/aggregated") {
         const repo = url.searchParams.get("repo");
+        if (!repo) {
+          return Response.json({ error: "Missing ?repo= parameter" }, { status: 400, headers: corsHeaders });
+        }
         sseClientCount++;
         const stream = new ReadableStream({
           start(controller) {
             const encoder = new TextEncoder();
             const interval = setInterval(async () => {
               try {
-                if (repo) {
-                  const repoName = repo.split("/").filter(Boolean).pop() || "unknown";
-                  const data = await buildAggregatedPayload(repo, repoName);
-                  controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
-                } else {
-                  controller.enqueue(encoder.encode(": keepalive\n\n"));
-                }
+                const repoName = repo.split("/").filter(Boolean).pop() || "unknown";
+                const data = await buildAggregatedPayload(repo, repoName);
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
               } catch { /* ignore */ }
             }, 2000);
             req.signal.addEventListener("abort", () => {
@@ -1338,6 +1337,7 @@ async function buildAggregatedPayload(repoRoot: string, repoName: string) {
         ...t,
         id: `${wtp.label}/${t.id}`,
         _worktree: wtp.label,
+        depends_on: (t.depends_on || []).map((d: string) => `${wtp.label}/${d}`),
       });
     }
     const nextId = wtp.state.tasks?.next_id || 1;
