@@ -10,20 +10,20 @@
 
 ### Editable (agent can modify)
 
-- `design-to-code/skills/design-to-code-runner/SKILL.md`
-- `design-to-code/skills/design-to-code-runner/references/*.md`
+- `~/.claude/skills/design-to-code-runner/SKILL.md`
+- `~/.claude/skills/design-to-code-runner/references/*.md`
 - `frontend/app.js`
 - `frontend/index.html`
 - `frontend/styles.css`
 
 ### Read-only (do NOT modify)
 
-- `design-to-code/benchmark/*`
-- `design-to-code/docs/*`
-- `design-to-code/specs/*`
-- `design-to-code/templates/*`
-- `design-to-code/workflows/*`
-- `design-to-code/AGENTS.md`
+- `~/.claude/skills/design-to-code-runner/benchmark/*`
+- `~/.claude/skills/design-to-code-runner/docs/*`
+- `~/.claude/skills/design-to-code-runner/specs/*`
+- `~/.claude/skills/design-to-code-runner/templates/*`
+- `~/.claude/skills/design-to-code-runner/workflows/*`
+- `~/.claude/skills/design-to-code-runner/AGENTS.md`
 - `front-end design/*`
 - `labloop.md`（本文件）
 - 所有其他未列在 Editable 中的文件

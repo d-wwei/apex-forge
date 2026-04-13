@@ -291,7 +291,7 @@ DEPS=(
   "browser-qa-testing|https://github.com/d-wwei/browser-qa-testing|"
   "iteration-reflector|https://github.com/d-wwei/iteration-reflector|"
   "tasteful-frontend|https://github.com/d-wwei/tasteful-frontend|"
-  "design-to-code-runner|https://github.com/d-wwei/design-to-code-runner|"
+  "design-to-code-runner|https://github.com/d-wwei/agent-agnostic-design-to-code|"
   "product-review|https://github.com/d-wwei/product-review|"
   "product-prd|https://github.com/d-wwei/Product-Prd-Skill|"
 )
