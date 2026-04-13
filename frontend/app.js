@@ -249,11 +249,8 @@ function render(data) {
   renderActivity(data.analytics);
   renderMemory(data.memory);
 
-  if (data.project) {
-    const name = (data.project.name || 'unknown').toUpperCase().replace(/[^A-Z0-9_-]/g, '_');
-    document.getElementById('top-bar-project').textContent = t('common.projectPrefix') + name;
-    document.title = 'APEX FORGE \u2014 ' + data.project.name;
-  }
+  // Project name is set by navigateToProject() — don't override from SSE data
+  // to avoid flashing back to a previous project during SSE reconnection.
 
   // Derive status from state + tasks
   const stageActive = (data.state.current_stage || 'idle') !== 'idle';
