@@ -154,7 +154,16 @@ After writing the solution and invoking the iteration-reflector skill:
 
 > **Knowledge captured.** Solution: `docs/solutions/{category}/{name}.md`.
 > **Roadmap updated** by iteration-reflector skill.
-> Session complete. The pipeline has finished for this task.
+
+After reporting, call `AskUserQuestion` with:
+- question: "复盘完成。下一步？"
+- header: "Pipeline"
+- options:
+  1. label: "开始新迭代 (Recommended)", description: "重置 pipeline，进入新任务的 Complexity Router"
+  2. label: "结束本轮", description: "保持 compound 状态，下次回来可以看到上轮完成记录"
+
+If "开始新迭代": `apex stage set idle`, then wait for user's next task and route through Complexity Router.
+If "结束本轮": keep stage at `compound`. Do NOT set idle. User will see the completed pipeline state when they return.
 
 | Status | When |
 |--------|------|

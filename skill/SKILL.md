@@ -73,6 +73,20 @@ Call `AskUserQuestion` with:
 If "进入复盘": `apex stage set compound`, then follow `stages/compound.md`.
 If "跳过": `apex stage set idle`.
 
+### Pipeline re-entry (CRITICAL)
+
+**The protocol does NOT "turn off" after one pipeline cycle.** After Compound completes,
+the agent MUST ask the user: start a new iteration or end this round.
+
+- User chooses "新迭代" → `apex stage set idle` → next task enters Complexity Router fresh.
+- User chooses "结束" → stage stays at `compound` → user sees completed state when they return.
+
+If stage is `idle` and user gives a new task: run the Complexity Router (Section 1).
+If stage is `compound` and user gives a new task (without being asked): ask first, then route.
+If stage is stuck at any non-idle value with no active work: ask user whether to reset, then re-enter.
+
+**One pipeline per task. One task at a time. Pipeline resets between tasks.**
+
 ### Background update check
 
 After init, unconditionally spawn a **background Agent** (fire-and-forget) with this prompt:
