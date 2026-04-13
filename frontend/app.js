@@ -127,7 +127,7 @@ function renderProjectCards(projects) {
     const isArchived = p.status === 'archived';
     const successClass = isArchived ? 'muted' : 'green';
 
-    return '<div class="project-card' + (isActive ? ' active-project' : '') + (isArchived ? ' archived' : '') + '" data-index="' + i + '">' +
+    return '<div class="project-card' + (isActive ? ' active-project' : '') + (isArchived ? ' archived' : '') + '" data-path="' + esc(p.path) + '">' +
       '<div class="project-card-header">' +
         '<div class="project-card-name-group">' +
           '<div class="project-card-dot ' + dotClass + '"></div>' +
@@ -146,7 +146,8 @@ function renderProjectCards(projects) {
 
   grid.querySelectorAll('.project-card').forEach(card => {
     card.addEventListener('click', () => {
-      navigateToProject(projects[parseInt(card.dataset.index)]);
+      const target = projects.find(p => p.path === card.dataset.path);
+      if (target) navigateToProject(target);
     });
   });
 }
@@ -203,7 +204,7 @@ function renderSidebar(projects) {
     const dotColor = p.status === 'building' ? '#a2c9ff' : '#22c55e';
     const cardColor = cardColors[i % cardColors.length];
     const abbr = p.name.split('_')[0];
-    return '<div class="sidebar-project-item' + (isActive ? ' active' : '') + '" data-index="' + i + '" style="--card-color:' + cardColor + '">' +
+    return '<div class="sidebar-project-item' + (isActive ? ' active' : '') + '" data-path="' + esc(p.path) + '" style="--card-color:' + cardColor + '">' +
       '<div class="sidebar-project-dot" style="background:' + dotColor + '"></div>' +
       '<div class="sidebar-project-info">' +
         '<span class="sidebar-project-name">' + esc(p.name) + '</span>' +
@@ -217,7 +218,7 @@ function renderSidebar(projects) {
   }).join('');
 
   archivedList.innerHTML = archivedProjects.map((p, i) => {
-    return '<div class="sidebar-archived-item" data-index="' + (activeProjects.length + i) + '">' +
+    return '<div class="sidebar-archived-item" data-path="' + esc(p.path) + '">' +
       '<div class="sidebar-archived-dot"></div>' +
       '<span class="sidebar-archived-name">' + esc(p.name) + '</span>' +
     '</div>';
@@ -226,7 +227,8 @@ function renderSidebar(projects) {
   const allItems = [...list.querySelectorAll('.sidebar-project-item'), ...archivedList.querySelectorAll('.sidebar-archived-item')];
   allItems.forEach(item => {
     item.addEventListener('click', () => {
-      navigateToProject(projects[parseInt(item.dataset.index)]);
+      const target = projects.find(p => p.path === item.dataset.path);
+      if (target) navigateToProject(target);
     });
   });
 }
