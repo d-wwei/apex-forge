@@ -10,6 +10,25 @@ import { join, resolve, dirname } from "path";
 import { spawnSync } from "child_process";
 import type { ProjectEntry } from "./registry.js";
 
+// ---------------------------------------------------------------------------
+// TTL cache — avoids repeated subprocess spawns during SSE polling
+// ---------------------------------------------------------------------------
+
+const CACHE_TTL_MS = 30_000; // 30 seconds
+
+interface CacheEntry<T> { value: T; expires: number; }
+
+const repoRootCache = new Map<string, CacheEntry<string | null>>();
+const worktreeCache = new Map<string, CacheEntry<WorktreeInfo[]>>();
+
+function cached<T>(map: Map<string, CacheEntry<T>>, key: string, compute: () => T): T {
+  const entry = map.get(key);
+  if (entry && Date.now() < entry.expires) return entry.value;
+  const value = compute();
+  map.set(key, { value, expires: Date.now() + CACHE_TTL_MS });
+  return value;
+}
+
 export interface WorktreeInfo {
   path: string;       // absolute worktree path
   branch: string;     // e.g. "refs/heads/feature-a"
@@ -31,15 +50,16 @@ export interface WorktreeGroup {
  * Returns null for non-git directories.
  */
 export function getRepoRoot(dir: string): string | null {
-  const result = spawnSync("git", ["rev-parse", "--git-common-dir"], {
-    cwd: dir,
-    encoding: "utf-8",
-    timeout: 5000,
+  return cached(repoRootCache, dir, () => {
+    const result = spawnSync("git", ["rev-parse", "--git-common-dir"], {
+      cwd: dir,
+      encoding: "utf-8",
+      timeout: 5000,
+    });
+    if (result.status !== 0) return null;
+    const absGitDir = resolve(dir, result.stdout.trim());
+    return dirname(absGitDir);
   });
-  if (result.status !== 0) return null;
-  // --git-common-dir returns e.g. "/path/to/main-repo/.git" (absolute or relative)
-  const absGitDir = resolve(dir, result.stdout.trim());
-  return dirname(absGitDir);
 }
 
 /**
@@ -50,47 +70,44 @@ export function discoverWorktrees(anyProjectDir: string): WorktreeInfo[] {
   const repoRoot = getRepoRoot(anyProjectDir);
   if (!repoRoot) return [];
 
-  const result = spawnSync("git", ["worktree", "list", "--porcelain"], {
-    cwd: repoRoot,
-    encoding: "utf-8",
-    timeout: 10000,
-  });
-  if (result.status !== 0) return [];
+  return cached(worktreeCache, repoRoot, () => {
+    const result = spawnSync("git", ["worktree", "list", "--porcelain"], {
+      cwd: repoRoot,
+      encoding: "utf-8",
+      timeout: 10000,
+    });
+    if (result.status !== 0) return [];
 
-  const worktrees: WorktreeInfo[] = [];
-  let current: Partial<WorktreeInfo> = {};
+    const worktrees: WorktreeInfo[] = [];
+    let current: Partial<WorktreeInfo> = {};
 
-  for (const line of result.stdout.split("\n")) {
-    if (line.startsWith("worktree ")) {
-      // Start of a new worktree block — flush previous if complete
-      if (current.path) {
-        worktrees.push(finalizeWorktree(current));
-      }
-      current = { path: line.slice(9).trim() };
-    } else if (line.startsWith("branch ")) {
-      current.branch = line.slice(7).trim();
-    } else if (line === "bare") {
-      // Skip bare repos
-      current = {};
-    } else if (line === "") {
-      // Block separator
-      if (current.path) {
-        worktrees.push(finalizeWorktree(current));
+    for (const line of result.stdout.split("\n")) {
+      if (line.startsWith("worktree ")) {
+        if (current.path) {
+          worktrees.push(finalizeWorktree(current));
+        }
+        current = { path: line.slice(9).trim() };
+      } else if (line.startsWith("branch ")) {
+        current.branch = line.slice(7).trim();
+      } else if (line === "bare") {
         current = {};
+      } else if (line === "") {
+        if (current.path) {
+          worktrees.push(finalizeWorktree(current));
+          current = {};
+        }
       }
     }
-  }
-  // Flush last block
-  if (current.path) {
-    worktrees.push(finalizeWorktree(current));
-  }
+    if (current.path) {
+      worktrees.push(finalizeWorktree(current));
+    }
 
-  // The first worktree in porcelain output is always the main one
-  if (worktrees.length > 0) {
-    worktrees[0].isMain = true;
-  }
+    if (worktrees.length > 0) {
+      worktrees[0].isMain = true;
+    }
 
-  return worktrees;
+    return worktrees;
+  });
 }
 
 function finalizeWorktree(partial: Partial<WorktreeInfo>): WorktreeInfo {

@@ -12,7 +12,7 @@ import {
   listProjects,
   pruneRegistry,
 } from "./registry.js";
-import { discoverWorktrees, groupProjectsByRepo } from "./worktree-discovery.js";
+import { discoverWorktrees, groupProjectsByRepo, getRepoRoot } from "./worktree-discovery.js";
 
 /** Human-readable relative time string. */
 function timeAgo(iso: string): string {
@@ -489,12 +489,17 @@ export async function startHub() {
       // API: aggregated state — multi-worktree view
       if (url.pathname === "/api/state/aggregated") {
         const repo = url.searchParams.get("repo");
-        if (repo) {
-          const repoName = repo.split("/").filter(Boolean).pop() || "unknown";
-          const data = await buildAggregatedPayload(repo, repoName);
-          return Response.json(data, { headers: corsHeaders });
+        if (!repo) {
+          return Response.json({ error: "Missing ?repo= parameter" }, { status: 400, headers: corsHeaders });
         }
-        return Response.json({ error: "Missing ?repo= parameter" }, { status: 400, headers: corsHeaders });
+        // Validate: repo must be the root of at least one registered project
+        const known = listProjects().some(p => getRepoRoot(p.path) === repo);
+        if (!known) {
+          return Response.json({ error: "Unknown repo" }, { status: 403, headers: corsHeaders });
+        }
+        const repoName = repo.split("/").filter(Boolean).pop() || "unknown";
+        const data = await buildAggregatedPayload(repo, repoName);
+        return Response.json(data, { headers: corsHeaders });
       }
 
       // API: aggregated SSE — stream multi-worktree data
@@ -502,6 +507,10 @@ export async function startHub() {
         const repo = url.searchParams.get("repo");
         if (!repo) {
           return Response.json({ error: "Missing ?repo= parameter" }, { status: 400, headers: corsHeaders });
+        }
+        const known = listProjects().some(p => getRepoRoot(p.path) === repo);
+        if (!known) {
+          return Response.json({ error: "Unknown repo" }, { status: 403, headers: corsHeaders });
         }
         sseClientCount++;
         const stream = new ReadableStream({
