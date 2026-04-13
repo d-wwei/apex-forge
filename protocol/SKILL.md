@@ -136,6 +136,62 @@ Purpose: Build it. The plan is the source of truth.
 - Dispatch tasks per the plan. Write tests first (Section 5). Verify each step (Section 10).
 - Deviations from the plan must be documented with rationale.
 
+### Review Phase (CHECK)
+
+Purpose: Quality gate. Multi-persona review of everything built in Execute.
+
+**Rules**:
+- Execute completes → agent MUST enter Review. This is not optional for Tier 2/3.
+- Run persona-based review (security, correctness, spec compliance + conditional personas).
+- Output: Review artifact with status (DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT).
+- Review BLOCKED (any P0 or unresolved P1) → return to Execute to fix, then re-review.
+
+### Ship Phase (DELIVER)
+
+Purpose: Package and deliver. The delivery gate.
+
+**Rules**:
+- Review must have status DONE or DONE_WITH_CONCERNS before entering Ship.
+- ALL git operations (`git commit`, `git push`, `gh pr create`) happen ONLY inside this stage.
+- Pre-flight checks: tests pass, no unexpected changes, branch hygiene, review status confirmed.
+- Output: Commit, push, PR.
+
+### Compound Phase (LEARN)
+
+Purpose: Knowledge extraction. Reflection on the iteration.
+
+**Rules**:
+- Ship completes → agent MUST prompt user whether to enter Compound.
+- User may decline, but must be asked. Skipping the prompt is a violation.
+- Run parallel analysis: context, solution extraction, related docs, iteration reflection, memory routing.
+- Output: Solution documents, roadmap snapshot, memory capture.
+
+### Tier-Based Pipeline Paths
+
+```
+Tier 1 (Single Pass):   Execute → Ship
+Tier 2 (Round-Based):   Brainstorm → Plan → Execute → Review → Ship → Compound
+Tier 3 (Wave-Based):    Brainstorm → Plan → Execute → Review → Ship → Compound (+ Wave management)
+```
+
+Tier 1 skips Brainstorm, Plan, Review, and Compound — the task is trivially verifiable in a single pass. Tier 2 and Tier 3 MUST walk the full six-step chain.
+
+### Git Operations Interlock
+
+When a pipeline is active (stage != `idle`):
+- `git commit`, `git push`, `gh pr create` → ONLY inside Ship stage.
+- User says "提交" / "commit" / "push" / "ship it" → request to enter Ship, NOT authorization to bypass Review.
+- If current stage is Execute (Tier 2/3): "Execute 完成，需要先过 Review 再提交。"
+- If current stage is Review and not DONE/DONE_WITH_CONCERNS: "Review 尚未通过，不能提交。"
+
+**Tier 1 exemption**: Tier 1 tasks do not use stage tracking (stage remains `idle`), so this interlock does not apply to them.
+
+### Pipeline Architecture: Backbone + Sidecar
+
+**Backbone** (hard-gated): The six-stage chain. Protects quality baselines for ALL code changes.
+
+**Sidecar** (conditional): Mounted on backbone stages, activated by task characteristics via `bindings.yaml`. Examples: Design sub-flow (Execute), Design baseline gate (Review), Security audit (Review). Sidecars do not run when trigger conditions are not met — they are not hard gates.
+
 ### Phase Violations
 
 | Violation | Example | Correction |
@@ -143,6 +199,9 @@ Purpose: Build it. The plan is the source of truth.
 | Code in Brainstorm | Writing a prototype during requirements | Delete the code. Finish requirements first. |
 | Design in Execute | "I think we should restructure this..." | Stop. Return to Plan phase. Document the decision. |
 | Skipping Plan | Going from "what" directly to "code" | Stop. Produce a plan. Even a brief one. |
+| Ship without Review | Execute done → git commit | Stop. Enter Review stage. Code cannot be committed without review. |
+| Git ops outside Ship | git commit/push while stage != ship | Stop. Git operations only execute inside Ship stage. |
+| Skip Compound prompt | Ship done → end without asking | Must prompt user for Compound. User may decline, but must be asked. |
 
 ---
 
@@ -445,6 +504,8 @@ When any of these patterns are detected, stop immediately and apply the correcti
 | 8 | Scope creep in execution | Implementing features not in the plan | Stop. Check the plan. If the feature is needed, return to Plan phase. |
 | 9 | Evidence downgrade | "I saw it work" (E2) used where E3 is required | Gather additional evidence to meet the threshold |
 | 10 | Optimism bias | "This should work" / "I think it's fine" | Binary answer: does it work? Prove it. |
+| 11 | Ship without Review | git commit/push while stage is execute or review not completed | Enter Review stage. Complete review. Then Ship. |
+| 12 | Git ops outside Ship | git commit/push/pr while pipeline is active and stage != ship | Git operations only execute inside Ship stage. |
 
 ---
 
@@ -488,10 +549,13 @@ This file is a standalone Claude Code skill. To install:
 
 ```
 ROUTER:    Single Pass → Round-Based → Wave-Based
-PHASES:    Brainstorm (WHAT) → Plan (HOW) → Execute (DO)
+PHASES:    Brainstorm (WHAT) → Plan (HOW) → Execute (DO) → Review (CHECK) → Ship (DELIVER) → Compound (LEARN)
+TIER 1:    Execute → Ship
+TIER 2/3:  Brainstorm → Plan → Execute → Review → Ship → Compound
 TDD:       Write test → See RED → Write code → See GREEN → Refactor
 EVIDENCE:  E0 (guess) → E1 (indirect) → E2 (direct) → E3 (multi-source) → E4 (validated)
 ESCALATE:  L0 (normal) → L1 (different approach) → L2 (3 hypotheses) → L3 (7-point checklist) → L4 (minimal repro + human)
 GATE:      Identify → Run → Read → Confirm → Claim
+GIT LOCK:  git commit/push/pr → ONLY inside Ship stage
 STATUS:    DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT
 ```
