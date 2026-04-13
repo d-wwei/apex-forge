@@ -12,6 +12,7 @@ import {
   listProjects,
   pruneRegistry,
 } from "./registry.js";
+import { discoverWorktrees, groupProjectsByRepo, type WorktreeInfo } from "./worktree-discovery.js";
 
 /** Human-readable relative time string. */
 function timeAgo(iso: string): string {
@@ -340,7 +341,7 @@ async function startStandaloneDashboard(port: number, projectDir: string, projec
         const contentType = MIME_TYPES[ext] || "application/octet-stream";
         const content = readFileSync(safePath);
         return new Response(content, {
-          headers: { "Content-Type": contentType },
+          headers: { "Content-Type": contentType, "Cache-Control": "no-cache" },
         });
       }
 
@@ -485,6 +486,46 @@ export async function startHub() {
         );
       }
 
+      // API: aggregated state — multi-worktree view
+      if (url.pathname === "/api/state/aggregated") {
+        const repo = url.searchParams.get("repo");
+        if (repo) {
+          const repoName = repo.split("/").filter(Boolean).pop() || "unknown";
+          const data = await buildAggregatedPayload(repo, repoName);
+          return Response.json(data, { headers: corsHeaders });
+        }
+        return Response.json({ error: "Missing ?repo= parameter" }, { status: 400, headers: corsHeaders });
+      }
+
+      // API: aggregated SSE — stream multi-worktree data
+      if (url.pathname === "/api/events/aggregated") {
+        const repo = url.searchParams.get("repo");
+        sseClientCount++;
+        const stream = new ReadableStream({
+          start(controller) {
+            const encoder = new TextEncoder();
+            const interval = setInterval(async () => {
+              try {
+                if (repo) {
+                  const repoName = repo.split("/").filter(Boolean).pop() || "unknown";
+                  const data = await buildAggregatedPayload(repo, repoName);
+                  controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+                } else {
+                  controller.enqueue(encoder.encode(": keepalive\n\n"));
+                }
+              } catch { /* ignore */ }
+            }, 2000);
+            req.signal.addEventListener("abort", () => {
+              clearInterval(interval);
+              sseClientCount = Math.max(0, sseClientCount - 1);
+            });
+          },
+        });
+        return new Response(stream, {
+          headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive", ...corsHeaders },
+        });
+      }
+
       // API: state — serve real project data from .apex/ directory
       if (url.pathname === "/api/state") {
         const proj = resolveProject(url);
@@ -573,7 +614,7 @@ export async function startHub() {
         const ext = extname(safePath);
         const contentType = MIME_TYPES[ext] || "application/octet-stream";
         const content = readFileSync(safePath);
-        return new Response(content, { headers: { "Content-Type": contentType } });
+        return new Response(content, { headers: { "Content-Type": contentType, "Cache-Control": "no-cache" } });
       }
 
       return new Response("Not Found", { status: 404 });
@@ -1288,6 +1329,56 @@ async function buildStatePayload(projectDir: string, projectName: string) {
     state: derivedState,
     analytics: loadEvents(apexDir),
     sessions: Array.from(sessions),
+  };
+}
+
+/**
+ * Build aggregated payload across all worktrees of a repo.
+ * Each worktree's full state is included, plus a merged task list.
+ */
+async function buildAggregatedPayload(repoRoot: string, repoName: string) {
+  const worktrees = discoverWorktrees(repoRoot).filter(wt => wt.hasApex);
+  if (worktrees.length === 0) {
+    return { mode: "aggregated" as const, repo: { name: repoName, root: repoRoot }, worktrees: [], tasks: { tasks: [], next_id: 1 }, summary: { totalTasks: 0, completedTasks: 0, activeWorktrees: 0 } };
+  }
+
+  const wtPayloads = await Promise.all(
+    worktrees.map(async (wt) => ({
+      label: wt.label,
+      path: wt.path,
+      isMain: wt.isMain,
+      state: await buildStatePayload(wt.path, wt.label),
+    }))
+  );
+
+  // Merge tasks across worktrees, prefix IDs and tag with _worktree
+  const mergedTasks: any[] = [];
+  let maxNextId = 1;
+  for (const wtp of wtPayloads) {
+    const tasks = wtp.state.tasks?.tasks || [];
+    for (const t of tasks) {
+      mergedTasks.push({
+        ...t,
+        id: `${wtp.label}/${t.id}`,
+        _worktree: wtp.label,
+      });
+    }
+    const nextId = wtp.state.tasks?.next_id || 1;
+    if (nextId > maxNextId) maxNextId = nextId;
+  }
+
+  const completedTasks = mergedTasks.filter(t => t.status === "done").length;
+
+  return {
+    mode: "aggregated" as const,
+    repo: { name: repoName, root: repoRoot },
+    worktrees: wtPayloads,
+    tasks: { tasks: mergedTasks, next_id: maxNextId },
+    summary: {
+      totalTasks: mergedTasks.length,
+      completedTasks,
+      activeWorktrees: worktrees.length,
+    },
   };
 }
 
