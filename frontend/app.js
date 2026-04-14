@@ -40,6 +40,43 @@ let currentWorktrees = null;    // worktree data from last SSE payload
 // Session pipeline state
 let sessionExpanded = false;    // session pipeline expand/collapse
 
+// ===== 2c. Hidden Projects =====
+
+function getHiddenProjects() {
+  try { return JSON.parse(localStorage.getItem('hiddenProjects')) || []; }
+  catch { return []; }
+}
+
+function hideProject(path) {
+  const list = getHiddenProjects();
+  if (!list.includes(path)) {
+    list.push(path);
+    localStorage.setItem('hiddenProjects', JSON.stringify(list));
+  }
+}
+
+function unhideProject(path) {
+  const list = getHiddenProjects().filter(p => p !== path);
+  localStorage.setItem('hiddenProjects', JSON.stringify(list));
+}
+
+function filterVisibleProjects(projects) {
+  const hidden = getHiddenProjects();
+  if (!hidden.length) return projects;
+  return projects.filter(p => !hidden.includes(p.path));
+}
+
+function onHideProject(path) {
+  hideProject(path);
+  if (currentProject && currentProject.path === path) {
+    navigateToHome();
+  }
+  if (loadedProjects) {
+    renderProjectCards(loadedProjects);
+    renderSidebar(loadedProjects);
+  }
+}
+
 // ===== 2b. i18n =====
 
 function t(key) {
@@ -143,12 +180,13 @@ function renderProjectCards(projects) {
   const grid = document.getElementById('project-grid');
   if (!grid) return;
 
-  const active = projects.filter(p => p.status !== 'archived').length;
-  const archived = projects.filter(p => p.status === 'archived').length;
+  const visible = filterVisibleProjects(projects);
+  const active = visible.filter(p => p.status !== 'archived').length;
+  const archived = visible.filter(p => p.status === 'archived').length;
   const subtitle = document.getElementById('home-subtitle');
-  if (subtitle) subtitle.textContent = t('home.subtitle').replace('{count}', projects.length).replace('{active}', active).replace('{archived}', archived);
+  if (subtitle) subtitle.textContent = t('home.subtitle').replace('{count}', visible.length).replace('{active}', active).replace('{archived}', archived);
 
-  grid.innerHTML = projects.map((p, i) => {
+  grid.innerHTML = visible.map((p, i) => {
     const dotClass = p.status === 'archived' ? 'gray' : (p.status === 'building' ? 'blue' : 'green');
     const isActive = i === 0;
     const isArchived = p.status === 'archived';
@@ -161,7 +199,10 @@ function renderProjectCards(projects) {
           '<span class="project-card-name">' + esc(p.name) + '</span>' +
           (p.worktreeGroup && p.worktreeGroup.siblingCount > 1 ? '<span class="project-card-wt-badge">' + p.worktreeGroup.siblingCount + ' WT</span>' : '') +
         '</div>' +
-        '<span class="project-card-badge ' + p.status + '">' + p.status.toUpperCase() + '</span>' +
+        '<div class="project-card-header-right">' +
+          '<span class="project-card-badge ' + p.status + '">' + p.status.toUpperCase() + '</span>' +
+          '<button class="project-card-close" data-path="' + esc(p.path) + '" title="' + t('home.hideProject') + '">&times;</button>' +
+        '</div>' +
       '</div>' +
       '<span class="project-card-desc">' + esc(p.description) + '</span>' +
       '<div class="project-card-metrics">' +
@@ -174,8 +215,14 @@ function renderProjectCards(projects) {
 
   grid.querySelectorAll('.project-card').forEach(card => {
     card.addEventListener('click', () => {
-      const target = projects.find(p => p.path === card.dataset.path);
+      const target = visible.find(p => p.path === card.dataset.path);
       if (target) navigateToProject(target);
+    });
+  });
+  grid.querySelectorAll('.project-card-close').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      onHideProject(btn.dataset.path);
     });
   });
 }
@@ -229,8 +276,9 @@ function renderSidebar(projects) {
   const archivedList = document.getElementById('sidebar-archived-list');
   if (!list || !archivedList) return;
 
-  const activeProjects = projects.filter(p => p.status !== 'archived');
-  const archivedProjects = projects.filter(p => p.status === 'archived');
+  const visible = filterVisibleProjects(projects);
+  const activeProjects = visible.filter(p => p.status !== 'archived');
+  const archivedProjects = visible.filter(p => p.status === 'archived');
 
   const cardColors = ['#f0c040', '#22c55e', '#a2c9ff', '#e879a0'];
   list.innerHTML = activeProjects.map((p, i) => {
@@ -244,6 +292,7 @@ function renderSidebar(projects) {
         '<span class="sidebar-project-name">' + esc(p.name) + '</span>' +
         '<span class="sidebar-project-meta">' + p.tasks + t('common.tasks') + p.success.toFixed(1) + '%</span>' +
       '</div>' +
+      '<button class="sidebar-project-close" data-path="' + esc(p.path) + '" title="' + t('home.hideProject') + '">&times;</button>' +
       '<div class="sidebar-project-compact">' +
         '<span class="compact-name">' + esc(abbr) + '</span>' +
         '<span class="compact-stats"><span class="compact-dot" style="background:' + dotColor + '"></span>' + p.success.toFixed(1) + '%</span>' +
@@ -261,8 +310,14 @@ function renderSidebar(projects) {
   const allItems = [...list.querySelectorAll('.sidebar-project-item'), ...archivedList.querySelectorAll('.sidebar-archived-item')];
   allItems.forEach(item => {
     item.addEventListener('click', () => {
-      const target = projects.find(p => p.path === item.dataset.path);
+      const target = visible.find(p => p.path === item.dataset.path);
       if (target) navigateToProject(target);
+    });
+  });
+  list.querySelectorAll('.sidebar-project-close').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      onHideProject(btn.dataset.path);
     });
   });
 }
@@ -519,7 +574,8 @@ function renderPipeline(state, tasks, wtData, sessionPipelines, project) {
       artEl.innerHTML = entries.map(([stageName, items]) => '<div><div class="artifact-section-label">' + esc(stageName) + t('pipeline.artifacts') + '</div>' + items.map(item => {
         var isCommit = /^[0-9a-f]{7,40}$/.test(item);
         if (isCommit && gitUrl) {
-          return '<div class="artifact-item"><span class="artifact-dot"></span><a class="artifact-link" href="' + esc(gitUrl) + '/commit/' + esc(item) + '" target="_blank" title="' + t('pipeline.openCommit') + '">' + esc(item) + '</a></div>';
+          var commitUrl = esc(gitUrl) + '/commit/' + esc(item);
+          return '<div class="artifact-item"><span class="artifact-dot"></span><a class="artifact-link" href="#" onclick="window.open(\'' + commitUrl + '\');return false;" title="' + t('pipeline.openCommit') + '">' + esc(item) + '</a></div>';
         } else if (!isCommit) {
           return '<div class="artifact-item"><span class="artifact-dot"></span><a class="artifact-link artifact-file" href="#" onclick="openLocalFile(\'' + esc(item).replace(/'/g, "\\'") + '\');return false;" title="' + t('pipeline.revealFile') + '">' + esc(item) + '</a></div>';
         }
