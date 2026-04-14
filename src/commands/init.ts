@@ -56,25 +56,32 @@ export async function cmdInit(): Promise<void> {
     await writeJSON(`${APEX_DIR}/memory.json`, initialMemory);
   }
 
-  // Install pre-commit hook if in a git repo (skip in worktrees where .git is a file)
+  // Install git hooks if in a git repo (skip in worktrees where .git is a file)
   const gitDir = path.join(process.cwd(), ".git");
   const isGitDir = existsSync(gitDir) && lstatSync(gitDir).isDirectory();
   if (isGitDir) {
     const hooksDir = path.join(gitDir, "hooks");
     mkdirSync(hooksDir, { recursive: true });
 
-    const hookDst = path.join(hooksDir, "pre-commit");
-    const hookSrc = path.join(process.cwd(), "hooks", "pre-commit");
+    const gitHooks = [
+      { name: "pre-commit", desc: "auto memory curation" },
+      { name: "pre-push", desc: "preflight scan (secrets, PII, local paths)" },
+    ];
 
-    const hookDstExists = (() => {
-      try { lstatSync(hookDst); return true; } catch { return false; }
-    })();
+    for (const hook of gitHooks) {
+      const hookDst = path.join(hooksDir, hook.name);
+      const hookSrc = path.join(process.cwd(), "hooks", hook.name);
 
-    if (existsSync(hookSrc) && !hookDstExists) {
-      symlinkSync(path.resolve(hookSrc), hookDst);
-      console.log("Installed pre-commit hook (auto memory curation)");
-    } else if (hookDstExists) {
-      console.log("Pre-commit hook already exists (not overwriting)");
+      const hookDstExists = (() => {
+        try { lstatSync(hookDst); return true; } catch { return false; }
+      })();
+
+      if (existsSync(hookSrc) && !hookDstExists) {
+        symlinkSync(path.resolve(hookSrc), hookDst);
+        console.log(`Installed ${hook.name} hook (${hook.desc})`);
+      } else if (hookDstExists) {
+        console.log(`${hook.name} hook already exists (not overwriting)`);
+      }
     }
   }
 
