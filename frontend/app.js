@@ -371,26 +371,21 @@ function renderKanban(tasks, wtData) {
 
 function renderPipeline(state, tasks, wtData) {
   var current = state.current_stage || 'idle';
-  var history = (state.history || []).map(function(h) { return h.stage; });
+  var fullHistory = state.history || [];
+
+  // Only show stages completed in the CURRENT cycle.
+  // Current cycle = everything after the last "idle" entry in history.
+  var cycleStart = 0;
+  for (var i = fullHistory.length - 1; i >= 0; i--) {
+    if (fullHistory[i].stage === 'idle') { cycleStart = i + 1; break; }
+  }
+  var history = fullHistory.slice(cycleStart)
+    .filter(function(h) { return h.completed; })
+    .map(function(h) { return h.stage; });
 
   // If explicitly idle, show clean slate — no inherited checkmarks
   if (current === 'idle') {
     history = [];
-  }
-
-  // If state.json has no history and not idle, derive progress from tasks
-  if (history.length === 0 && current !== 'idle' && tasks && tasks.tasks && tasks.tasks.length > 0) {
-    var hasDone = tasks.tasks.some(function(t) { return t.status === 'done'; });
-    var hasInProgress = tasks.tasks.some(function(t) { return t.status === 'in_progress'; });
-    var allDone = tasks.tasks.every(function(t) { return t.status === 'done'; });
-
-    if (allDone) {
-      history = ['brainstorm', 'plan', 'execute', 'review', 'ship'];
-      current = 'compound';
-    } else if (hasDone || hasInProgress) {
-      history = ['brainstorm', 'plan'];
-      current = 'execute';
-    }
   }
 
   // Compute per-stage worktree counts for aggregated mode
@@ -401,7 +396,15 @@ function renderPipeline(state, tasks, wtData) {
     wtData.forEach(function(wtp) {
       var wtState = wtp.state && wtp.state.state ? wtp.state.state : {};
       var wtCurrent = wtState.current_stage || 'idle';
-      var wtHistory = (wtState.history || []).map(function(h) { return h.stage; });
+      // Only use current-cycle history for each worktree
+      var wtFullHistory = wtState.history || [];
+      var wtCycleStart = 0;
+      for (var wi = wtFullHistory.length - 1; wi >= 0; wi--) {
+        if (wtFullHistory[wi].stage === 'idle') { wtCycleStart = wi + 1; break; }
+      }
+      var wtHistory = wtFullHistory.slice(wtCycleStart)
+        .filter(function(h) { return h.completed; })
+        .map(function(h) { return h.stage; });
       STAGES.forEach(function(s) {
         if (s === wtCurrent) stageCounts[s]++;
         if (!wtHistory.includes(s) && s !== wtCurrent) stageAllCompleted[s] = false;
@@ -472,7 +475,15 @@ function renderWtExpandedRows(wtData) {
   container.innerHTML = wtData.map(function(wtp) {
     var wtState = wtp.state && wtp.state.state ? wtp.state.state : {};
     var wtCurrent = wtState.current_stage || 'idle';
-    var wtHistory = (wtState.history || []).map(function(h) { return h.stage; });
+    // Only use current-cycle history
+    var wtFH = wtState.history || [];
+    var wtCS = 0;
+    for (var wj = wtFH.length - 1; wj >= 0; wj--) {
+      if (wtFH[wj].stage === 'idle') { wtCS = wj + 1; break; }
+    }
+    var wtHistory = wtFH.slice(wtCS)
+      .filter(function(h) { return h.completed; })
+      .map(function(h) { return h.stage; });
     var circles = STAGES.map(function(s) {
       var cls = 'wt-mini-circle';
       if (s === wtCurrent) cls += ' active';

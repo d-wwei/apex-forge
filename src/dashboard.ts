@@ -1007,7 +1007,27 @@ function deriveStageFromTasks(state: any, tasks: any[]): any {
   if (!tasks || tasks.length === 0) return state;
 
   const currentStage = state.current_stage || "idle";
-  const stateSession = state.session_id || "";
+
+  // Find the current cycle's start time: the last idle→non-idle transition in history.
+  // Tasks created before this point belong to a previous cycle and must be excluded.
+  const history = state.history || [];
+  let cycleStartTime = 0;
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i].stage === "idle") {
+      cycleStartTime = history[i].started ? new Date(history[i].started).getTime() : 0;
+      break;
+    }
+  }
+
+  // Filter to current-cycle tasks only
+  const currentCycleTasks = cycleStartTime > 0
+    ? tasks.filter((t: any) => {
+        const ts = t.created_at || t.updated_at || "";
+        return ts ? new Date(ts).getTime() >= cycleStartTime : false;
+      })
+    : tasks;
+
+  if (currentCycleTasks.length === 0) return state;
 
   // When idle, decide whether to derive stage from tasks or trust state.json.
   //
@@ -1023,10 +1043,10 @@ function deriveStageFromTasks(state: any, tasks: any[]): any {
   //   Signal: no tasks or all tasks done with stale timestamps.
   //   Action: trust state.json → stay idle.
   if (currentStage === "idle") {
-    const hasActive = tasks.some((t: any) =>
+    const hasActive = currentCycleTasks.some((t: any) =>
       ["open", "assigned", "in_progress", "to_verify", "blocked"].includes(t.status)
     );
-    const hasHistory = (state.history || []).length > 0;
+    const hasHistory = history.length > 0;
 
     // Case B: session completed a stage cycle and explicitly returned to idle
     if (hasHistory && !hasActive) return state;
@@ -1034,7 +1054,7 @@ function deriveStageFromTasks(state: any, tasks: any[]): any {
     // Case C: truly idle — no active tasks, no history, nothing happening
     if (!hasActive && !hasHistory) {
       const stateTs = state.last_updated ? new Date(state.last_updated).getTime() : 0;
-      const lastTaskTs = tasks.reduce((max: number, t: any) => {
+      const lastTaskTs = currentCycleTasks.reduce((max: number, t: any) => {
         const ts = t.updated_at || t.created_at || "";
         return ts ? Math.max(max, new Date(ts).getTime()) : max;
       }, 0);
@@ -1044,13 +1064,11 @@ function deriveStageFromTasks(state: any, tasks: any[]): any {
     // Case A (or C with stale state): fall through to derive from tasks
   }
 
-  // Check if tasks belong to the current session
-  const logDir = state._logDir; // injected by caller if available
   const stateLastUpdated = state.last_updated ? new Date(state.last_updated).getTime() : 0;
 
   // Heuristic: if state was updated AFTER the last task transition, state.json wins.
   // This catches the "reset to brainstorm but old tasks exist" case.
-  const lastTaskTime = tasks.reduce((max: number, t: any) => {
+  const lastTaskTime = currentCycleTasks.reduce((max: number, t: any) => {
     const ts = t.updated_at || t.created_at || "";
     return ts ? Math.max(max, new Date(ts).getTime()) : max;
   }, 0);
@@ -1063,9 +1081,9 @@ function deriveStageFromTasks(state: any, tasks: any[]): any {
   // Derive what stage tasks suggest
   const STAGE_ORDER = ["idle", "brainstorm", "plan", "execute", "review", "ship", "compound"];
   const currentIdx = STAGE_ORDER.indexOf(currentStage);
-  const total = tasks.length;
-  const done = tasks.filter((t: any) => t.status === "done").length;
-  const inProgress = tasks.filter((t: any) => t.status === "in_progress").length;
+  const total = currentCycleTasks.length;
+  const done = currentCycleTasks.filter((t: any) => t.status === "done").length;
+  const inProgress = currentCycleTasks.filter((t: any) => t.status === "in_progress").length;
 
   let derivedStage = currentStage;
   if (done === total && total > 0) {
@@ -1078,19 +1096,19 @@ function deriveStageFromTasks(state: any, tasks: any[]): any {
   if (STAGE_ORDER.indexOf(derivedStage) <= currentIdx) return state;
 
   // Derivation suggests advancement — build updated state
-  const history = [...(state.history || [])];
+  const updatedHistory = [...(state.history || [])];
   const now = new Date().toISOString();
   for (let i = currentIdx; i < STAGE_ORDER.indexOf(derivedStage); i++) {
     const stageName = STAGE_ORDER[i];
     if (stageName === "idle") continue;
-    const existing = history.find((h: any) => h.stage === stageName && !h.completed);
+    const existing = updatedHistory.find((h: any) => h.stage === stageName && !h.completed);
     if (existing) existing.completed = now;
   }
-  if (!history.some((h: any) => h.stage === derivedStage && !h.completed)) {
-    history.push({ stage: derivedStage, started: now });
+  if (!updatedHistory.some((h: any) => h.stage === derivedStage && !h.completed)) {
+    updatedHistory.push({ stage: derivedStage, started: now });
   }
 
-  return { ...state, current_stage: derivedStage, history };
+  return { ...state, current_stage: derivedStage, history: updatedHistory };
 }
 
 /**
@@ -1216,8 +1234,16 @@ function reconcileTasksFromGit(projectDir: string, tasks: any): boolean {
 function reconcileStageFromFiles(projectDir: string, state: any): any {
   if (state.current_stage !== "idle") return state; // only fix stale idle
 
+  // Guard: if the state has been idle for over 1 hour, trust it.
+  // Filesystem artifacts are cumulative (never cleaned up after a cycle),
+  // so using them to override a stable idle state causes false positives
+  // where completed-cycle artifacts make the project appear active.
+  const staleThresholdMs = 60 * 60 * 1000; // 1 hour
+  const lastUpdated = state.last_updated ? new Date(state.last_updated).getTime() : 0;
+  if (lastUpdated > 0 && (Date.now() - lastUpdated) > staleThresholdMs) return state;
+
   // Only consider files created AFTER the current session started
-  const sessionStart = state.last_updated ? new Date(state.last_updated).getTime() : 0;
+  const sessionStart = lastUpdated;
 
   const checks: [string, string[]][] = [
     ["brainstorm", ["docs/brainstorms", "docs/specs"]],
@@ -1804,12 +1830,21 @@ function renderKanban(tasks) {
 function renderPipeline(state) {
   const el = document.getElementById('pipeline');
   const current = state.current_stage || 'idle';
-  const history = (state.history || []).map(h => h.stage);
+  // Only show stages completed in the CURRENT cycle as completed.
+  // Find the last idle entry in history — everything after it is the current cycle.
+  const fullHistory = state.history || [];
+  let cycleStart = 0;
+  for (let i = fullHistory.length - 1; i >= 0; i--) {
+    if (fullHistory[i].stage === 'idle') { cycleStart = i + 1; break; }
+  }
+  const currentCycleStages = fullHistory.slice(cycleStart)
+    .filter(function(h) { return h.completed; })
+    .map(function(h) { return h.stage; });
 
   el.innerHTML = STAGES.map((s, i) => {
     let cls = 'pipeline-stage';
     if (s === current) cls += ' active';
-    else if (history.includes(s)) cls += ' completed';
+    else if (currentCycleStages.includes(s)) cls += ' completed';
     const arrow = i < STAGES.length - 1 ? '<span class="pipeline-arrow">\\u2192</span>' : '';
     return '<div class="' + cls + '">' + s + '</div>' + arrow;
   }).join('');

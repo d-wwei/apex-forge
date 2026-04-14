@@ -7,7 +7,8 @@
  */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
-import { join } from "path";
+import { join, resolve, dirname } from "path";
+import { spawnSync } from "child_process";
 
 const REGISTRY_DIR = join(process.env.HOME || "/tmp", ".apex-forge");
 const REGISTRY_FILE = join(REGISTRY_DIR, "registry.json");
@@ -68,13 +69,58 @@ export function hubPort(): number {
 }
 
 /**
+ * Resolve the canonical project root for a directory.
+ *
+ * Two directories are the same project if they share the same canonical root.
+ * Detection order:
+ * 1. .apex/config.yaml `project_root: /path/to/main` (explicit link for non-git dirs)
+ * 2. Git repo root (handles worktrees and subdirectories)
+ * 3. Fallback: the directory itself
+ */
+function getCanonicalProjectRoot(dir: string): string {
+  // 1. Explicit config link
+  const configPath = join(dir, ".apex", "config.yaml");
+  if (existsSync(configPath)) {
+    try {
+      const content = readFileSync(configPath, "utf-8");
+      const match = content.match(/^project_root:\s*(.+)$/m);
+      if (match) {
+        const linked = resolve(dir, match[1].trim());
+        if (existsSync(linked)) return linked;
+      }
+    } catch { /* ignore */ }
+  }
+
+  // 2. Git repo root
+  try {
+    const result = spawnSync("git", ["rev-parse", "--git-common-dir"], {
+      cwd: dir, encoding: "utf-8", timeout: 3000,
+    });
+    if (result.status === 0) {
+      return resolve(dir, dirname(result.stdout.trim()));
+    }
+  } catch { /* ignore */ }
+
+  // 3. Fallback: directory itself
+  return dir;
+}
+
+/**
  * Register a project dashboard as active.
- * Replaces any existing entry for the same path.
+ * Deduplicates by canonical project root: if another directory with the same
+ * root is already registered, replaces it instead of creating a duplicate.
  */
 export function register(entry: ProjectEntry) {
   const reg = readRegistry();
-  // Remove stale entry for same path
-  reg.projects = reg.projects.filter((p) => p.path !== entry.path);
+  const canonicalRoot = getCanonicalProjectRoot(entry.path);
+
+  // Remove entries that share the same canonical root OR the same path
+  reg.projects = reg.projects.filter((p) => {
+    if (p.path === entry.path) return false;
+    if (getCanonicalProjectRoot(p.path) === canonicalRoot) return false;
+    return true;
+  });
+
   reg.projects.push(entry);
   writeRegistry(reg);
 }
