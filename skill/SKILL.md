@@ -183,9 +183,11 @@ Single verified pass possible? → YES → Tier 1 (Single Pass)
                                                                     NO → Tier 2 (Round-Based)
 ```
 
-- **Tier 1**: One action, one verification, done. **No stage tracking** — does not call `apex stage set/complete`. Stage remains `idle` throughout.
-- **Tier 2**: PDCA rounds (clarify → explore → hypothesis → planning → execution → verification → hardening). Max 5 rounds.
-- **Tier 3**: Waves of 3-5 rounds. Each wave reads/writes state.
+All tiers walk the full six-stage pipeline (Brainstorm → Plan → Execute → Review → Ship → Compound). Tier only determines the **Execute strategy**:
+
+- **Tier 1**: Single pass — one action, one verification within Execute.
+- **Tier 2**: PDCA rounds (clarify → explore → hypothesis → planning → execution → verification → hardening). Max 5 rounds within Execute.
+- **Tier 3**: Waves of 3-5 rounds within Execute. Each wave reads/writes state.
 
 ### 2. Phase Discipline
 
@@ -198,17 +200,19 @@ Hard-gated. No leaking between phases. **Track every transition:**
 - **Ship (DELIVER)** — Package and deliver. Review passes → then commit/push/PR. All git ops happen here.
 - **Compound (LEARN)** — Knowledge extraction. Ship completes → prompt user for reflection. User may decline, but must be asked.
 
-#### Tier-Based Pipeline Paths
+#### Tier-Based Execute Strategies
 
-Not every task walks the full chain. The Complexity Router (Section 1) determines which path:
+All tiers walk the same six-stage pipeline. The Complexity Router (Section 1) determines the Execute strategy:
 
 ```
-Tier 1 (Single Pass):   Execute → Ship
-Tier 2 (Round-Based):   Brainstorm → Plan → Execute → Review → Ship → Compound
-Tier 3 (Wave-Based):    Brainstorm → Plan → Execute → Review → Ship → Compound (+ Wave management)
+All Tiers:  Brainstorm → Plan → Execute → Review → Ship → Compound
+                                   │
+                                   ├── Tier 1: Single pass (one action, one verification)
+                                   ├── Tier 2: PDCA rounds (max 5)
+                                   └── Tier 3: Waves of 3-5 rounds
 ```
 
-Tier 1 skips Brainstorm, Plan, Review, and Compound because the task is trivially verifiable in a single pass. **Tier 1 does NOT use `apex stage set` or `apex stage complete`** — the pipeline stage stays `idle`, the agent executes directly, verifies, and commits. No Dashboard stage tracking overhead for trivial tasks. Tier 2 and Tier 3 MUST walk the full six-step chain with stage tracking. No exceptions.
+Every task uses `apex stage set/complete` for all stages. Brainstorm and Plan may be brief for Tier 1 (one sentence each is fine), but they are not skipped. Review may be lightweight for Tier 1 (self-review + diff check, no multi-persona), but it is not skipped. Compound may be one line ("no notable lessons"), but the user must be asked.
 
 #### Git Operations Interlock
 
@@ -219,9 +223,7 @@ When a pipeline is active (stage != `idle`), git operations are locked to the Sh
 - If current stage is `execute` (Tier 2/3): respond "Execute 完成，需要先过 Review 再提交。"
 - If current stage is `review` and review is not DONE/DONE_WITH_CONCERNS: respond "Review 尚未通过，不能提交。"
 
-**Tier 1 exemption**: Tier 1 tasks do not use stage tracking (stage remains `idle`), so this interlock does not apply to them. Tier 1 commits directly after verification — no Review gate, no stage transitions.
-
-This is a push-based blocker: the forbidden action is blocked regardless of how the agent tries to reach it.
+This is a push-based blocker: the forbidden action is blocked regardless of how the agent tries to reach it. **No tier exemptions** — all tiers use stage tracking and all tiers are subject to the Git Interlock.
 
 #### Pipeline Architecture: Backbone + Sidecar
 
@@ -260,7 +262,7 @@ Two layers: structural (binary, 1 SubAgent) → substance (qualitative, N SubAge
 
 | Tier / Scope | Structural | Substance | Evidence Grade |
 |-------------|-----------|-----------|----------------|
-| Tier 1 / Lightweight | 1 SubAgent | 0 (skip) | E2 |
+| Tier 1 / Lightweight | 1 SubAgent | 1 SubAgent | E2 |
 | Tier 2 / Standard | 1 SubAgent | 2 SubAgents | E3 |
 | Tier 3 / Deep | 1 SubAgent | 3 SubAgents | E3+ |
 
@@ -323,7 +325,7 @@ DONE (all E3+) | DONE_WITH_CONCERNS (flagged issues) | BLOCKED (tried, need X) |
 
 ### 8. Anti-Patterns (Hard Stops)
 
-"Done" without proof → run gate. Micro-tweaks → escalation ladder. Advice not action → execute it. Waiting for user → take initiative. Premature surrender → try 3 approaches. Phase leaking → return to correct phase. Scope creep → check plan. Ship without review → enter Review stage first. Git ops outside Ship → only inside Ship stage. **Tier 1 on explicit stage command → INVALID. Explicit stage commands (`/apex-forge ship`, `/apex-forge review`, etc.) bypass the Complexity Router entirely. Self-classifying as Tier 1 to skip steps is a protocol violation.**
+"Done" without proof → run gate. Micro-tweaks → escalation ladder. Advice not action → execute it. Waiting for user → take initiative. Premature surrender → try 3 approaches. Phase leaking → return to correct phase. Scope creep → check plan. Ship without review → enter Review stage first. Git ops outside Ship → only inside Ship stage. **Skipping stages via low Tier → INVALID. All tiers walk the full six-stage pipeline. Tier only controls Execute strategy. Self-classifying as Tier 1 to skip Brainstorm/Plan/Review/Compound is a protocol violation.** Explicit stage commands (`/apex-forge ship`, etc.) bypass the Complexity Router but still execute the full stage protocol.
 
 ---
 
@@ -334,9 +336,8 @@ DONE (all E3+) | DONE_WITH_CONCERNS (flagged issues) | BLOCKED (tried, need X) |
 
 ```
 ROUTER:    Tier 1 → Tier 2 → Tier 3
-PHASES:    Brainstorm → Plan → Execute → Review → Ship → Compound
-TIER 1:    Execute → Ship
-TIER 2/3:  Brainstorm → Plan → Execute → Review → Ship → Compound
+PHASES:    Brainstorm → Plan → Execute → Review → Ship → Compound (ALL tiers)
+EXECUTE:   Tier 1 = single pass | Tier 2 = PDCA rounds | Tier 3 = waves
 TDD:       Test → RED → Code → GREEN → Refactor
 EVIDENCE:  E0 → E1 → E2 → E3 → E4
 ESCALATE:  L0 → L1 → L2 → L3 → L4

@@ -40,7 +40,7 @@ If scope is unknown, default to **Standard**.
 
 | Tier / Scope | Structural | Substance | Total SubAgents | Evidence Grade |
 |-------------|-----------|-----------|-----------------|----------------|
-| Tier 1 / Lightweight | 1 | 0 | 1 | E2 (single source) |
+| Tier 1 / Lightweight | 1 | 1 | 2 | E2 (single source) |
 | Tier 2 / Standard | 1 | 2 | 3 | E3 (multi-source) |
 | Tier 3 / Deep | 1 | 3 | 4 | E3+ (strong multi-source) |
 
@@ -74,9 +74,7 @@ Wait for result. Parse the JSON output.
 
 ### Step 3: Dispatch Substance Checks (parallel SubAgents)
 
-**Skip this step for Tier 1 / Lightweight.** Tier 1 exits after structural check.
-
-Dispatch N SubAgents (2 for Standard, 3 for Deep) with the **Substance Check Template**.
+Dispatch N SubAgents (1 for Lightweight, 2 for Standard, 3 for Deep) with the **Substance Check Template**.
 Each SubAgent receives the same qualitative prompts from the stage file's "Exit Gate" section.
 
 **Independence requirement**: Dispatch all SubAgents in a single parallel batch.
@@ -125,7 +123,6 @@ Definitions:
 | PASS | PASS_WITH_NOTE | **PASS_WITH_NOTE** | Proceeds. Notes appended to stage artifact. |
 | PASS | ESCALATE | **ESCALATE** | Present findings to user. User decides: fix or override. |
 | PASS | BLOCK | **BLOCKED** | Fix substance issues. Re-run gate. |
-| PASS | (Tier 1: skipped) | **PASS** | `apex stage complete` proceeds. |
 
 ### Step 6: Record Gate Result
 
