@@ -159,12 +159,12 @@ After reporting, call `AskUserQuestion` with:
 - question: "复盘完成。下一步？"
 - header: "Pipeline"
 - options:
-  1. label: "开始新迭代 (Recommended)", description: "重置 pipeline，进入新任务的 Complexity Router"
-  2. label: "结束本轮", description: "保持 compound 状态，下次回来可以看到上轮完成记录"
+  1. label: "继续下一个迭代 (Recommended)", description: "在当前会话中重置 pipeline，进入新任务"
+  2. label: "在新进程中继续 roadmap", description: "结束当前会话，输出续接提示词供粘贴到新会话使用（避免上下文过长浪费 token）"
+  3. label: "结束本轮", description: "保持 compound 状态，下次回来可以看到上轮完成记录"
 
-If "结束本轮": keep stage at `compound`. Do NOT set idle. User will see the completed pipeline state when they return.
+**Option A: "继续下一个迭代"**
 
-If "开始新迭代":
 1. `apex stage set idle`
 2. Call `AskUserQuestion` with:
    - question: "请描述下一个任务"
@@ -173,6 +173,60 @@ If "开始新迭代":
      1. label: "我来输入", description: "在下方输入新任务描述"
 3. When user responds, call `Skill('apex-forge', args=user's response)` to re-enter the full pipeline.
    **CRITICAL: Do NOT process the task directly. The Skill tool invocation triggers Initialization → Complexity Router → proper stage tracking. Skipping this = the bug where Dashboard shows nothing.**
+
+**Option B: "在新进程中继续 roadmap"**
+
+Generate a self-contained continuation prompt and output it for the user to copy-paste into a new session. The prompt must contain everything the new session needs to pick up where this one left off.
+
+1. Read the latest roadmap: `docs/roadmaps/roadmap-*.md` (most recent by filename)
+2. Read incomplete/pending roadmap items
+3. Read recent solution docs for context: `docs/solutions/INDEX.md`
+4. Read `.apex/tasks.json` for any unfinished tasks
+5. Generate the prompt using this template:
+
+````markdown
+请复制以下内容到新的 Claude Code 会话中：
+
+---
+
+/apex-forge
+
+## 续接上下文
+
+上一轮迭代已完成，以下是续接信息：
+
+### 最近完成的工作
+{从本次 Compound 的 solution doc 中提取 1-3 句话总结}
+
+### Roadmap 待办项
+{从最新 roadmap 文件中提取所有 status != done 的项目，按优先级排列}
+{每项格式: - [priority] title — description}
+
+### 未完成的任务
+{从 .apex/tasks.json 中提取 status != done 的任务}
+{如果全部完成，写 "无"}
+
+### 关键决策记录
+{从本次迭代中提取影响后续工作的决策，如架构选择、技术限制}
+
+### 请执行
+从 Roadmap 待办项中选取优先级最高的一项，启动新迭代。
+````
+
+6. Output the generated prompt wrapped in a code block
+7. Tell the user: "粘贴到新会话即可继续。新会话会自动读取 Roadmap 和项目状态。"
+8. `apex stage set idle` (reset for clean state when new session starts)
+
+**Prompt generation rules:**
+- The prompt must be **self-contained** — new session has no access to this conversation's context
+- Include concrete file paths, not references like "上次的 roadmap"
+- Include actual content, not "请读取 X 文件" — the prompt should work even if files are unavailable
+- Keep under 500 words — enough context without overwhelming the new session's context window
+- End with a clear action directive — what to do first
+
+**Option C: "结束本轮"**
+
+Keep stage at `compound`. Do NOT set idle. User will see the completed pipeline state when they return.
 
 | Status | When |
 |--------|------|

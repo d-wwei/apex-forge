@@ -314,9 +314,10 @@ When checks fail, call `AskUserQuestion`:
 - question: "CI 检查未通过。{N} 个 job 失败。如何处理？"
 - header: "CI"
 - options:
-  1. label: "查看失败日志并修复", description: "查看失败的 job 日志，修复后重新推送"
-  2. label: "继续创建 PR", description: "忽略 CI 失败，继续创建 PR（PR 会标记为失败状态）"
-  3. label: "中止 Ship", description: "回到 Execute 阶段修复问题"
+  1. label: "查看失败日志并修复 (Recommended)", description: "查看失败的 job 日志，修复后重新推送"
+  2. label: "中止 Ship", description: "回到 Execute 阶段修复问题"
+
+**No bypass option.** CI must pass before Ship can complete. "继续创建 PR with failing CI" is not offered.
 
 - **查看失败日志并修复**: run `gh run view <id> --log-failed`, diagnose, fix, amend commit, force push, re-run this step.
 - **继续创建 PR**: proceed but add CI failure notice to PR body.
@@ -365,10 +366,7 @@ gh release create v{version} --title "v{version}" --notes-file .apex/ship-releas
 Create a PR with summary, review status, artifact links, and test results.
 Use `gh pr create` if available; otherwise instruct the user.
 
-If CI failed and user chose "继续创建 PR" in Step 7, add to PR body:
-```
-⚠️ CI Status: {N} job(s) failed. See [workflow run]({run_url}) for details.
-```
+CI must pass before reaching this step. If CI failed, Ship is blocked at Step 7.
 
 ---
 
@@ -387,16 +385,15 @@ Execute the chosen option. For options A, B, D: clean up worktree if one was use
 
 ---
 
-## Compound Prompt (mandatory, before Exit Gate)
+## Compound Transition (mandatory, before Exit Gate)
 
-After branch completion, immediately call `AskUserQuestion` with:
-- question: "交付完成。是否进入复盘迭代阶段？"
-- header: "Compound"
-- options:
-  1. label: "进入复盘 (Recommended)", description: "提取本次迭代的经验教训，更新路线图"
-  2. label: "跳过", description: "不复盘，直接结束本轮"
+After branch completion, Compound is the next stage — not optional. Inform the user:
 
-Record user's choice. This prompt MUST be issued before the Exit Gate runs.
+> 交付完成。进入复盘阶段（Compound）。
+
+**No skip option.** Every iteration walks all six stages. Compound may be brief (one sentence: "无特别经验"), but it cannot be skipped. This is enforced by the Exit Gate (S3).
+
+Record that the transition was announced. This MUST happen before the Exit Gate runs.
 
 ---
 
@@ -410,11 +407,12 @@ Before `apex stage complete ship`, run the Stage Exit Gate (`gates/stage-exit-ga
 |---|-------|-----------|-------------|
 | S1 | Git commit exists | `git log -1 --oneline` returns a commit for this pipeline | git log |
 | S2 | Review status confirmed | Review artifact status is DONE or DONE_WITH_CONCERNS | File re-read |
-| S3 | Compound prompt issued | AskUserQuestion for Compound was **actually called** (not deferred). Verify the prompt appeared and user responded. | Flow check: user response recorded |
+| S3 | Compound transition announced | The mandatory Compound transition message was **actually output** (not deferred or skipped). | Flow check: transition message present in conversation |
 | S4 | Preflight scan passed | No CRITICAL findings in committed files | Re-run `/opensource-preflight --mode quick --scope diff HEAD~1` |
-| S5 | CI status acknowledged | If repo has CI: checks passed, or user explicitly chose to proceed despite failures | `gh run list --limit 1` status check |
+| S5 | CI green | If repo has CI: all checks must pass. No bypass. If no CI configured: auto-pass. | `gh run list --limit 1` status check |
 | S6 | README exists | If pushed to a public repo: `README.md` must exist in the repo root. New repos must also have `README_CN.md` or `README.zh-CN.md`. | `git show HEAD:README.md` |
 | S7 | Push prompt issued | AskUserQuestion for push (Step 6) was **actually called** and user responded. "暂不推送" is a valid response; silently skipping the prompt is not. | Flow check: user response recorded |
+| S8 | Iteration summary issued | Step 6a iteration summary (4 sections: 做了什么/能干什么/怎么试/注意事项) was **actually output** before the push prompt. Cannot be skipped. | Flow check: summary text present in conversation |
 
 ### Substance Prompts (Tier 2+)
 
@@ -433,13 +431,11 @@ After successful Exit Gate:
 > **Shipped.** Commit `{hash}` on branch `{branch}`.
 > {PR URL or "Push to remote and create PR manually."}
 
-If user selected "进入复盘":
+Compound is mandatory. After Ship completes:
 ```bash
 apex stage set compound
 ```
 Then follow `stages/compound.md`.
-
-If user selected "跳过": mark pipeline as complete without compound.
 
 | Status | When |
 |--------|------|

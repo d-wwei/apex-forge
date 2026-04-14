@@ -63,23 +63,19 @@ If stage is not `idle` or tasks are `in_progress`/`to_verify` (after reconciliat
 ### Compound stage reminder (fallback)
 
 If stage is `ship` and all tasks are `done`, but history does NOT include `compound`:
-Call `AskUserQuestion` with:
-- question: "上次交付已完成但未进行复盘。是否现在进入复盘迭代？"
-- header: "Compound"
-- options:
-  1. label: "进入复盘 (Recommended)", description: "提取经验教训，更新路线图"
-  2. label: "跳过，开始新任务", description: "跳过复盘，重置为 idle"
 
-If "进入复盘": `apex stage set compound`, then follow `stages/compound.md`.
-If "跳过": `apex stage set idle`.
+> 上次交付已完成但未进行复盘。现在进入复盘阶段。
+
+Compound is mandatory — no skip option. `apex stage set compound`, then follow `stages/compound.md`.
 
 ### Pipeline re-entry (CRITICAL)
 
 **The protocol does NOT "turn off" after one pipeline cycle.** After Compound completes,
-the agent MUST ask the user: start a new iteration or end this round.
+the agent MUST ask the user for next step (3 options defined in `stages/compound.md`):
 
-- User chooses "新迭代" → `apex stage set idle` → next task enters Complexity Router fresh.
-- User chooses "结束" → stage stays at `compound` → user sees completed state when they return.
+- User chooses "继续下一个迭代" → `apex stage set idle` → next task enters Complexity Router fresh.
+- User chooses "在新进程中继续 roadmap" → generate self-contained continuation prompt → user pastes into new session → `apex stage set idle`.
+- User chooses "结束本轮" → stage stays at `compound` → user sees completed state when they return.
 
 If stage is `idle` and user gives a new task: run the Complexity Router (Section 1).
 If stage is `compound` and user gives a new task (without being asked): ask first, then route.
