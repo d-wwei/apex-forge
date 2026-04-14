@@ -14,3 +14,6 @@ front-end design/
 # Internal development docs (roadmaps, protocol decisions)
 docs/roadmaps/
 docs/solutions/protocol/
+
+# Agent Recall data
+.agent-recall/

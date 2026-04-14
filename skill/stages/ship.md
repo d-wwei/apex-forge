@@ -95,6 +95,23 @@ This reads `bindings.yaml`, checks each skill's installed VERSION file against
 the declared version constraint (e.g. `>=1.0.0`), and reports pass/fail.
 Any version mismatch blocks ship.
 
+### Check 6: Opensource Preflight Scan
+
+Invoke the `opensource-preflight` companion skill in **quick + diff mode**:
+
+```
+/opensource-preflight --mode quick --scope diff
+```
+
+This scans staged and modified files for secrets, PII, internal references, and local paths.
+
+**Verdict mapping:**
+- `✗ 未就绪` (any CRITICAL) → **STOP**. Do NOT proceed to Ship Sequence.
+- `⚠ 需审查` (HIGH, no CRITICAL) → Report findings. Ask user whether to proceed or fix first.
+- `✓ 就绪` → Proceed.
+
+Fix all CRITICAL/HIGH issues, re-stage, then re-run scan. Only proceed when verdict is `✓` or user explicitly accepts `⚠`.
+
 ---
 
 ## Ship Sequence
@@ -116,11 +133,50 @@ Update `VERSION` file or `package.json` version field if they exist.
 Append an entry to `CHANGELOG.md` (create if needed) with version,
 date, change summary, and links to pipeline artifacts.
 
-### Step 3: Stage All Changes
-Stage source files, test files, version/changelog updates, and
-documentation artifacts.
+### Step 3: README & Repository Presentation
 
-### Step 4: Commit
+Detect repository status:
+
+```bash
+# Check if remote repo exists
+gh repo view 2>/dev/null && echo "EXISTING" || echo "NEW_OR_NO_REMOTE"
+```
+
+**Path A — New repository** (no remote, or user is about to `gh repo create`):
+
+1. **MUST** invoke the `great-writer` skill in **GitHub README mode** to produce:
+   - `README.md` (English) — project overview, features, quickstart, architecture, usage
+   - `README_CN.md` or `README.zh-CN.md` (Chinese) — same content, native Chinese (not a translation)
+2. Prepare repository metadata for Step 8:
+   - **Tags/topics**: 5-10 relevant topics (e.g., `cli`, `typescript`, `ai-agent`)
+   - **Description**: one-line repo description (under 350 chars)
+   - Write to `.apex/ship-metadata.json`:
+     ```json
+     { "topics": [...], "description": "...", "homepage": "..." }
+     ```
+
+**Path B — Existing repository** (remote exists, has commit history):
+
+Evaluate by calling `AskUserQuestion`:
+- question: "仓库已存在。是否需要更新展示信息？"
+- header: "Repo Info"
+- options:
+  1. label: "重写 README (Recommended)", description: "用 GreatWriter 重写中英文 README，更新标签和描述"
+  2. label: "仅更新标签和描述", description: "README 不动，只更新 GitHub 仓库标签和描述"
+  3. label: "评估 Release", description: "评估是否需要发布新 Release（含 README 更新评估）"
+  4. label: "跳过", description: "不修改任何展示信息"
+
+Execute the user's choice:
+- **重写 README**: invoke `great-writer` in GitHub README mode, same as Path A step 1.
+- **仅更新标签和描述**: prepare metadata in `.apex/ship-metadata.json`.
+- **评估 Release**: check `git log` since last tag, evaluate if changes warrant a release. If yes, prepare release notes and write to `.apex/ship-release.json`. Also evaluate README freshness.
+- **跳过**: proceed to Step 4.
+
+### Step 4: Stage All Changes
+Stage source files, test files, version/changelog updates,
+README changes (if any), and documentation artifacts.
+
+### Step 5: Commit
 
 Create a structured commit following conventional commits:
 
@@ -136,7 +192,7 @@ Review: docs/reviews/{name}-review.md
 
 Type mapping: feat (new feature), fix (bug fix), refactor, chore (config/build).
 
-### Step 5: Push (requires user confirmation)
+### Step 6: Push (requires user confirmation)
 
 Before pushing, call `AskUserQuestion` with:
 - question: "是否推送到远程仓库？"
@@ -146,12 +202,113 @@ Before pushing, call `AskUserQuestion` with:
   2. label: "暂不推送", description: "仅保留本地提交，稍后手动推送"
 
 If user selects "推送": push the feature branch to remote.
-If user selects "暂不推送": skip push and Step 6 (PR). Record in ship result.
+If user selects "暂不推送": skip push, Steps 7-9. Record in ship result.
 Skip entirely if no remote is configured.
 
-### Step 6: Pull Request
+**New repository creation**: if no remote exists and user wants to push,
+create the repo first via `gh repo create` (public/private per user choice),
+then push.
+
+### Step 7: CI Status Check
+
+Only runs if push succeeded (Step 6 completed). Detect whether the repo has CI configured and wait for results.
+
+**Detection:**
+
+```bash
+# Check for CI configuration
+ls .github/workflows/*.yml .github/workflows/*.yaml .gitlab-ci.yml Jenkinsfile .circleci/config.yml 2>/dev/null
+```
+
+If no CI config found → skip this step.
+
+**If CI is configured:**
+
+```bash
+# Wait for checks to start (may take a few seconds after push)
+sleep 5
+# Poll CI status
+gh run list --branch $(git branch --show-current) --limit 1 --json status,conclusion,name,databaseId
+```
+
+**Poll loop** (max 10 minutes, check every 30 seconds):
+
+```bash
+gh run watch <run_id> --exit-status 2>&1
+```
+
+Or manual polling:
+```bash
+gh run view <run_id> --json status,conclusion
+```
+
+**Verdict mapping:**
+
+| CI Result | Action |
+|-----------|--------|
+| All checks pass | Proceed to Step 8 |
+| Some checks fail | **STOP**. Report failed jobs with `gh run view <id> --log-failed`. Ask user: |
+| Timeout (10 min) | Report current status, ask user whether to wait or proceed |
+
+When checks fail, call `AskUserQuestion`:
+- question: "CI 检查未通过。{N} 个 job 失败。如何处理？"
+- header: "CI"
+- options:
+  1. label: "查看失败日志并修复", description: "查看失败的 job 日志，修复后重新推送"
+  2. label: "继续创建 PR", description: "忽略 CI 失败，继续创建 PR（PR 会标记为失败状态）"
+  3. label: "中止 Ship", description: "回到 Execute 阶段修复问题"
+
+- **查看失败日志并修复**: run `gh run view <id> --log-failed`, diagnose, fix, amend commit, force push, re-run this step.
+- **继续创建 PR**: proceed but add CI failure notice to PR body.
+- **中止 Ship**: `apex stage set execute`, return to execute stage.
+
+**GitLab 适配**: if `.gitlab-ci.yml` exists instead of GitHub Actions, use:
+```bash
+glab ci status
+glab ci view
+```
+
+### Step 8: GitHub Repository Metadata
+
+Only runs if push succeeded (Step 6 completed). Read `.apex/ship-metadata.json` if it exists.
+
+**For new repositories** (just created in Step 6):
+
+```bash
+# Set description and homepage
+gh repo edit --description "{description}" --homepage "{homepage}"
+
+# Set topics (one command per topic, or comma-separated)
+gh repo edit --add-topic topic1 --add-topic topic2 ...
+```
+
+Both description and topics are **mandatory** for new repos. If `.apex/ship-metadata.json`
+was not prepared in Step 3, prepare it now before proceeding.
+
+**For existing repositories**:
+
+If `.apex/ship-metadata.json` exists (user chose to update in Step 3):
+```bash
+gh repo edit --description "{description}"
+gh repo edit --add-topic ...
+```
+
+If `.apex/ship-release.json` exists (user chose Release evaluation in Step 3):
+```bash
+# Create release with auto-generated notes or prepared notes
+gh release create v{version} --title "v{version}" --notes-file .apex/ship-release-notes.md
+```
+
+**Cleanup**: delete `.apex/ship-metadata.json` and `.apex/ship-release.json` after use.
+
+### Step 9: Pull Request
 Create a PR with summary, review status, artifact links, and test results.
 Use `gh pr create` if available; otherwise instruct the user.
+
+If CI failed and user chose "继续创建 PR" in Step 7, add to PR body:
+```
+⚠️ CI Status: {N} job(s) failed. See [workflow run]({run_url}) for details.
+```
 
 ---
 
@@ -194,6 +351,8 @@ Before `apex stage complete ship`, run the Stage Exit Gate (`gates/stage-exit-ga
 | S1 | Git commit exists | `git log -1 --oneline` returns a commit for this pipeline | git log |
 | S2 | Review status confirmed | Review artifact status is DONE or DONE_WITH_CONCERNS | File re-read |
 | S3 | Compound prompt issued | AskUserQuestion for Compound was **actually called** (not deferred). Verify the prompt appeared and user responded. | Flow check: user response recorded |
+| S4 | Preflight scan passed | No CRITICAL findings in committed files | Re-run `/opensource-preflight --mode quick --scope diff HEAD~1` |
+| S5 | CI status acknowledged | If repo has CI: checks passed, or user explicitly chose to proceed despite failures | `gh run list --limit 1` status check |
 
 ### Substance Prompts (Tier 2+)
 
@@ -201,6 +360,7 @@ Before `apex stage complete ship`, run the Stage Exit Gate (`gates/stage-exit-ga
 |---|--------|----------------|
 | Q1 | Does the commit message accurately describe what changed? Read `git log -1` and `git diff HEAD~1 --stat`. Does the message cover the actual scope, or is it generic? | git log, git diff |
 | Q2 | Are all changed files traceable to the plan? Read `git diff HEAD~1 --stat` and cross-reference against the plan's file manifest. Flag any changed file not in the plan (excluding version/changelog files). | `docs/plans/{name}-plan.md`, git diff |
+| Q3 | If pushed to a public repo: is README present and up-to-date? Does the repo have topics and description set? Check via `gh repo view --json description,repositoryTopics`. | gh repo view |
 
 ---
 
