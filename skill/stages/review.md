@@ -110,8 +110,8 @@ Uses four techniques:
 |----------|-----------|--------|
 | **P0** | Security vulnerability, data loss, crash | Fix immediately. Blocks ship. |
 | **P1** | Functional bug affecting users | Fix before ship. |
-| **P2** | Quality issue, code smell, missing test | Fix in current cycle. |
-| **P3** | Minor improvement, style nit | Track for later. |
+| **P2** | Quality issue, code smell, missing test | Fix before completing review. Estimated fix ≤ 10 lines → fix now, no deferral. Estimated fix > 10 lines → create task, still fix before ship. |
+| **P3** | Minor improvement, style nit | Track for later. May defer to next iteration. |
 
 ### Autofix Classes
 
@@ -183,6 +183,7 @@ Before `apex stage complete review`, run the Stage Exit Gate (`gates/stage-exit-
 | S6 | Adversarial section | Document contains Adversarial Reviewer findings section | Section scan |
 | S7 | Status field | Status is DONE or DONE_WITH_CONCERNS | Frontmatter/content check |
 | S8 | No unresolved P0 | No finding with severity P0 has unresolved status | Content scan |
+| S9 | No unresolved P2 | All P2 findings are resolved (fixed or converted to task with fix committed) | Content scan |
 
 ### Substance Prompts (Tier 2+)
 
@@ -199,7 +200,7 @@ Based on status, report to user:
 
 | Status | When | Next Step |
 |--------|------|-----------|
-| **DONE** | No P0 or P1 findings | Proceed to Ship stage |
-| **DONE_WITH_CONCERNS** | No P0, P1 acknowledged | Acknowledge and proceed to Ship |
-| **BLOCKED** | Any P0 or unresolved P1 | Fix issues, re-run review |
+| **DONE** | No P0, P1, or P2 findings unresolved | Proceed to Ship stage |
+| **DONE_WITH_CONCERNS** | No P0, P1/P2 resolved, P3 acknowledged | Acknowledge and proceed to Ship |
+| **BLOCKED** | Any P0, or unresolved P1/P2 | Fix issues, re-run review |
 | **NEEDS_CONTEXT** | Missing info for assessment | Provide context, re-run review |
