@@ -166,7 +166,13 @@ User can also type a custom name via "Other".
 Record the chosen name in `.apex/ship-metadata.json` as `"repo_name": "..."`.
 This name will be used in Step 6 (`gh repo create`) and Step 8 (metadata).
 
-**A1.** **MUST** invoke the `great-writer` skill in **GitHub README mode** to produce:
+**A1. README Generation (mandatory, cannot be skipped)**
+
+Invoke the `great-writer` skill in **GitHub README mode**. This step is mandatory for ALL new
+repositories — no exceptions. "SKILL.md is the docs" or "README not requested" are not valid
+reasons to skip. Every public repo must have a proper README.
+
+Output:
    - `README.md` (English) — project overview, features, quickstart, architecture, usage
    - `README_CN.md` or `README.zh-CN.md` (Chinese) — same content, native Chinese (not a translation)
 **A2.** Prepare repository metadata for Step 8:
@@ -375,6 +381,7 @@ Before `apex stage complete ship`, run the Stage Exit Gate (`gates/stage-exit-ga
 | S3 | Compound prompt issued | AskUserQuestion for Compound was **actually called** (not deferred). Verify the prompt appeared and user responded. | Flow check: user response recorded |
 | S4 | Preflight scan passed | No CRITICAL findings in committed files | Re-run `/opensource-preflight --mode quick --scope diff HEAD~1` |
 | S5 | CI status acknowledged | If repo has CI: checks passed, or user explicitly chose to proceed despite failures | `gh run list --limit 1` status check |
+| S6 | README exists | If pushed to a public repo: `README.md` must exist in the repo root. New repos must also have `README_CN.md` or `README.zh-CN.md`. | `git show HEAD:README.md` |
 
 ### Substance Prompts (Tier 2+)
 
