@@ -15,5 +15,8 @@ front-end design/
 docs/roadmaps/
 docs/solutions/protocol/
 
+# cmux-team runtime data
+.team/
+
 # Agent Recall data
 .agent-recall/
