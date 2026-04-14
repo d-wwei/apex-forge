@@ -222,7 +222,39 @@ Type mapping: feat (new feature), fix (bug fix), refactor, chore (config/build).
 
 ### Step 6: Push (requires user confirmation)
 
-Before pushing, call `AskUserQuestion` with:
+**6a. Iteration Summary (mandatory, before Push prompt)**
+
+Before asking about push, output a plain-language summary for the user. Write it like you're telling a colleague what happened — no jargon, no filler, concrete.
+
+Four sections, each 2-5 sentences:
+
+```
+## 这轮做了什么
+[具体说：加了什么功能、修了什么 bug、改了什么结构。用动词开头，一件事一句话。
+ 不要写"优化了系统架构"——说"把 X 从 A 改成了 B，因为 C"]
+
+## 现在能干什么
+[改完之后用户能做什么、系统行为有什么不同。从用户视角说，不从代码视角说。
+ 不要写"提升了可维护性"——说"下次改 X 的时候不用同时改 Y 了"]
+
+## 怎么试
+[具体的命令、操作步骤、或测试方法。能复制粘贴直接跑的。
+ 如果有测试套件，给出运行命令和预期结果]
+
+## 注意事项
+[破坏性变更、已知限制、需要手动操作的事。没有就写"无"，不要凑字数]
+```
+
+**Style rules** (from ljg-plain):
+- 口语检验：读出声来，你会这样跟朋友说话吗？
+- 零术语：聪明的 12 岁孩子能复述
+- 一句一事：每句只推进一步
+- 具体：名词看得见，动词有力气
+- 不填充：每句都在干活，删开场白和拐杖词
+
+**6b. Push prompt**
+
+After the summary, call `AskUserQuestion` with:
 - question: "是否推送到远程仓库？"
 - header: "Push"
 - options:
