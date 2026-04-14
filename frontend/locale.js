@@ -89,6 +89,9 @@ const LOCALE = {
     'home.searchPlaceholder': 'Search projects...',
     'home.filterStatus': 'Status: All',
     'home.filterSort': 'Sort: Recent',
+    'home.hideProject': 'Hide project',
+    'home.allHidden': '{count} project(s) hidden',
+    'home.unhideAll': 'Show all projects',
     'home.subtitle': '{count} projects \u00b7 {active} active \u00b7 {archived} archived',
 
     // Session
@@ -190,6 +193,9 @@ const LOCALE = {
     'home.searchPlaceholder': '搜索项目…',
     'home.filterStatus': '状态：全部',
     'home.filterSort': '排序：最近',
+    'home.hideProject': '隐藏项目',
+    'home.allHidden': '已隐藏 {count} 个项目',
+    'home.unhideAll': '显示全部项目',
     'home.subtitle': '{count} 个项目 \u00b7 {active} 个活跃 \u00b7 {archived} 个归档',
 
     // Session

@@ -43,8 +43,10 @@ let sessionExpanded = false;    // session pipeline expand/collapse
 // ===== 2c. Hidden Projects =====
 
 function getHiddenProjects() {
-  try { return JSON.parse(localStorage.getItem('hiddenProjects')) || []; }
-  catch { return []; }
+  try {
+    const raw = JSON.parse(localStorage.getItem('hiddenProjects'));
+    return Array.isArray(raw) ? raw : [];
+  } catch { return []; }
 }
 
 function hideProject(path) {
@@ -68,6 +70,9 @@ function filterVisibleProjects(projects) {
 
 function onHideProject(path) {
   hideProject(path);
+  if (localStorage.getItem('lastProject') === path) {
+    localStorage.removeItem('lastProject');
+  }
   if (currentProject && currentProject.path === path) {
     navigateToHome();
   }
@@ -186,6 +191,15 @@ function renderProjectCards(projects) {
   const subtitle = document.getElementById('home-subtitle');
   if (subtitle) subtitle.textContent = t('home.subtitle').replace('{count}', visible.length).replace('{active}', active).replace('{archived}', archived);
 
+  const hiddenCount = projects.length - visible.length;
+  if (visible.length === 0 && hiddenCount > 0) {
+    grid.innerHTML = '<div class="project-grid-empty">' +
+      '<span>' + t('home.allHidden').replace('{count}', hiddenCount) + '</span>' +
+      '<button class="project-unhide-all-btn" onclick="localStorage.removeItem(\'hiddenProjects\'); renderProjectCards(loadedProjects); renderSidebar(loadedProjects);">' + t('home.unhideAll') + '</button>' +
+    '</div>';
+    return;
+  }
+
   grid.innerHTML = visible.map((p, i) => {
     const dotClass = p.status === 'archived' ? 'gray' : (p.status === 'building' ? 'blue' : 'green');
     const isActive = i === 0;
@@ -241,22 +255,31 @@ function loadProjectCards() {
       worktreeGroup: p.worktreeGroup || null,
     }));
     loadedProjects = projects.length ? projects : DEMO_PROJECTS;
+    // Auto-unhide project targeted by URL hash (e.g. apex dashboard re-launch)
+    const hashUnhide = location.hash.match(/project=([^&]*)/);
+    if (hashUnhide) {
+      const hashPath = decodeURIComponent(hashUnhide[1]);
+      if (getHiddenProjects().includes(hashPath)) {
+        unhideProject(hashPath);
+      }
+    }
     renderProjectCards(loadedProjects);
     renderSidebar(loadedProjects);
     // Hub auto-select: match #project=PATH from URL hash, localStorage, or fall back to first
-    if (currentView === 'home' && projects.length > 0
+    const visibleForSelect = filterVisibleProjects(projects);
+    if (currentView === 'home' && visibleForSelect.length > 0
         && location.port === '3456' && !sessionStorage.getItem('hubExplicitHome')) {
-      let target = projects[0];
+      let target = visibleForSelect[0];
       const hashMatch = location.hash.match(/project=([^&]*)/);
       if (hashMatch) {
         const requestedPath = decodeURIComponent(hashMatch[1]);
-        const found = projects.find(p => p.path === requestedPath);
+        const found = visibleForSelect.find(p => p.path === requestedPath);
         if (found) target = found;
       } else {
         // Fallback: restore last selected project from localStorage
         const lastPath = localStorage.getItem('lastProject');
         if (lastPath) {
-          const found = projects.find(p => p.path === lastPath);
+          const found = visibleForSelect.find(p => p.path === lastPath);
           if (found) target = found;
         }
       }
@@ -304,6 +327,7 @@ function renderSidebar(projects) {
     return '<div class="sidebar-archived-item" data-path="' + esc(p.path) + '">' +
       '<div class="sidebar-archived-dot"></div>' +
       '<span class="sidebar-archived-name">' + esc(p.name) + '</span>' +
+      '<button class="sidebar-project-close" data-path="' + esc(p.path) + '" title="' + t('home.hideProject') + '">&times;</button>' +
     '</div>';
   }).join('');
 
@@ -314,7 +338,7 @@ function renderSidebar(projects) {
       if (target) navigateToProject(target);
     });
   });
-  list.querySelectorAll('.sidebar-project-close').forEach(btn => {
+  [...list.querySelectorAll('.sidebar-project-close'), ...archivedList.querySelectorAll('.sidebar-project-close')].forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       onHideProject(btn.dataset.path);
