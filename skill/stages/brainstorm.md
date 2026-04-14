@@ -42,6 +42,34 @@ it must stop, log the violation attempt, and return to the checklist.
 
 ---
 
+## EVIDENTIARY DISCIPLINE
+
+```
+================================================================
+  THIS STAGE ENFORCES EVIDENTIARY DISCIPLINE.
+
+  While Brainstorm is active, all factual claims must be tagged:
+
+    [已验证] — Based on actual investigation (read code, ran
+               commands, checked docs, verified behavior).
+    [假设]   — Unverified speculation. Must be explicitly marked.
+
+  Violations:
+    ✗ Untagged assertions presented as fact.
+    ✗ "已给出解决方案" when the actual solution is deferred.
+    ✗ Quantitative claims without data ("N will cause X").
+    ✗ Designing against an API/system without reading its docs.
+
+  When about to make an unverified claim:
+    → STOP. Either investigate now, or tag [假设] and state
+      why verification is deferred.
+
+  This is a hard constraint, same severity as "no code."
+================================================================
+```
+
+---
+
 ## On Entry: Resume Check + Roadmap Context
 
 Before starting a new brainstorm:
@@ -149,7 +177,51 @@ concerns), escalate and suggest treating it as Standard.
 
 ---
 
+## Multi-Issue Discussion Protocol
+
+When Brainstorm identifies N > 5 issues to resolve (e.g., gap analysis,
+risk enumeration, open questions), this protocol replaces linear one-by-one
+discussion.
+
+### Step A: Panoramic View
+
+List ALL issues with one-line summary + severity (Critical / High / Medium).
+Do NOT expand any solutions yet.
+
+### Step B: User Triage
+
+Ask the user to mark which issues need deep discussion:
+
+> "以上 {N} 个问题，哪些需要逐个深入讨论？
+>  其余的我会给出一句话方案，你批量确认。"
+
+### Step C: Group by Dependency
+
+Group issues that share premises or depend on each other. Discuss
+each group as a unit, not as separate items. Example: if two issues
+both depend on "does the platform support hooks?", discuss them together.
+
+### Step D: Batch the Rest
+
+Issues NOT marked for deep discussion: present all solutions in one
+message. User confirms, modifies, or flags individual items for
+deeper discussion.
+
+### Prohibited Patterns
+
+| Pattern | Why It Fails | Correct Response |
+|---------|-------------|-----------------|
+| Linear one-by-one expansion of all items | Wastes time on low-priority issues | Use Step B triage |
+| Full solution for every item before asking user | Over-designs low-priority items | Batch simple items (Step D) |
+| Discussing related issues separately | Misses shared premises, causes redundant discussion | Group by dependency (Step C) |
+| Asking "展开全部还是只展开 Critical" | Locks user into all-or-nothing choice | Step B lets user pick individual items |
+
+---
+
 ## The 9-Step Checklist
+
+**Note**: If any step below surfaces more than 5 open issues, switch to
+the Multi-Issue Discussion Protocol before continuing.
 
 ### Step 1: Clarify the Actual Problem
 - What is broken, missing, or suboptimal?
@@ -203,6 +275,11 @@ concerns), escalate and suggest treating it as Standard.
 - Describe the chosen approach at a high level.
 - Identify key components, responsibilities, and interactions.
 - NO implementation code. Directional descriptions only.
+- **Complexity check**: Does the solution have more stages, layers, or
+  abstractions than the problem warrants? If the plan requires 4+ phases,
+  multiple new abstraction layers, or introduces requirements the user
+  didn't mention — present the simplest viable version first, then ask
+  if the user wants more.
 
 **Output**: Solution shape description.
 
@@ -227,6 +304,45 @@ concerns), escalate and suggest treating it as Standard.
 | "We already brainstormed this" | If no approved doc exists, it was not captured. | Check for existing docs. If none, start fresh. |
 | "This is just a bug fix" | Bug fixes still need root cause + verification criteria. | Lightweight scope covers this. |
 | "The user is waiting" | Shipping the wrong thing is slower. | "5-minute Lightweight brainstorm." |
+| "This needs a full migration plan" | Solution complexity may far exceed problem scale. | Ask: "What's the simplest way?" If user says "just switch it," adopt. |
+| "We should design a general architecture" | Phase 1 doesn't need generality. | Solve the current problem only. Don't add generality the user didn't ask for. |
+
+---
+
+## Running Decisions Log
+
+When a Brainstorm discussion exceeds **3 interaction rounds**, maintain
+a decisions log to prevent earlier decisions from being buried by later
+conversation.
+
+**File**: `docs/brainstorms/{name}-decisions.md`
+
+**Format**:
+
+```markdown
+| # | Decision | Basis | Status |
+|---|----------|-------|--------|
+| D1 | Kernel includes baseline guarantees | User choice | Confirmed |
+| D2 | Hooks use abstract event layer | User requires cross-platform | Confirmed |
+| D3 | Budget default = 5 fields | [假设] No experimental data | Needs verification |
+```
+
+**Rules**:
+- Append each decision as it is made. Do NOT wait until the end.
+- The `Basis` column must distinguish [已验证] from [假设] sources
+  (as defined in the Evidentiary Discipline section above).
+- The `Status` column tracks: `Confirmed` / `Needs verification` / `Superseded`.
+- When a later decision invalidates an earlier one, mark the earlier one
+  `Superseded by D{N}`.
+
+**Purpose**:
+- Quick reference during long discussions (no need to scroll back).
+- The final requirements document's "Confirmed Decisions" section is
+  generated from this log.
+- `Needs verification` items surface what still requires investigation.
+
+The decisions log is a process tool. The final deliverable remains
+the requirements document.
 
 ---
 
@@ -236,6 +352,10 @@ When the user approves (Step 9 = approved), write to
 `docs/brainstorms/{name}-requirements.md` with frontmatter including
 title, scope, status, dates, and approval info. The document captures
 all 9 checklist outputs.
+
+If a decisions log was maintained (`{name}-decisions.md`), include a
+**Confirmed Decisions** section in the requirements document, generated
+from all entries with Status = `Confirmed`.
 
 After writing, register with: `apex task create --stage brainstorm --artifact docs/brainstorms/{name}-requirements.md`
 
@@ -261,6 +381,7 @@ Before `apex stage complete brainstorm`, run the Stage Exit Gate (`gates/stage-e
 | S4 | Constraints | Document contains "Constraints" section | Section scan |
 | S5 | Scope classification | Frontmatter contains `scope:` field (Lightweight/Standard/Deep) | Frontmatter check |
 | S6 | Status approved | Frontmatter `status: approved` | Frontmatter check |
+| S7 | Decisions transferred | If `{name}-decisions.md` exists, requirements doc contains "Confirmed Decisions" section | Conditional: file exists check + section scan |
 
 ### Substance Prompts (Tier 2+)
 
@@ -268,6 +389,8 @@ Before `apex stage complete brainstorm`, run the Stage Exit Gate (`gates/stage-e
 |---|--------|----------------|
 | Q1 | Are the acceptance criteria specific and testable? Could a developer write a test for each one without asking clarifying questions? Flag any that are vague ("should be fast", "should look good"). | None |
 | Q2 | Do the constraints reflect real project limitations? Is there evidence (codebase references, dependency versions, API contracts) backing each constraint, or are they assumptions? | Codebase scan |
+| Q3 | Does every "resolved" / "solution provided" / "已解决" claim in the document contain the actual solution content? Flag any claim that says a problem is addressed but only defers it ("Phase 2 will handle this") or provides only a label without substance. | Line-by-line scan |
+| Q4 | Are factual assertions tagged with their evidence basis ([已验证] or [假设])? Flag any untagged quantitative claim, API capability assertion, or behavioral prediction. | Line-by-line scan |
 
 ---
 
