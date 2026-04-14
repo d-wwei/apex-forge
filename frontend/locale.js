@@ -12,6 +12,8 @@ const LOCALE = {
     'pipeline.noArtifacts': 'No Artifacts',
     'pipeline.noArtifactsHint': 'Artifacts are generated as you progress through pipeline stages.',
     'pipeline.noArtifactsCmd': '/apex-forge brainstorm',
+    'pipeline.openCommit': 'Open commit on GitHub',
+    'pipeline.revealFile': 'Reveal in Finder',
 
     // Stages
     'stage.brainstorm': 'brainstorm',
@@ -111,6 +113,8 @@ const LOCALE = {
     'pipeline.noArtifacts': '暂无产出物',
     'pipeline.noArtifactsHint': '随着流水线各阶段推进，产出物将自动记录在此。',
     'pipeline.noArtifactsCmd': '/apex-forge brainstorm',
+    'pipeline.openCommit': '在 GitHub 上查看此提交',
+    'pipeline.revealFile': '在 Finder 中显示',
 
     // Stages
     'stage.brainstorm': '头脑风暴',

@@ -303,6 +303,28 @@ async function startStandaloneDashboard(port: number, projectDir: string, projec
         });
       }
 
+      if (url.pathname === "/api/open-file") {
+        const filePath = url.searchParams.get("path");
+        if (!filePath) {
+          return Response.json({ error: "Missing path parameter" }, { status: 400, headers: corsHeaders });
+        }
+        const resolved = resolve(projectDir, filePath.replace(/\.\./g, ""));
+        if (!resolved.startsWith(projectDir)) {
+          return Response.json({ error: "Path outside project" }, { status: 403, headers: corsHeaders });
+        }
+        try {
+          const { spawnSync: sp } = await import("child_process");
+          if (existsSync(resolved)) {
+            sp("open", ["-R", resolved]);
+          } else {
+            return Response.json({ error: "File not found" }, { status: 404, headers: corsHeaders });
+          }
+          return Response.json({ ok: true }, { headers: corsHeaders });
+        } catch {
+          return Response.json({ error: "Failed to open" }, { status: 500, headers: corsHeaders });
+        }
+      }
+
       if (url.pathname === "/api/designs") {
         const designDir = join(projectDir, ".apex", "designs");
         const designs = listDesignFiles(designDir);
@@ -1389,10 +1411,23 @@ async function buildStatePayload(projectDir: string, projectName: string) {
 
   const derivedState = deriveStageFromTasks(state, tasks.tasks);
 
+  // Resolve GitHub remote URL for commit links
+  let gitRemoteUrl = "";
+  try {
+    const { spawnSync: sp } = await import("child_process");
+    const r = sp("git", ["-C", projectDir, "remote", "get-url", "origin"], { encoding: "utf-8" });
+    if (r.status === 0 && r.stdout) {
+      gitRemoteUrl = r.stdout.trim()
+        .replace(/\.git$/, "")
+        .replace(/^git@github\.com:/, "https://github.com/");
+    }
+  } catch { /* ignore */ }
+
   return {
     project: {
       name: projectName,
       path: projectDir,
+      gitRemoteUrl,
     },
     tasks,
     memory: await readJSON(join(apexDir, "memory.json"), { facts: [], next_id: 1 }),

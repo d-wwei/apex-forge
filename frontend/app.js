@@ -327,7 +327,7 @@ function switchToFilter(label) {
 
 function render(data) {
   renderKanban(data.tasks, data._worktrees);
-  renderPipeline(data.state, data.tasks, data._worktrees, data.sessionPipelines);
+  renderPipeline(data.state, data.tasks, data._worktrees, data.sessionPipelines, data.project);
   renderTelemetry(data.analytics);
   renderActivity(data.analytics);
   renderMemory(data.memory);
@@ -390,7 +390,7 @@ function renderKanban(tasks, wtData) {
   applyKanbanCollapse();
 }
 
-function renderPipeline(state, tasks, wtData, sessionPipelines) {
+function renderPipeline(state, tasks, wtData, sessionPipelines, project) {
   var current = state.current_stage || 'idle';
   var fullHistory = state.history || [];
 
@@ -515,7 +515,16 @@ function renderPipeline(state, tasks, wtData, sessionPipelines) {
   if (state.artifacts && Object.keys(state.artifacts).length > 0) {
     const entries = Object.entries(state.artifacts).filter(([, v]) => v && v.length > 0);
     if (entries.length > 0) {
-      artEl.innerHTML = entries.map(([stageName, items]) => '<div><div class="artifact-section-label">' + esc(stageName) + t('pipeline.artifacts') + '</div>' + items.map(item => '<div class="artifact-item"><span class="artifact-dot"></span><span class="artifact-name">' + esc(item) + '</span></div>').join('') + '</div>').join('');
+      var gitUrl = (project && project.gitRemoteUrl) || '';
+      artEl.innerHTML = entries.map(([stageName, items]) => '<div><div class="artifact-section-label">' + esc(stageName) + t('pipeline.artifacts') + '</div>' + items.map(item => {
+        var isCommit = /^[0-9a-f]{7,40}$/.test(item);
+        if (isCommit && gitUrl) {
+          return '<div class="artifact-item"><span class="artifact-dot"></span><a class="artifact-link" href="' + esc(gitUrl) + '/commit/' + esc(item) + '" target="_blank" title="' + t('pipeline.openCommit') + '">' + esc(item) + '</a></div>';
+        } else if (!isCommit) {
+          return '<div class="artifact-item"><span class="artifact-dot"></span><a class="artifact-link artifact-file" href="#" onclick="openLocalFile(\'' + esc(item).replace(/'/g, "\\'") + '\');return false;" title="' + t('pipeline.revealFile') + '">' + esc(item) + '</a></div>';
+        }
+        return '<div class="artifact-item"><span class="artifact-dot"></span><span class="artifact-name">' + esc(item) + '</span></div>';
+      }).join('') + '</div>').join('');
       return;
     }
   }
@@ -750,6 +759,13 @@ function renderDesignComparison() {
 function esc(s) {
   if (!s) return '';
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function openLocalFile(path) {
+  fetch('/api/open-file?path=' + encodeURIComponent(path))
+    .then(r => r.json())
+    .then(d => { if (d.error) console.warn('open-file:', d.error); })
+    .catch(() => {});
 }
 
 // ===== 8. SSE =====
