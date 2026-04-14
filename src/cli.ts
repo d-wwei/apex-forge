@@ -527,6 +527,11 @@ async function main() {
       case "worktree":
         await cmdWorktree(rest);
         break;
+      case "worker": {
+        const { cmdWorker } = await import("./commands/worker.js");
+        await cmdWorker(rest);
+        break;
+      }
       case "stage": {
         const sub = rest[0];
         if (sub === "set") {

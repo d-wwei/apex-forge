@@ -331,6 +331,12 @@ function render(data) {
   if (data._summary && data._summary.activeWorktrees > 1) {
     statusText += ' (' + data._summary.activeWorktrees + ' worktrees)';
   }
+  if (data._cost && data._cost.totalUsd > 0) {
+    statusText += ' | Cost: $' + data._cost.totalUsd.toFixed(2);
+  }
+  if (data._rateLimit && data._rateLimit.throttled) {
+    statusText += ' | \u26a0\ufe0f THROTTLED';
+  }
   document.getElementById('pipeline-status').textContent = statusText;
 }
 
@@ -685,6 +691,8 @@ function renderWithMode(data) {
       project: data.repo,
       _worktrees: data.worktrees,
       _summary: data.summary,
+      _cost: data.cost || null,
+      _rateLimit: data.rateLimit || null,
     });
   } else {
     currentWorktrees = null;

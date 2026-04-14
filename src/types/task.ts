@@ -25,6 +25,8 @@ export interface Task {
   attempt?: number;              // current attempt number
   workspace_path?: string;       // per-task workspace directory
   session_id?: string;           // for resume across retries
+  category?: string;             // "code" | "review" | "design" | "research" | "test"
+  agent?: string;                // "claude" | "codex" | "gemini"
   created_at: string;
   updated_at: string;
   completed_at?: string;

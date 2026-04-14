@@ -27,6 +27,12 @@ export interface ApexConfig {
   agent_timeout_ms: number;
   agents?: AgentMap;
   adapters?: AdaptersMap;
+  worker_default_agent?: string;
+  worker_agent_rules?: { category: string; agent: string }[];
+  worker_rate_limit_enabled?: boolean;
+  worker_rate_limit_threshold?: number;
+  worker_budget_usd?: number;
+  worker_budget_warn?: number;
 }
 
 export const DEFAULT_CONFIG: ApexConfig = {

@@ -1386,12 +1386,28 @@ async function buildAggregatedPayload(repoRoot: string, repoName: string) {
   }
 
   const wtPayloads = await Promise.all(
-    worktrees.map(async (wt) => ({
-      label: wt.label,
-      path: wt.path,
-      isMain: wt.isMain,
-      state: await buildStatePayload(wt.path, wt.label),
-    }))
+    worktrees.map(async (wt) => {
+      // Check for worker metadata at .apex/workers/<label>/meta.json
+      let worker: { agent: string; started_at: string; task_id: string } | null = null;
+      const workerMetaPath = join(repoRoot, ".apex", "workers", wt.label, "meta.json");
+      if (existsSync(workerMetaPath)) {
+        try {
+          const meta = JSON.parse(readFileSync(workerMetaPath, "utf-8"));
+          worker = {
+            agent: meta.agent || "unknown",
+            started_at: meta.started_at,
+            task_id: meta.task_id,
+          };
+        } catch {}
+      }
+      return {
+        label: wt.label,
+        path: wt.path,
+        isMain: wt.isMain,
+        state: await buildStatePayload(wt.path, wt.label),
+        worker,
+      };
+    })
   );
 
   // Merge tasks across worktrees, prefix IDs and tag with _worktree
@@ -1413,6 +1429,20 @@ async function buildAggregatedPayload(repoRoot: string, repoName: string) {
 
   const completedTasks = mergedTasks.filter(t => t.status === "done").length;
 
+  // Read worker cost data
+  let costEntries: any[] = [];
+  const costLogPath = join(repoRoot, ".apex", "cost-log.jsonl");
+  if (existsSync(costLogPath)) {
+    costEntries = loadJSONL(costLogPath);
+  }
+
+  // Read rate limit
+  let rateLimit: any = null;
+  const rateLimitPath = join(repoRoot, ".apex", "rate-limit.json");
+  if (existsSync(rateLimitPath)) {
+    try { rateLimit = JSON.parse(readFileSync(rateLimitPath, "utf-8")); } catch {}
+  }
+
   return {
     mode: "aggregated" as const,
     repo: { name: repoName, root: repoRoot },
@@ -1423,6 +1453,8 @@ async function buildAggregatedPayload(repoRoot: string, repoName: string) {
       completedTasks,
       activeWorktrees: worktrees.length,
     },
+    cost: { entries: costEntries, totalUsd: costEntries.reduce((s: number, e: any) => s + (e.cost_usd || 0), 0) },
+    rateLimit,
   };
 }
 

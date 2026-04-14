@@ -137,6 +137,7 @@ After surfacing, rename to `.apex/upgrade-notes/{skill-name}.surfaced.md` to avo
 | `apex-forge scope-lock` | Lock edits to a directory | `roles/scope-lock.md` |
 | `apex-forge skill-author` | Create new skills | `roles/skill-author.md` |
 | `apex-forge status` | Show project state | Run: `apex status` |
+| `apex-master` | Multi-worker team manager | `roles/master.md` |
 
 External skills (via `bindings.yaml`): `/systematic-debugging`, `/thorough-code-review`, `/browser-qa-testing`, `/security-audit`, `/tasteful-frontend`, `/design-to-code-runner`, `/product-review`.
 
