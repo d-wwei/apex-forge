@@ -15,7 +15,7 @@ import { readJSON } from "../utils/json.js";
 import { TaskNotFoundError, InvalidTransitionError } from "../utils/errors.js";
 import type { Task, TaskStore, TaskStatus } from "../types/task.js";
 import { ALLOWED_TRANSITIONS } from "../types/task.js";
-import { appendEvent, rebuildAndCache } from "./event-log.js";
+import { appendEvent, rebuildAndCache, readEvents } from "./event-log.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -112,9 +112,16 @@ export async function taskCreate(
   desc: string,
   dependsOn: string[] = [],
 ): Promise<Task> {
-  // Read current next_id from cache (safe — reads are not racy)
-  const store = await loadStore();
-  const id = `T${store.next_id}`;
+  // Derive maxId from event log (not cache) to avoid stale next_id races
+  const events = readEvents("task");
+  let maxId = 0;
+  for (const evt of events) {
+    if (evt.type === "task.created" && evt.payload.id) {
+      const num = parseInt((evt.payload.id as string).replace(/\D/g, ""), 10);
+      if (num > maxId) maxId = num;
+    }
+  }
+  const id = `T${maxId + 1}`;
 
   // Append event (concurrent-safe)
   appendEvent("task", "task.created", {

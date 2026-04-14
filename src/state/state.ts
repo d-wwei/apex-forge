@@ -9,7 +9,7 @@ import { readJSON } from "../utils/json.js";
 import { appendJSONL } from "../utils/logger.js";
 import { isoTimestamp, sessionId } from "../utils/timestamp.js";
 import type { StageState } from "../types/state.js";
-import { appendEvent, rebuildAndCache } from "./event-log.js";
+import { appendEvent, rebuildAndCache, sessionStateCachePath } from "./event-log.js";
 import { existsSync } from "fs";
 import { readdir } from "fs/promises";
 
@@ -40,6 +40,12 @@ function defaultState(): StageState {
 // ---------------------------------------------------------------------------
 
 async function loadState(): Promise<StageState> {
+  // Prefer per-session cache (isolates concurrent sessions)
+  const sessionPath = sessionStateCachePath();
+  if (existsSync(sessionPath)) {
+    return readJSON<StageState>(sessionPath, defaultState());
+  }
+  // Fallback to global cache (first startup, legacy sessions)
   return readJSON<StageState>(STATE_PATH, defaultState());
 }
 

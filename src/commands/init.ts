@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, mkdirSync, symlinkSync } from "fs";
+import { existsSync, lstatSync, mkdirSync, symlinkSync, readdirSync, statSync, unlinkSync } from "fs";
 import path from "path";
 import { writeJSON } from "../utils/json.js";
 import { isoTimestamp, sessionId } from "../utils/timestamp.js";
@@ -96,6 +96,18 @@ export async function cmdInit(): Promise<void> {
       }
     }
   }
+
+  // Clean up stale per-session state caches (older than 7 days)
+  try {
+    const files = readdirSync(APEX_DIR).filter(f => /^state\..+\.json$/.test(f) && f !== "state.json");
+    const cutoff = Date.now() - 7 * 86400000;
+    for (const f of files) {
+      const fp = path.join(APEX_DIR, f);
+      try {
+        if (statSync(fp).mtimeMs < cutoff) unlinkSync(fp);
+      } catch { /* ignore */ }
+    }
+  } catch { /* ignore */ }
 
   console.log(alreadyExists ? ".apex/ updated" : "Initialized .apex/ directory");
 }

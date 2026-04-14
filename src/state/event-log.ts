@@ -51,10 +51,19 @@ export type Domain = "task" | "state" | "memory";
 let _cachedSessionId: string | null = null;
 
 /**
+ * Sanitize a session ID for safe use in filenames.
+ * Rejects path traversal, null bytes, and overly long values.
+ */
+function sanitizeSessionId(id: string): string {
+  const clean = id.replace(/[^a-zA-Z0-9_-]/g, "_");
+  return clean.slice(0, 128) || "unknown";
+}
+
+/**
  * Per-session state cache path. Used to isolate pipeline stage per session.
  */
 export function sessionStateCachePath(sid?: string): string {
-  const id = sid || currentSessionId();
+  const id = sanitizeSessionId(sid || currentSessionId());
   return `.apex/state.${id}.json`;
 }
 
@@ -180,8 +189,14 @@ export function materializeTasks(events: DomainEvent[]): TaskStore {
     switch (evt.type) {
       case "task.created": {
         const id = p.id as string;
-        // Avoid duplicate (idempotent replay)
-        if (store.tasks.some((t) => t.id === id)) break;
+        // Detect duplicate ID: annotate conflict instead of silent drop
+        const existing = store.tasks.find((t) => t.id === id);
+        if (existing) {
+          if (!existing.description.includes("[conflict:")) {
+            existing.description += ` [conflict: duplicate ${id} from session ${evt.session_id}]`;
+          }
+          break;
+        }
         store.tasks.push({
           id,
           title: (p.title as string) || "",
