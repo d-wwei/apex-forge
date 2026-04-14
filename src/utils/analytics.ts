@@ -107,8 +107,72 @@ export function loadEvents(apexDir: string): AnalyticsEvent[] {
     source: "hook" as const,
   }));
 
+  // Source 5: Event-sourced domain events (.apex/log/) — stage transitions, tasks, memory
+  const logDir = join(apexDir, "log");
+  const stateEvents = loadJSONL(join(logDir, "state.jsonl"));
+  const taskEvents = loadJSONL(join(logDir, "tasks.jsonl"));
+  const memoryEvents = loadJSONL(join(logDir, "memory.jsonl"));
+
+  // Build stage start times for duration calculation
+  const stageStarts = new Map<string, string>();
+  const domainMapped: AnalyticsEvent[] = [];
+
+  for (const e of stateEvents) {
+    const p = e.payload || {};
+    switch (e.type) {
+      case "stage.set":
+        stageStarts.set(p.stage as string, e.ts);
+        domainMapped.push({
+          ts: e.ts, skill: p.stage as string, outcome: "started",
+          duration_s: 0, meta: { session_id: e.session_id }, source: "orchestrator",
+        });
+        break;
+      case "stage.completed": {
+        const started = stageStarts.get(p.stage as string);
+        const dur = started ? Math.round((new Date(e.ts).getTime() - new Date(started).getTime()) / 1000) : 0;
+        domainMapped.push({
+          ts: e.ts, skill: p.stage as string, outcome: "success",
+          duration_s: dur, meta: { session_id: e.session_id }, source: "orchestrator",
+        });
+        break;
+      }
+      case "skill.invoked":
+        domainMapped.push({
+          ts: e.ts, skill: (p.skill as string) || "unknown", outcome: (p.output_status as string) || "success",
+          duration_s: 0, meta: { stage: p.stage, af_mapping: p.af_mapping }, source: "orchestrator",
+        });
+        break;
+      case "artifact.added":
+        domainMapped.push({
+          ts: e.ts, skill: "artifact", outcome: "success",
+          duration_s: 0, meta: { stage: p.stage, path: p.path }, source: "orchestrator",
+        });
+        break;
+    }
+  }
+
+  for (const e of taskEvents) {
+    const p = e.payload || {};
+    if (e.type === "task.transitioned") {
+      domainMapped.push({
+        ts: e.ts, skill: "task", outcome: (p.to as string) || "unknown",
+        duration_s: 0, meta: { task_id: p.id, from: p.from }, source: "orchestrator",
+      });
+    }
+  }
+
+  for (const e of memoryEvents) {
+    const p = e.payload || {};
+    if (e.type === "fact.added") {
+      domainMapped.push({
+        ts: e.ts, skill: "memory", outcome: "added",
+        duration_s: 0, meta: { fact_id: p.id }, source: "orchestrator",
+      });
+    }
+  }
+
   // Merge all sources, sort by timestamp (newest last), cap at 200 most recent
-  return [...orchestrator, ...telemetry, ...traces, ...hooks]
+  return [...orchestrator, ...telemetry, ...traces, ...hooks, ...domainMapped]
     .sort((a, b) => (a.ts || "").localeCompare(b.ts || ""))
     .slice(-200);
 }
