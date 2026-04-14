@@ -244,8 +244,8 @@ Only runs if push succeeded (Step 6 completed). Detect whether the repo has CI c
 **Detection:**
 
 ```bash
-# Check for CI configuration
-ls .github/workflows/*.yml .github/workflows/*.yaml .gitlab-ci.yml Jenkinsfile .circleci/config.yml 2>/dev/null
+# Check for CI configuration (zsh-safe: no glob expansion)
+find .github/workflows \( -name '*.yml' -o -name '*.yaml' \) 2>/dev/null; test -f .gitlab-ci.yml && echo .gitlab-ci.yml; test -f Jenkinsfile && echo Jenkinsfile; test -f .circleci/config.yml && echo .circleci/config.yml
 ```
 
 If no CI config found → skip this step.

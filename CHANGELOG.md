@@ -7,9 +7,21 @@
 - **compound.md**: After "开始新迭代", compound now chains into `Skill('apex-forge')` re-invocation instead of passively waiting — prevents control flow breakage where new tasks bypass the Complexity Router
 - **SKILL.md**: Added "Idle re-entry enforcement" paragraph in Initialization section — ensures tasks arriving via compound chain enter the Router immediately
 
+### Ship CI Detection Fix
+
+- **ship.md**: CI detection command changed from zsh-breaking `ls *.yml *.yaml` to `find` + `test -f` with proper grouping — fixes false "No CI config" on zsh
+
+### TypeScript Type Error Fixes
+
+- Fixed 25+ `TS7006` implicit any errors in worker test files (mock.calls callback params)
+- Fixed `TS18047` possibly-null errors in proxy.test.ts (non-null assertions)
+- Fixed `TS2352` type cast in cross-model.ts (proper WindowHandle import + type widening)
+
 ### Root Cause
 
-After Compound → idle, the skill execution ended and the next user message was a plain conversation turn. No mechanism forced re-entry through the Complexity Router, so Dashboard showed no stage tracking for post-Compound tasks.
+- Pipeline re-entry: skill execution ended after Compound, no mechanism forced Router re-entry
+- CI detection: zsh `nomatch` aborts entire `ls` when one glob pattern has no matches
+- TS errors: CI runs stricter `tsc --noEmit` than local dev environment
 
 ## 0.2.0 (2026-04-12)
 

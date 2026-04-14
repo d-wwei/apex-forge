@@ -108,7 +108,7 @@ describe("apex worker list", () => {
     const { cmdWorker } = await import("../worker.js");
     await cmdWorker(["list"]);
 
-    const output = logSpy.mock.calls.map((c) => c[0]).join("\n");
+    const output = logSpy.mock.calls.map((c: any[]) => c[0]).join("\n");
     expect(output).toContain("ID");
     expect(output).toContain("Agent");
     expect(output).toContain("Stage");
@@ -124,7 +124,7 @@ describe("apex worker list", () => {
     const { cmdWorker } = await import("../worker.js");
     await cmdWorker(["list"]);
 
-    const output = logSpy.mock.calls.map((c) => c[0]).join("\n");
+    const output = logSpy.mock.calls.map((c: any[]) => c[0]).join("\n");
     expect(output).toContain("No workers");
   });
 
@@ -137,7 +137,7 @@ describe("apex worker list", () => {
     const { cmdWorker } = await import("../worker.js");
     await cmdWorker(["list"]);
 
-    const output = logSpy.mock.calls.map((c) => c[0]).join("\n");
+    const output = logSpy.mock.calls.map((c: any[]) => c[0]).join("\n");
     expect(output).toContain("T3");
     expect(output).toContain("CRASHED");
   });
@@ -156,7 +156,7 @@ describe("apex worker status", () => {
     const { cmdWorker } = await import("../worker.js");
     await cmdWorker(["status", "T1"]);
 
-    const output = logSpy.mock.calls.map((c) => c[0]).join("\n");
+    const output = logSpy.mock.calls.map((c: any[]) => c[0]).join("\n");
     expect(output).toContain("Worker T1");
     expect(output).toContain("claude");
     expect(output).toContain("execute");
@@ -173,7 +173,7 @@ describe("apex worker status", () => {
     const { cmdWorker } = await import("../worker.js");
     await cmdWorker(["status", "T1"]);
 
-    const output = logSpy.mock.calls.map((c) => c[0]).join("\n");
+    const output = logSpy.mock.calls.map((c: any[]) => c[0]).join("\n");
     expect(output).toContain("pass");
     expect(output).toContain("All tests green");
   });
@@ -185,7 +185,7 @@ describe("apex worker status", () => {
     } catch (e: any) {
       expect(e.message).toContain("process.exit(1)");
     }
-    const output = errorSpy.mock.calls.map((c) => c[0]).join("\n");
+    const output = errorSpy.mock.calls.map((c: any[]) => c[0]).join("\n");
     expect(output).toContain("Usage");
   });
 
@@ -196,7 +196,7 @@ describe("apex worker status", () => {
     } catch (e: any) {
       expect(e.message).toContain("process.exit(1)");
     }
-    const output = errorSpy.mock.calls.map((c) => c[0]).join("\n");
+    const output = errorSpy.mock.calls.map((c: any[]) => c[0]).join("\n");
     expect(output).toContain("T999");
   });
 });
@@ -217,7 +217,7 @@ describe("apex worker report", () => {
     const { cmdWorker } = await import("../worker.js");
     await cmdWorker(["report"]);
 
-    const output = logSpy.mock.calls.map((c) => c[0]).join("\n");
+    const output = logSpy.mock.calls.map((c: any[]) => c[0]).join("\n");
     expect(output).toContain("T1");
   });
 
@@ -225,7 +225,7 @@ describe("apex worker report", () => {
     const { cmdWorker } = await import("../worker.js");
     await cmdWorker(["report"]);
 
-    const output = logSpy.mock.calls.map((c) => c[0]).join("\n");
+    const output = logSpy.mock.calls.map((c: any[]) => c[0]).join("\n");
     // Should have cost section (even if empty)
     expect(output).toContain("Cost");
   });
@@ -234,7 +234,7 @@ describe("apex worker report", () => {
     const { cmdWorker } = await import("../worker.js");
     await cmdWorker(["report"]);
 
-    const output = logSpy.mock.calls.map((c) => c[0]).join("\n");
+    const output = logSpy.mock.calls.map((c: any[]) => c[0]).join("\n");
     // Should have rate limit section (even if no data)
     expect(output).toContain("Rate");
   });

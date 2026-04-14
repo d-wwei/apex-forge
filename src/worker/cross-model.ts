@@ -11,7 +11,7 @@ import { join, resolve } from "path";
 import { spawnSync } from "child_process";
 import { readJSON, writeJSON } from "../utils/json.js";
 import { generateWorkerProtocol, agentStartCommand } from "./protocol-template.js";
-import { detectAdapter } from "./terminal.js";
+import { detectAdapter, type WindowHandle } from "./terminal.js";
 import type { WorkerResult } from "./monitor.js";
 import type { TaskStore } from "../types/task.js";
 import type { ProtocolOptions } from "./protocol-template.js";
@@ -123,7 +123,7 @@ export async function spawnCrossModel(
     mkdirSync(workersDir, { recursive: true });
     const meta = {
       task_id: subId,
-      window_handle: null as null,
+      window_handle: null as WindowHandle | null,
       worktree_path: worktreeRel,
       branch,
       started_at: new Date().toISOString(),
@@ -139,7 +139,7 @@ export async function spawnCrossModel(
     // Launch terminal
     const adapter = detectAdapter();
     const handle = await adapter.createWindow(`${subId}`, agentStartCommand(agent, worktreePath));
-    meta.window_handle = handle as null; // stored as opaque JSON
+    meta.window_handle = handle;
     await writeJSON(join(workersDir, "meta.json"), meta);
   }
 
@@ -192,7 +192,8 @@ export async function synthesizeResults(taskId: string): Promise<void> {
         if (typeof f === "string") {
           allFindings.push({ description: f, severity: "note", source: agent });
         } else {
-          allFindings.push({ ...f, source: (f as FindingLike).source || agent });
+          const finding = f as FindingLike;
+          allFindings.push({ ...finding, source: finding.source || agent });
         }
       }
     } catch {

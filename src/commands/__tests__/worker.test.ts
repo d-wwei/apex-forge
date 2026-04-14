@@ -70,7 +70,7 @@ describe("cmdWorker", () => {
       try {
         await cmdWorker([]);
       } catch {}
-      const output = logSpy.mock.calls.map((c) => c[0]).join("\n");
+      const output = logSpy.mock.calls.map((c: any[]) => c[0]).join("\n");
       expect(output).toContain("apex worker");
       expect(output).toContain("spawn");
       expect(output).toContain("kill");
@@ -81,7 +81,7 @@ describe("cmdWorker", () => {
       try {
         await cmdWorker(["help"]);
       } catch {}
-      const output = logSpy.mock.calls.map((c) => c[0]).join("\n");
+      const output = logSpy.mock.calls.map((c: any[]) => c[0]).join("\n");
       expect(output).toContain("spawn");
       expect(output).toContain("kill");
     });
@@ -132,7 +132,7 @@ describe("cmdWorker", () => {
       } catch {}
 
       // Should NOT have called process.exit(1)
-      const exitCalls = exitSpy.mock.calls.filter((c) => c[0] === 1);
+      const exitCalls = exitSpy.mock.calls.filter((c: any[]) => c[0] === 1);
       expect(exitCalls.length).toBe(0);
 
       // Protocol file should exist in the worktree
@@ -144,7 +144,7 @@ describe("cmdWorker", () => {
       }
 
       // Console output should include the protocol or dry-run indication
-      const output = logSpy.mock.calls.map((c) => c[0]).join("\n");
+      const output = logSpy.mock.calls.map((c: any[]) => c[0]).join("\n");
       expect(output).toContain("dry-run");
     });
   });
@@ -160,7 +160,7 @@ describe("cmdWorker", () => {
         // Should exit with error about missing worker
         expect(e.message).toContain("process.exit(1)");
       }
-      const output = errorSpy.mock.calls.map((c) => c[0]).join("\n");
+      const output = errorSpy.mock.calls.map((c: any[]) => c[0]).join("\n");
       expect(output).toContain("T99");
     });
 

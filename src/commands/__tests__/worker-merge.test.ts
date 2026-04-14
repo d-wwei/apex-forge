@@ -112,7 +112,7 @@ describe("worker merge", () => {
     } catch (e: any) {
       expect(e.message).toContain("process.exit(1)");
     }
-    const output = errorSpy.mock.calls.map((c) => c[0]).join("\n");
+    const output = errorSpy.mock.calls.map((c: any[]) => c[0]).join("\n");
     expect(output).toContain("No result.json");
   });
 
@@ -128,7 +128,7 @@ describe("worker merge", () => {
     } catch (e: any) {
       expect(e.message).toContain("process.exit(1)");
     }
-    const output = errorSpy.mock.calls.map((c) => c[0]).join("\n");
+    const output = errorSpy.mock.calls.map((c: any[]) => c[0]).join("\n");
     expect(output).toContain("verdict is 'fail'");
   });
 
@@ -166,7 +166,7 @@ describe("worker merge", () => {
     } catch (e: any) {
       expect(e.message).toContain("process.exit(1)");
     }
-    const output = errorSpy.mock.calls.map((c) => c[0]).join("\n");
+    const output = errorSpy.mock.calls.map((c: any[]) => c[0]).join("\n");
     expect(output).toContain("uncommitted changes");
   });
 
@@ -196,7 +196,7 @@ describe("worker merge", () => {
     const { cmdMerge } = await import("../worker.js");
     await cmdMerge(["T4"]);
 
-    const output = logSpy.mock.calls.map((c) => c[0]).join("\n");
+    const output = logSpy.mock.calls.map((c: any[]) => c[0]).join("\n");
     expect(output).toContain("strategy 'local'");
   });
 
@@ -221,7 +221,7 @@ describe("worker merge", () => {
     const { cmdMerge } = await import("../worker.js");
     await cmdMerge(["T5", "--strategy", "squash"]);
 
-    const output = logSpy.mock.calls.map((c) => c[0]).join("\n");
+    const output = logSpy.mock.calls.map((c: any[]) => c[0]).join("\n");
     expect(output).toContain("strategy 'squash'");
   });
 });
@@ -307,7 +307,7 @@ describe("help text includes merge commands", () => {
     try {
       await cmdWorker(["help"]);
     } catch {}
-    const output = logSpy.mock.calls.map((c) => c[0]).join("\n");
+    const output = logSpy.mock.calls.map((c: any[]) => c[0]).join("\n");
     expect(output).toContain("merge <task-id>");
     expect(output).toContain("merge-all");
     expect(output).toContain("--strategy");

@@ -40,7 +40,7 @@ describe("parseRateLimitHeaders", () => {
       "x-ratelimit-remaining-requests": "500",
     });
 
-    const info = parseRateLimitHeaders(headers);
+    const info = parseRateLimitHeaders(headers)!;
     expect(info.tokens_limit).toBe(100000);
     expect(info.tokens_remaining).toBe(80000);
     expect(info.requests_limit).toBe(1000);
@@ -55,7 +55,7 @@ describe("parseRateLimitHeaders", () => {
       "x-ratelimit-remaining-requests": "100",
     });
 
-    const info = parseRateLimitHeaders(headers);
+    const info = parseRateLimitHeaders(headers)!;
     // token utilization: 1 - 20000/100000 = 0.80
     // request utilization: 1 - 100/1000 = 0.90
     // utilization_5h = max of both = 0.90
@@ -70,7 +70,7 @@ describe("parseRateLimitHeaders", () => {
       "x-ratelimit-remaining-requests": "900",
     });
 
-    const info = parseRateLimitHeaders(headers);
+    const info = parseRateLimitHeaders(headers)!;
     // token utilization: 1 - 5000/100000 = 0.95
     expect(info.throttled).toBe(true);
   });
@@ -83,7 +83,7 @@ describe("parseRateLimitHeaders", () => {
       "x-ratelimit-remaining-requests": "800",
     });
 
-    const info = parseRateLimitHeaders(headers);
+    const info = parseRateLimitHeaders(headers)!;
     // token: 0.50, request: 0.20 -> max 0.50 < 0.90
     expect(info.throttled).toBe(false);
   });
