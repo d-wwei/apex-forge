@@ -144,13 +144,31 @@ Internal gate: `design-baseline` → `gates/design-baseline.md`.
 
 When a sub-skill is listed, read and follow that file relative to this SKILL.md's directory.
 
+### Explicit Stage Commands Bypass the Complexity Router
+
+When the user invokes a **named stage command** (`apex-forge ship`, `apex-forge review`, etc.),
+the Complexity Router is **skipped entirely**. The agent MUST:
+
+1. Read the corresponding stage file (`stages/{stage}.md`)
+2. Execute **every step** in that file, top to bottom
+3. NOT self-classify as Tier 1 to skip steps
+
+The Complexity Router only applies to the **generic** `apex-forge` command (no stage argument),
+where the system must determine the path. Explicit stage commands are direct orders — the user
+already decided what stage to run.
+
+**This is a hard rule.** The following rationalizations are invalid:
+- "This is just a push, so Tier 1" — NO. `/apex-forge ship` means run full Ship protocol.
+- "The code is already committed, so I can skip Pre-Flight" — NO. Pre-Flight checks run regardless.
+- "Only 2 commits to push, so lightweight" — NO. Step count does not determine protocol scope.
+
 ---
 
 ## Core Protocol
 
 ### 1. Complexity Router
 
-Every task enters the router first. No exceptions.
+Every task enters the router first. No exceptions — **unless an explicit stage command was used** (see above).
 
 ```
 Single verified pass possible? → YES → Tier 1 (Single Pass)
@@ -298,7 +316,7 @@ DONE (all E3+) | DONE_WITH_CONCERNS (flagged issues) | BLOCKED (tried, need X) |
 
 ### 8. Anti-Patterns (Hard Stops)
 
-"Done" without proof → run gate. Micro-tweaks → escalation ladder. Advice not action → execute it. Waiting for user → take initiative. Premature surrender → try 3 approaches. Phase leaking → return to correct phase. Scope creep → check plan. Ship without review → enter Review stage first. Git ops outside Ship → only inside Ship stage.
+"Done" without proof → run gate. Micro-tweaks → escalation ladder. Advice not action → execute it. Waiting for user → take initiative. Premature surrender → try 3 approaches. Phase leaking → return to correct phase. Scope creep → check plan. Ship without review → enter Review stage first. Git ops outside Ship → only inside Ship stage. **Tier 1 on explicit stage command → INVALID. Explicit stage commands (`/apex-forge ship`, `/apex-forge review`, etc.) bypass the Complexity Router entirely. Self-classifying as Tier 1 to skip steps is a protocol violation.**
 
 ---
 
