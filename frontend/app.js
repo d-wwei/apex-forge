@@ -83,6 +83,9 @@ function navigateToHome() {
 function navigateToProject(project) {
   currentView = 'project';
   currentProject = project;
+  // Persist selection: URL hash (survives refresh) + localStorage (survives hash clearing)
+  history.replaceState(null, '', location.pathname + location.search + '#project=' + encodeURIComponent(project.path));
+  localStorage.setItem('lastProject', project.path);
   document.getElementById('view-home').classList.remove('active');
   document.getElementById('view-project').classList.add('active');
 
@@ -193,7 +196,7 @@ function loadProjectCards() {
     loadedProjects = projects.length ? projects : DEMO_PROJECTS;
     renderProjectCards(loadedProjects);
     renderSidebar(loadedProjects);
-    // Hub auto-select: match #project=PATH from URL hash, or fall back to first
+    // Hub auto-select: match #project=PATH from URL hash, localStorage, or fall back to first
     if (currentView === 'home' && projects.length > 0
         && location.port === '3456' && !sessionStorage.getItem('hubExplicitHome')) {
       let target = projects[0];
@@ -202,8 +205,13 @@ function loadProjectCards() {
         const requestedPath = decodeURIComponent(hashMatch[1]);
         const found = projects.find(p => p.path === requestedPath);
         if (found) target = found;
-        // Clear hash after consuming it
-        history.replaceState(null, '', location.pathname + location.search);
+      } else {
+        // Fallback: restore last selected project from localStorage
+        const lastPath = localStorage.getItem('lastProject');
+        if (lastPath) {
+          const found = projects.find(p => p.path === lastPath);
+          if (found) target = found;
+        }
       }
       navigateToProject(target);
     }
@@ -621,7 +629,8 @@ function renderTelemetry(analytics) {
     return;
   }
   const bySkill = {}; let totalDur = 0, successes = 0;
-  for (const a of analytics) { const s = a.skill || a.name || 'unknown'; if (!bySkill[s]) bySkill[s] = { count: 0, dur: 0 }; bySkill[s].count++; const dur = a.duration_s != null ? a.duration_s : (a.duration || 0); bySkill[s].dur += dur; totalDur += dur; if ((a.outcome || a.result) === 'success') successes++; }
+  const okOutcomes = new Set(['success','done','started','assigned','in_progress','to_verify','added','open']);
+  for (const a of analytics) { const s = a.skill || a.name || 'unknown'; if (!bySkill[s]) bySkill[s] = { count: 0, dur: 0 }; bySkill[s].count++; const dur = a.duration_s != null ? a.duration_s : (a.duration || 0); bySkill[s].dur += dur; totalDur += dur; if (okOutcomes.has(a.outcome || a.result || '')) successes++; }
   document.getElementById('stat-total').textContent = analytics.length.toLocaleString();
   document.getElementById('stat-avg').innerHTML = (totalDur / analytics.length).toFixed(1) + '<span class="stat-unit">' + t('telemetry.seconds') + '</span>';
   document.getElementById('stat-rate').textContent = (successes / analytics.length * 100).toFixed(1) + '%';
@@ -652,7 +661,8 @@ function renderActivity(analytics) {
   el.innerHTML = analytics.slice(-30).reverse().map(a => {
     const ts = (a.ts || a.timestamp || '').slice(11, 23) || '--:--:--.---';
     const skill = (a.skill || a.name || 'unknown').toUpperCase();
-    const isOk = (a.outcome || a.result) === 'success';
+    const oc = a.outcome || a.result || '';
+    const isOk = oc === 'success' || oc === 'done' || oc === 'started' || oc === 'assigned' || oc === 'in_progress' || oc === 'to_verify' || oc === 'added' || oc === 'open';
     const dur = a.source === 'hook' ? (a.meta && a.meta.file ? esc(a.meta.file.split('/').pop()) : '') : (a.duration_s != null ? a.duration_s : (a.duration || 0)).toFixed(3) + 's';
     return renderActivityRow({ time: ts, skill, status: isOk ? 'success' : 'failed', dur }, false);
   }).join('');
