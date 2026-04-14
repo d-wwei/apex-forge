@@ -576,6 +576,28 @@ async function main() {
         }
         break;
       }
+      case "session": {
+        const sub = rest[0];
+        if (sub === "summary") {
+          const en = rest.find((_: string, i: number) => rest[i - 1] === "--en") || "";
+          const zh = rest.find((_: string, i: number) => rest[i - 1] === "--zh") || "";
+          if (!en && !zh) {
+            console.error("Usage: apex session summary --en \"English summary\" --zh \"中文摘要\"");
+            process.exit(1);
+          }
+          const { appendEvent, rebuildAndCache } = await import("./state/event-log.js");
+          const payload: Record<string, unknown> = {};
+          if (en) payload.en = en;
+          if (zh) payload.zh = zh;
+          appendEvent("state", "session.summary", payload);
+          await rebuildAndCache("state");
+          console.log("Session summary set" + (en ? ` [en] ${en}` : "") + (zh ? ` [zh] ${zh}` : ""));
+        } else {
+          console.error("Usage: apex session [summary]");
+          process.exit(1);
+        }
+        break;
+      }
       case "consensus":
         await cmdConsensus(rest);
         break;

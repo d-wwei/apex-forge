@@ -21,3 +21,16 @@ export interface StageState {
   history: StageHistory[];
   skill_invocations?: SkillInvocation[];
 }
+
+/** Per-session pipeline view used by the dashboard for multi-session display. */
+export interface SessionPipeline {
+  session_id: string;
+  current_stage: string;
+  last_updated: string;
+  history: StageHistory[];
+  artifacts: Record<string, string[]>;
+  /** True when session has had no events for > 30 minutes */
+  stale: boolean;
+  /** Bilingual summary from session.summary event, or fallback from first task title */
+  summary?: { en?: string; zh?: string };
+}

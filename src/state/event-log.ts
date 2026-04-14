@@ -14,7 +14,7 @@ import { join } from "path";
 import { writeJSON } from "../utils/json.js";
 import { isoTimestamp, sessionId } from "../utils/timestamp.js";
 import type { TaskStore, TaskStatus } from "../types/task.js";
-import type { StageState } from "../types/state.js";
+import type { StageState, SessionPipeline } from "../types/state.js";
 import type { MemoryStore } from "../types/memory.js";
 
 // ---------------------------------------------------------------------------
@@ -243,6 +243,10 @@ export function materializeTasks(events: DomainEvent[]): TaskStore {
   return store;
 }
 
+/**
+ * Materialize a single global state from all events (no session filtering).
+ * NOTE: If you add new event types here, also update materializePerSession() below.
+ */
 export function materializeState(events: DomainEvent[]): StageState {
   const state = loadSeed<StageState>("state", {
     current_stage: "idle",
@@ -313,6 +317,113 @@ export function materializeState(events: DomainEvent[]): StageState {
   }
 
   return state;
+}
+
+/**
+ * Group state events by session_id and materialize each independently.
+ * Returns one SessionPipeline per session, sorted newest-first.
+ * Sessions with no activity in the last SESSION_STALE_MS are marked stale.
+ * Used by the dashboard for multi-session pipeline display.
+ */
+const SESSION_STALE_MS = 30 * 60 * 1000; // 30 minutes
+
+export function materializePerSession(events: DomainEvent[]): SessionPipeline[] {
+  // 1. Group events by session_id
+  const groups = new Map<string, DomainEvent[]>();
+  for (const evt of events) {
+    const sid = evt.session_id || "unknown";
+    let arr = groups.get(sid);
+    if (!arr) { arr = []; groups.set(sid, arr); }
+    arr.push(evt);
+  }
+
+  const now = Date.now();
+  const pipelines: SessionPipeline[] = [];
+
+  // 2. Materialize each group independently (fresh default per session, no loadSeed)
+  for (const [sid, sessionEvents] of groups) {
+    const state: StageState = {
+      current_stage: "idle",
+      last_updated: new Date().toISOString(),
+      session_id: sid,
+      artifacts: {},
+      history: [],
+    };
+
+    let sessionSummary: { en?: string; zh?: string } | undefined;
+
+    // Replay events — same switch logic as materializeState
+    for (const evt of sessionEvents) {
+      const p = evt.payload;
+      switch (evt.type) {
+        case "stage.set": {
+          const newStage = p.stage as string;
+          const oldStage = state.current_stage;
+          if (oldStage !== "idle" && oldStage !== newStage) {
+            for (let i = state.history.length - 1; i >= 0; i--) {
+              if (state.history[i].stage === oldStage && !state.history[i].completed) {
+                state.history[i].completed = evt.ts;
+                break;
+              }
+            }
+          }
+          state.history.push({ stage: newStage, started: evt.ts });
+          state.current_stage = newStage;
+          state.last_updated = evt.ts;
+          if (!state.artifacts[newStage]) state.artifacts[newStage] = [];
+          break;
+        }
+        case "stage.completed": {
+          const stage = p.stage as string;
+          for (let i = state.history.length - 1; i >= 0; i--) {
+            if (state.history[i].stage === stage && !state.history[i].completed) {
+              state.history[i].completed = evt.ts;
+              break;
+            }
+          }
+          state.last_updated = evt.ts;
+          break;
+        }
+        case "artifact.added": {
+          const stage = p.stage as string;
+          const path = p.path as string;
+          if (!state.artifacts[stage]) state.artifacts[stage] = [];
+          if (!state.artifacts[stage].includes(path)) {
+            state.artifacts[stage].push(path);
+          }
+          state.last_updated = evt.ts;
+          break;
+        }
+        // skill.invoked intentionally omitted — not needed for pipeline display
+        case "session.summary": {
+          sessionSummary = {
+            en: (p.en as string) || sessionSummary?.en,
+            zh: (p.zh as string) || sessionSummary?.zh,
+          };
+          break;
+        }
+      }
+    }
+
+    const lastUpdatedMs = new Date(state.last_updated).getTime();
+    pipelines.push({
+      session_id: sid,
+      current_stage: state.current_stage,
+      last_updated: state.last_updated,
+      history: state.history,
+      artifacts: state.artifacts,
+      stale: (now - lastUpdatedMs) > SESSION_STALE_MS,
+      summary: sessionSummary,
+    });
+  }
+
+  // 3. Sort: non-stale first, then by last_updated descending
+  pipelines.sort((a, b) => {
+    if (a.stale !== b.stale) return a.stale ? 1 : -1;
+    return b.last_updated.localeCompare(a.last_updated);
+  });
+
+  return pipelines;
 }
 
 export function materializeMemory(events: DomainEvent[]): MemoryStore {

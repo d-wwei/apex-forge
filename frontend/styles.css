@@ -2003,12 +2003,30 @@ html, body {
 }
 
 .wt-row-label {
-  min-width: 120px;
+  min-width: 80px;
   font-size: 11px;
   font-weight: 600;
   color: var(--text-secondary, #b0b0cc);
   letter-spacing: 0.5px;
   text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 1;
+}
+/* Session rows: label-group fills space, label auto-sizes, icon follows text */
+.session-label-group {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+.session-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary, #b0b0cc);
+  letter-spacing: 0.3px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2018,15 +2036,15 @@ html, body {
   display: flex;
   align-items: center;
   gap: 16px;
-  flex: 1;
+  flex-shrink: 0;
 }
 
 .wt-mini-circle {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  border: 1.5px solid var(--border, #2a2a4a);
-  background: transparent;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
   transition: all 0.2s;
 }
 .wt-mini-circle.active {
@@ -2037,6 +2055,41 @@ html, body {
 .wt-mini-circle.completed {
   background: #22c55e;
   border-color: #22c55e;
+}
+
+.session-info-icon {
+  cursor: default;
+  font-size: 11px;
+  opacity: 0.4;
+  margin-left: 4px;
+  margin-right: 4px;
+  transition: opacity 0.2s;
+  position: relative;
+  flex-shrink: 0;
+}
+.session-info-icon:hover {
+  opacity: 1;
+}
+.session-info-icon:hover .session-tooltip {
+  display: block;
+}
+.session-tooltip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-surface, #1a1a2e);
+  border: 1px solid var(--border, #2a2a4a);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--text-secondary, #b0b0cc);
+  white-space: nowrap;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  pointer-events: none;
 }
 
 /* Kanban: worktree badge on task cards */

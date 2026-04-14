@@ -926,6 +926,7 @@ function listDesignFiles(designDir: string): { name: string; path: string; size:
 
 // Analytics loading extracted to utils/analytics.ts for testability
 import { loadJSONL, loadEvents } from "./utils/analytics.js";
+import { materializePerSession } from "./state/event-log.js";
 
 /** Enriched project list shared by project dashboards and hub. */
 async function buildEnrichedProjectList(currentProjectDir?: string) {
@@ -1346,6 +1347,27 @@ async function buildStatePayload(projectDir: string, projectName: string) {
     if (evt.session_id) sessions.add(evt.session_id);
   }
 
+  // Materialize per-session pipeline views from state events
+  const stateEvents = loadJSONL(join(logDir, "state.jsonl"));
+  const sessionPipelines = materializePerSession(stateEvents);
+
+  // Fallback: enrich sessions without session.summary event using first task title
+  const taskEvents = loadJSONL(join(logDir, "tasks.jsonl"));
+  const sessionFirstTask = new Map<string, string>();
+  for (const evt of taskEvents) {
+    if (evt.type === "task.created" && evt.session_id && evt.payload?.title) {
+      if (!sessionFirstTask.has(evt.session_id)) {
+        sessionFirstTask.set(evt.session_id, evt.payload.title as string);
+      }
+    }
+  }
+  for (const sp of sessionPipelines) {
+    if (!sp.summary) {
+      const title = sessionFirstTask.get(sp.session_id);
+      if (title) sp.summary = { en: title, zh: title };
+    }
+  }
+
   const tasks = await readJSON(join(apexDir, "tasks.json"), { tasks: [] as any[], next_id: 1 });
 
   // Reconcile task status from git reality before building payload
@@ -1372,6 +1394,7 @@ async function buildStatePayload(projectDir: string, projectName: string) {
     state: derivedState,
     analytics: loadEvents(apexDir),
     sessions: Array.from(sessions),
+    sessionPipelines,
   };
 }
 

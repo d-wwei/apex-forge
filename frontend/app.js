@@ -37,6 +37,9 @@ let worktreeFilter = null;      // selected worktree label in filter mode
 let currentRepoRoot = null;     // repo root for aggregated SSE
 let currentWorktrees = null;    // worktree data from last SSE payload
 
+// Session pipeline state
+let sessionExpanded = false;    // session pipeline expand/collapse
+
 // ===== 2b. i18n =====
 
 function t(key) {
@@ -316,7 +319,7 @@ function switchToFilter(label) {
 
 function render(data) {
   renderKanban(data.tasks, data._worktrees);
-  renderPipeline(data.state, data.tasks, data._worktrees);
+  renderPipeline(data.state, data.tasks, data._worktrees, data.sessionPipelines);
   renderTelemetry(data.analytics);
   renderActivity(data.analytics);
   renderMemory(data.memory);
@@ -330,6 +333,10 @@ function render(data) {
   var statusText = stageActive || tasksActive ? t('pipeline.statusRunning') : t('pipeline.statusIdle');
   if (data._summary && data._summary.activeWorktrees > 1) {
     statusText += ' (' + data._summary.activeWorktrees + ' worktrees)';
+  }
+  var activeSessions = (data.sessionPipelines || []).filter(function(sp) { return !sp.stale; });
+  if (activeSessions.length > 1) {
+    statusText += ' (' + activeSessions.length + ' ' + t('session.sessions') + ')';
   }
   if (data._cost && data._cost.totalUsd > 0) {
     statusText += ' | Cost: $' + data._cost.totalUsd.toFixed(2);
@@ -375,7 +382,7 @@ function renderKanban(tasks, wtData) {
   applyKanbanCollapse();
 }
 
-function renderPipeline(state, tasks, wtData) {
+function renderPipeline(state, tasks, wtData, sessionPipelines) {
   var current = state.current_stage || 'idle';
   var fullHistory = state.history || [];
 
@@ -422,26 +429,58 @@ function renderPipeline(state, tasks, wtData) {
     history = [];
   }
 
+  // Compute per-stage session counts for multi-session mode (single-project only)
+  var sessionCounts = {};
+  var sessionAllCompleted = {};
+  var activeSessionList = (sessionPipelines || []).filter(function(sp) { return !sp.stale; });
+  var isMultiSession = worktreeMode !== 'aggregated' && activeSessionList.length > 1;
+
+  if (isMultiSession) {
+    STAGES.forEach(function(s) { sessionCounts[s] = 0; sessionAllCompleted[s] = true; });
+    activeSessionList.forEach(function(sp) {
+      var spCurrent = sp.current_stage || 'idle';
+      var spFH = sp.history || [];
+      var spCS = 0;
+      for (var si = spFH.length - 1; si >= 0; si--) {
+        if (spFH[si].stage === 'idle') { spCS = si + 1; break; }
+      }
+      var spHistory = spFH.slice(spCS)
+        .filter(function(h) { return h.completed; })
+        .map(function(h) { return h.stage; });
+      STAGES.forEach(function(s) {
+        if (s === spCurrent) sessionCounts[s]++;
+        if (!spHistory.includes(s) && s !== spCurrent) sessionAllCompleted[s] = false;
+      });
+    });
+    current = null;
+    history = [];
+  }
+
   const stagesEl = document.getElementById('pipeline-stages');
   var isAgg = wtData && wtData.length > 1 && worktreeMode === 'aggregated';
+  var isMulti = isAgg || isMultiSession;
+  var multiCounts = isAgg ? stageCounts : sessionCounts;
+  var multiAllCompleted = isAgg ? stageAllCompleted : sessionAllCompleted;
 
   stagesEl.innerHTML = '<div class="pipeline-line"></div>' + STAGES.map(function(s) {
     var isActive, isCompleted;
-    if (isAgg) {
-      isActive = stageCounts[s] > 0;
-      isCompleted = stageAllCompleted[s] && !isActive;
+    if (isMulti) {
+      isActive = multiCounts[s] > 0;
+      isCompleted = multiAllCompleted[s] && !isActive;
     } else {
       isActive = s === current;
       isCompleted = history.includes(s);
     }
     var circleClass = isActive ? 'active' : isCompleted ? 'completed' : '';
     var icon = isCompleted ? CHECK_ICON : STAGE_ICONS[s];
-    var badge = (isAgg && stageCounts[s] > 0)
-      ? '<div class="wt-count-badge">' + stageCounts[s] + '</div>' : '';
+    var badge = (isMulti && multiCounts[s] > 0)
+      ? '<div class="wt-count-badge">' + multiCounts[s] + '</div>' : '';
     return '<div class="pipeline-stage"><div class="stage-circle ' + circleClass + '">' + icon + '</div><span class="stage-label ' + circleClass + '">' + t('stage.' + s) + '</span>' + badge + '</div>';
-  }).join('') + (isAgg ? '<button class="wt-expand-btn" id="wt-expand-btn">' + (worktreeExpanded ? '▴' : '▾') + '</button>' : '');
+  }).join('') +
+  (isAgg ? '<button class="wt-expand-btn" id="wt-expand-btn">' + (worktreeExpanded ? '▴' : '▾') + '</button>' : '') +
+  (isMultiSession ? '<button class="wt-expand-btn" id="session-expand-btn">' + (sessionExpanded ? '▴' : '▾') + '</button>' : '');
 
-  // Bind expand/collapse
+  // Bind worktree expand/collapse
   var expandBtn = document.getElementById('wt-expand-btn');
   if (expandBtn) {
     expandBtn.onclick = function() {
@@ -451,8 +490,19 @@ function renderPipeline(state, tasks, wtData) {
     };
   }
 
+  // Bind session expand/collapse
+  var sessionExpandBtn = document.getElementById('session-expand-btn');
+  if (sessionExpandBtn) {
+    sessionExpandBtn.onclick = function() {
+      sessionExpanded = !sessionExpanded;
+      renderSessionExpandedRows(activeSessionList);
+      sessionExpandBtn.textContent = sessionExpanded ? '▴' : '▾';
+    };
+  }
+
   // Render expanded rows
   renderWtExpandedRows(wtData);
+  renderSessionExpandedRows(isMultiSession ? activeSessionList : null);
   const artEl = document.getElementById('pipeline-artifacts');
   if (state.artifacts && Object.keys(state.artifacts).length > 0) {
     const entries = Object.entries(state.artifacts).filter(([, v]) => v && v.length > 0);
@@ -507,6 +557,59 @@ function renderWtExpandedRows(wtData) {
       switchToFilter(row.dataset.wtLabel);
     });
   });
+}
+
+function renderSessionExpandedRows(sessions) {
+  var container = document.getElementById('session-expanded-rows');
+  if (!container) return;
+  if (!sessionExpanded || !sessions || sessions.length < 2) {
+    container.style.display = 'none';
+    container.innerHTML = '';
+    return;
+  }
+  container.style.display = '';
+  container.innerHTML = sessions.map(function(sp) {
+    var spCurrent = sp.current_stage || 'idle';
+    var spFH = sp.history || [];
+    var spCS = 0;
+    for (var sj = spFH.length - 1; sj >= 0; sj--) {
+      if (spFH[sj].stage === 'idle') { spCS = sj + 1; break; }
+    }
+    var spHistory = spFH.slice(spCS)
+      .filter(function(h) { return h.completed; })
+      .map(function(h) { return h.stage; });
+    var circles = STAGES.map(function(s) {
+      var cls = 'wt-mini-circle';
+      if (s === spCurrent) cls += ' active';
+      else if (spHistory.includes(s)) cls += ' completed';
+      return '<div class="' + cls + '"></div>';
+    }).join('');
+    // Build label: "MMDD-summary" or fallback to "MMDD-randomId"
+    var dateStr = '';
+    var idMatch = sp.session_id.match(/apex-\d{4}-(\d{2})-(\d{2})/);
+    if (idMatch) dateStr = idMatch[1] + idMatch[2];
+    var label = dateStr;
+    var summaryText = sp.summary && (sp.summary[currentLang] || sp.summary.en || sp.summary.zh);
+    if (summaryText) {
+      label += '-' + summaryText;
+    } else {
+      var randMatch = sp.session_id.match(/apex-\d{4}-\d{2}-\d{2}-(.+)/);
+      if (randMatch) label += '-' + randMatch[1];
+    }
+    // CSS tooltip with i18n labels (no native title delay)
+    var tooltipHtml = '<div class="session-tooltip">' +
+      t('session.apexId') + ': ' + esc(sp.session_id) + '<br>' +
+      t('session.stage') + ': ' + esc(sp.current_stage || 'idle') + '<br>' +
+      t('session.lastActive') + ': ' + esc(sp.last_updated) +
+      '</div>';
+    return '<div class="wt-row" data-session-id="' + esc(sp.session_id) + '">' +
+      '<div class="session-label-group">' +
+        '<span class="session-label">' + esc(label) + '</span>' +
+        '<span class="session-info-icon">\u24d8' + tooltipHtml + '</span>' +
+      '</div>' +
+      '<div class="wt-row-stages">' + circles + '</div>' +
+    '</div>';
+  }).join('');
 }
 
 function renderTelemetry(analytics) {

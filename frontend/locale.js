@@ -89,6 +89,12 @@ const LOCALE = {
     'home.filterSort': 'Sort: Recent',
     'home.subtitle': '{count} projects \u00b7 {active} active \u00b7 {archived} archived',
 
+    // Session
+    'session.apexId': 'Apex Session',
+    'session.stage': 'Stage',
+    'session.lastActive': 'Last active',
+    'session.sessions': 'sessions',
+
     // Common
     'common.connected': 'CONNECTED',
     'common.projectPrefix': 'PROJECT: ',
@@ -181,6 +187,12 @@ const LOCALE = {
     'home.filterStatus': '状态：全部',
     'home.filterSort': '排序：最近',
     'home.subtitle': '{count} 个项目 \u00b7 {active} 个活跃 \u00b7 {archived} 个归档',
+
+    // Session
+    'session.apexId': 'Apex Session',
+    'session.stage': '阶段',
+    'session.lastActive': '最后活跃',
+    'session.sessions': '个会话',
 
     // Common
     'common.connected': '已连接',
