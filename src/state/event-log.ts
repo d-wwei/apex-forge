@@ -50,6 +50,21 @@ export type Domain = "task" | "state" | "memory";
 
 let _cachedSessionId: string | null = null;
 
+/**
+ * Per-session state cache path. Used to isolate pipeline stage per session.
+ */
+export function sessionStateCachePath(sid?: string): string {
+  const id = sid || currentSessionId();
+  return `.apex/state.${id}.json`;
+}
+
+/**
+ * Reset the cached session ID. Exported for test support only.
+ */
+export function _resetSessionIdCache(): void {
+  _cachedSessionId = null;
+}
+
 export function currentSessionId(): string {
   // 1. Environment variable (set by hooks)
   const envId = process.env.APEX_SESSION_ID;
@@ -58,18 +73,7 @@ export function currentSessionId(): string {
   // 2. Cached from previous call
   if (_cachedSessionId) return _cachedSessionId;
 
-  // 3. Read from state.json
-  try {
-    if (existsSync(STATE_CACHE)) {
-      const raw = JSON.parse(readFileSync(STATE_CACHE, "utf-8"));
-      if (raw.session_id) {
-        _cachedSessionId = raw.session_id;
-        return raw.session_id;
-      }
-    }
-  } catch { /* ignore */ }
-
-  // 4. Generate new
+  // 3. Generate new (do NOT read state.json — avoids cross-session pollution)
   _cachedSessionId = sessionId();
   return _cachedSessionId;
 }
@@ -477,8 +481,17 @@ export async function rebuildAndCache(domain: Domain): Promise<void> {
       break;
     }
     case "state": {
-      const state = materializeState(events);
-      await writeJSON(STATE_CACHE, state);
+      const sid = currentSessionId();
+      const sessionEvents = events.filter(e => e.session_id === sid);
+
+      // 1. Per-session cache (CLI reads this)
+      const sessionState = materializeState(sessionEvents);
+      sessionState.session_id = sid;
+      await writeJSON(sessionStateCachePath(sid), sessionState);
+
+      // 2. Global cache (Dashboard fallback)
+      const globalState = materializeState(events);
+      await writeJSON(STATE_CACHE, globalState);
       break;
     }
     case "memory": {
