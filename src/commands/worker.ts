@@ -87,12 +87,15 @@ async function cmdSpawn(args: string[]): Promise<void> {
 
   // 2. Resolve agent
   const agent = await resolveAgent(args, task);
+  const isDryRun = hasFlag(args, "--dry-run");
 
-  // 3. Verify agent CLI is available
-  const whichResult = spawnSync("which", [agent], { encoding: "utf-8" });
-  if (whichResult.status !== 0) {
-    console.error(`Agent CLI '${agent}' not found. Install it or use --agent to specify a different agent.`);
-    process.exit(1);
+  // 3. Verify agent CLI is available (skip for dry-run — no terminal will be created)
+  if (!isDryRun) {
+    const whichResult = spawnSync("which", [agent], { encoding: "utf-8" });
+    if (whichResult.status !== 0) {
+      console.error(`Agent CLI '${agent}' not found. Install it or use --agent to specify a different agent.`);
+      process.exit(1);
+    }
   }
 
   // 4. Create git worktree
@@ -156,7 +159,7 @@ async function cmdSpawn(args: string[]): Promise<void> {
   await writeJSON(join(workersDir, "meta.json"), meta);
 
   // 7. Dry-run: print protocol and exit
-  if (hasFlag(args, "--dry-run")) {
+  if (isDryRun) {
     console.log(`[dry-run] Protocol generated at ${protocolPath}`);
     console.log(`[dry-run] Agent: ${agent}, Worktree: ${worktreeRel}`);
     console.log(protocol);

@@ -40,9 +40,11 @@ describe("cmdWorker", () => {
     origCwd = process.cwd();
     process.chdir(tmpDir);
 
-    // Initialize as git repo for worktree commands
+    // Initialize as git repo (with config for CI where no global gitconfig exists)
     const { spawnSync } = require("child_process");
     spawnSync("git", ["init"], { cwd: tmpDir });
+    spawnSync("git", ["-C", tmpDir, "config", "user.name", "test"]);
+    spawnSync("git", ["-C", tmpDir, "config", "user.email", "test@test.com"]);
     spawnSync("git", ["commit", "--allow-empty", "-m", "init"], { cwd: tmpDir });
 
     logSpy = spyOn(console, "log").mockImplementation(() => {});
