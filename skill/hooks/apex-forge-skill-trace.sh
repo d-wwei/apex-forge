@@ -1,0 +1,36 @@
+#!/bin/bash
+# PostToolUse hook: auto-trace companion skill invocations for Dashboard telemetry.
+# Fires after every Skill tool call. Filters to only companion skills from bindings.yaml.
+# Writes trace via `apex trace-skill` so Dashboard telemetry picks it up automatically.
+
+INPUT=$(cat)
+
+# Only process Skill tool calls
+TOOL=$(echo "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
+[ "$TOOL" = "Skill" ] || exit 0
+
+SKILL=$(echo "$INPUT" | jq -r '.tool_input.skill // .tool_input.skill_name // empty' 2>/dev/null)
+[ -n "$SKILL" ] || exit 0
+
+# Companion skills from bindings.yaml (extracted statically to avoid parsing YAML in bash)
+COMPANIONS="product-prd systematic-debugging tasteful-frontend design-to-code-runner browser-qa-testing thorough-code-review security-audit design-review product-review codex-consult iteration-reflector"
+
+# Check if this skill is a companion
+MATCH=0
+for c in $COMPANIONS; do
+  [ "$SKILL" = "$c" ] && MATCH=1 && break
+done
+[ "$MATCH" = "1" ] || exit 0
+
+# Read current stage from state.json
+APEX_DIR=".apex"
+STAGE=$(jq -r '.current_stage // "unknown"' "$APEX_DIR/state.json" 2>/dev/null || echo "unknown")
+
+# Read skill version (best effort)
+SKILL_DIR="$HOME/.claude/skills/$SKILL"
+VERSION=$(cat "$SKILL_DIR/VERSION" 2>/dev/null || echo "latest")
+
+# Trace it
+apex trace-skill "$STAGE" "$SKILL" "$VERSION" "completed" "af_auto_trace" 2>/dev/null
+
+exit 0
