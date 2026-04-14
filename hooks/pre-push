@@ -27,6 +27,7 @@ SCAN_PATTERNS=(
 
 # Patterns to exclude (false positives)
 EXCLUDE_PATTERNS=(
+  'hooks/pre-push'
   'package-lock\.json'
   'yarn\.lock'
   'pnpm-lock\.yaml'
