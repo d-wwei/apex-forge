@@ -87,6 +87,12 @@ If stage is stuck at any non-idle value with no active work: ask user whether to
 
 **One pipeline per task. One task at a time. Pipeline resets between tasks.**
 
+**Idle re-entry enforcement:** When this skill is invoked with stage `idle` and no interrupted work,
+the user's task argument (from `args`) MUST enter the Complexity Router (Section 1) immediately.
+Do NOT skip routing because "the task looks simple" — the Router makes that determination.
+This is the fix for the post-Compound re-entry gap: Compound chains into this invocation via
+`Skill('apex-forge', args=...)`, and the Router takes over from here.
+
 ### Background update check
 
 After init, unconditionally spawn a **background Agent** (fire-and-forget) with this prompt:

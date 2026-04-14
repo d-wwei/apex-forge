@@ -162,8 +162,17 @@ After reporting, call `AskUserQuestion` with:
   1. label: "开始新迭代 (Recommended)", description: "重置 pipeline，进入新任务的 Complexity Router"
   2. label: "结束本轮", description: "保持 compound 状态，下次回来可以看到上轮完成记录"
 
-If "开始新迭代": `apex stage set idle`, then wait for user's next task and route through Complexity Router.
 If "结束本轮": keep stage at `compound`. Do NOT set idle. User will see the completed pipeline state when they return.
+
+If "开始新迭代":
+1. `apex stage set idle`
+2. Call `AskUserQuestion` with:
+   - question: "请描述下一个任务"
+   - header: "New Task"
+   - options:
+     1. label: "我来输入", description: "在下方输入新任务描述"
+3. When user responds, call `Skill('apex-forge', args=user's response)` to re-enter the full pipeline.
+   **CRITICAL: Do NOT process the task directly. The Skill tool invocation triggers Initialization → Complexity Router → proper stage tracking. Skipping this = the bug where Dashboard shows nothing.**
 
 | Status | When |
 |--------|------|

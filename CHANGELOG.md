@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.1 (2026-04-14)
+
+### Pipeline Re-entry Fix
+
+- **compound.md**: After "开始新迭代", compound now chains into `Skill('apex-forge')` re-invocation instead of passively waiting — prevents control flow breakage where new tasks bypass the Complexity Router
+- **SKILL.md**: Added "Idle re-entry enforcement" paragraph in Initialization section — ensures tasks arriving via compound chain enter the Router immediately
+
+### Root Cause
+
+After Compound → idle, the skill execution ended and the next user message was a plain conversation turn. No mechanism forced re-entry through the Complexity Router, so Dashboard showed no stage tracking for post-Compound tasks.
+
 ## 0.2.0 (2026-04-12)
 
 ### Multi-Agent Orchestration
