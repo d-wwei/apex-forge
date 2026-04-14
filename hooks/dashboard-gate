@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# Apex Forge — Dashboard Gate Hook
+# Dual-context: fires on UserPromptSubmit (slash commands) and PostToolUse (Skill tool).
+#
+# Logic:
+#   1. Detect if this invocation is apex-forge related
+#   2. Check if Hub is already running on port 3456
+#      - Hub running + viewers  → silently register project
+#      - Hub running - no viewers → register + reopen browser
+#      - Hub not running → output prompt for agent to ask user
+#
+# Registered in hooks/hooks.json under UserPromptSubmit and PostToolUse.
+
+set -euo pipefail
+
+HUB_PORT=3456
+INPUT=$(cat 2>/dev/null) || exit 0
+[ -z "$INPUT" ] && exit 0
+
+# --- Detect invocation context ---
+PROMPT=$(echo "$INPUT" | jq -r '.prompt // empty' 2>/dev/null)
+SKILL=$(echo "$INPUT" | jq -r '.tool_input.skill // .tool_input.skill_name // empty' 2>/dev/null)
+
+IS_APEX=false
+
+if [ -n "$PROMPT" ]; then
+  # UserPromptSubmit: match /apex-forge* or /better-work*
+  if echo "$PROMPT" | grep -qiE '^\s*/(apex-forge|better-work)'; then
+    IS_APEX=true
+  fi
+elif [ -n "$SKILL" ]; then
+  # PostToolUse: match skill names starting with apex-forge or better-work
+  if echo "$SKILL" | grep -qE '^(apex-forge|better-work)'; then
+    IS_APEX=true
+  fi
+fi
+
+[ "$IS_APEX" = "true" ] || exit 0
+
+# --- Check Hub status ---
+HUB_STATUS=$(curl -s --max-time 1 "http://localhost:${HUB_PORT}/status" 2>/dev/null) || true
+
+if [ -n "$HUB_STATUS" ] && echo "$HUB_STATUS" | jq -e '.ok' >/dev/null 2>&1; then
+  # Hub is running — silently register project
+  SSE_CLIENTS=$(echo "$HUB_STATUS" | jq -r '.sseClients // 0' 2>/dev/null)
+
+  if command -v apex >/dev/null 2>&1; then
+    nohup apex dashboard >/dev/null 2>&1 &
+  fi
+
+  if [ "${SSE_CLIENTS:-0}" -gt 0 ] 2>/dev/null; then
+    echo "[apex] Dashboard Hub active (${SSE_CLIENTS} viewer(s)) — project registered."
+  else
+    echo "[apex] Dashboard Hub running, no active viewer — reopening browser."
+  fi
+  exit 0
+fi
+
+# --- Hub not running — prompt user via agent ---
+cat <<'MSG'
+APEX-FORGE DASHBOARD GATE: You MUST call AskUserQuestion BEFORE doing anything else.
+Question: "是否启动可视化面板？"
+Header: "Dashboard"
+Options:
+  - label: "启动 Dashboard (Recommended)", description: "在浏览器里查看任务看板、pipeline 进度和遥测数据"
+  - label: "跳过", description: "不启动，直接开始工作"
+If "启动 Dashboard": run `nohup apex dashboard > /dev/null 2>&1 &` then open the printed URL.
+If "跳过": proceed silently.
+Do NOT say "ready" or ask for tasks until the user answers this question.
+MSG
+
+exit 0
