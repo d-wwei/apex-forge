@@ -621,7 +621,11 @@ function renderSessionExpandedRows(sessions) {
 }
 
 function renderTelemetry(analytics) {
-  if (!analytics || analytics.length === 0) {
+  // Filter: only real skill invocations, not pipeline stage events
+  const pipelineNames = new Set(['brainstorm','plan','execute','review','ship','compound','idle','task','artifact','memory']);
+  const skillEvents = (analytics || []).filter(a => !pipelineNames.has(a.skill || a.name || ''));
+
+  if (skillEvents.length === 0) {
     document.getElementById('stat-total').textContent = '0';
     document.getElementById('stat-avg').innerHTML = '0<span class="stat-unit">' + t('telemetry.seconds') + '</span>';
     document.getElementById('stat-rate').textContent = '--';
@@ -629,11 +633,11 @@ function renderTelemetry(analytics) {
     return;
   }
   const bySkill = {}; let totalDur = 0, successes = 0;
-  const okOutcomes = new Set(['success','done','started','assigned','in_progress','to_verify','added','open']);
-  for (const a of analytics) { const s = a.skill || a.name || 'unknown'; if (!bySkill[s]) bySkill[s] = { count: 0, dur: 0 }; bySkill[s].count++; const dur = a.duration_s != null ? a.duration_s : (a.duration || 0); bySkill[s].dur += dur; totalDur += dur; if (okOutcomes.has(a.outcome || a.result || '')) successes++; }
-  document.getElementById('stat-total').textContent = analytics.length.toLocaleString();
-  document.getElementById('stat-avg').innerHTML = (totalDur / analytics.length).toFixed(1) + '<span class="stat-unit">' + t('telemetry.seconds') + '</span>';
-  document.getElementById('stat-rate').textContent = (successes / analytics.length * 100).toFixed(1) + '%';
+  const okOutcomes = new Set(['success','pass','APPROVED','PASS']);
+  for (const a of skillEvents) { const s = a.skill || a.name || 'unknown'; if (!bySkill[s]) bySkill[s] = { count: 0, dur: 0 }; bySkill[s].count++; const dur = a.duration_s != null ? a.duration_s : (a.duration || 0); bySkill[s].dur += dur; totalDur += dur; if (okOutcomes.has(a.outcome || a.result || '')) successes++; }
+  document.getElementById('stat-total').textContent = skillEvents.length.toLocaleString();
+  document.getElementById('stat-avg').innerHTML = (totalDur / skillEvents.length).toFixed(1) + '<span class="stat-unit">' + t('telemetry.seconds') + '</span>';
+  document.getElementById('stat-rate').textContent = (successes / skillEvents.length * 100).toFixed(1) + '%';
   const entries = Object.entries(bySkill).sort((a, b) => b[1].count - a[1].count).slice(0, 5);
   const maxCount = Math.max(...entries.map(([, v]) => v.count), 1);
   renderSkillBars(entries.map(([name, data]) => ({ name: name.toUpperCase(), count: data.count, pct: Math.round(data.count / maxCount * 100) })));
@@ -661,16 +665,18 @@ function renderActivity(analytics) {
   el.innerHTML = analytics.slice(-30).reverse().map(a => {
     const ts = (a.ts || a.timestamp || '').slice(11, 23) || '--:--:--.---';
     const skill = (a.skill || a.name || 'unknown').toUpperCase();
-    const oc = a.outcome || a.result || '';
-    const isOk = oc === 'success' || oc === 'done' || oc === 'started' || oc === 'assigned' || oc === 'in_progress' || oc === 'to_verify' || oc === 'added' || oc === 'open';
+    const oc = a.outcome || a.result || 'unknown';
+    const failOutcomes = new Set(['error', 'failed', 'fail', 'blocked', 'timeout']);
+    const isFail = failOutcomes.has(oc);
     const dur = a.source === 'hook' ? (a.meta && a.meta.file ? esc(a.meta.file.split('/').pop()) : '') : (a.duration_s != null ? a.duration_s : (a.duration || 0)).toFixed(3) + 's';
-    return renderActivityRow({ time: ts, skill, status: isOk ? 'success' : 'failed', dur }, false);
+    return renderActivityRow({ time: ts, skill, status: isFail ? 'failed' : 'success', label: oc, dur }, false);
   }).join('');
 }
 
 function renderActivityRow(r, highlighted) {
   const statusIcon = r.status === 'success' ? '<svg class="activity-status-icon" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="currentColor"/></svg>' : '<svg class="activity-status-icon" viewBox="0 0 10 10"><path d="M2 2L8 8M8 2L2 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
-  return '<div class="activity-row' + (highlighted ? ' highlighted' : '') + '"><span class="activity-time">' + esc(r.time) + '</span><span class="activity-skill">' + esc(r.skill) + '</span><span class="activity-status ' + r.status + '">' + (r.status === 'success' ? t('activity.success') : t('activity.failed')) + ' ' + statusIcon + '</span><span class="activity-duration">' + esc(r.dur) + '</span></div>';
+  const statusText = r.label ? esc(r.label) : (r.status === 'success' ? t('activity.success') : t('activity.failed'));
+  return '<div class="activity-row' + (highlighted ? ' highlighted' : '') + '"><span class="activity-time">' + esc(r.time) + '</span><span class="activity-skill">' + esc(r.skill) + '</span><span class="activity-status ' + r.status + '">' + statusText + ' ' + statusIcon + '</span><span class="activity-duration">' + esc(r.dur) + '</span></div>';
 }
 
 function renderMemory(memory) {

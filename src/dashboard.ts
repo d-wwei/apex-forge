@@ -946,13 +946,15 @@ async function buildEnrichedProjectList(currentProjectDir?: string) {
       const successRate = taskCount > 0 ? Math.round(doneTasks / taskCount * 1000) / 10 : 0;
       const derivedState = deriveStageFromTasks(state, tasks.tasks);
       const stage = derivedState.current_stage || "idle";
+      const lastActiveTs = (state as any).last_updated || p.startedAt || "";
       return {
         ...p,
         status: stage !== "idle" ? "running" : "active",
         description: `Stage: ${stage} | ${taskCount} tasks`,
         task_count: taskCount,
         success_rate: successRate,
-        last_active: timeAgo((state as any).last_updated || p.startedAt),
+        last_active: timeAgo(lastActiveTs),
+        last_active_ts: lastActiveTs,
       };
     })
   );
@@ -970,6 +972,9 @@ async function buildEnrichedProjectList(currentProjectDir?: string) {
     const group = projectGroupMap.get(p.path);
     return group ? { ...p, worktreeGroup: group } : p;
   });
+
+  // Sort by most recently active first (so default auto-select picks the right project)
+  annotated.sort((a, b) => (b.last_active_ts || "").localeCompare(a.last_active_ts || ""));
 
   return {
     current: currentProjectDir || null,
