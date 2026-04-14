@@ -93,19 +93,19 @@ describe("cmdWorker", () => {
     test("CLI --agent flag takes highest priority", async () => {
       const { resolveAgent } = await import("../worker.js");
       const task = { adapter: "gemini" } as any;
-      expect(resolveAgent(["--agent", "codex"], task)).toBe("codex");
+      expect(await resolveAgent(["--agent", "codex"], task)).toBe("codex");
     });
 
     test("falls back to task.adapter when no CLI flag", async () => {
       const { resolveAgent } = await import("../worker.js");
       const task = { adapter: "gemini" } as any;
-      expect(resolveAgent([], task)).toBe("gemini");
+      expect(await resolveAgent([], task)).toBe("gemini");
     });
 
     test("defaults to 'claude' when neither CLI nor task specifies", async () => {
       const { resolveAgent } = await import("../worker.js");
       const task = {} as any;
-      expect(resolveAgent([], task)).toBe("claude");
+      expect(await resolveAgent([], task)).toBe("claude");
     });
   });
 

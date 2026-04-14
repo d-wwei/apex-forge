@@ -166,8 +166,12 @@ export class TmuxAdapter implements TerminalAdapter {
     }
   }
 
-  async readScreen(handle: WindowHandle, _lines?: number): Promise<string> {
-    const result = run("tmux", ["capture-pane", "-t", handle.id, "-p"]);
+  async readScreen(handle: WindowHandle, lines?: number): Promise<string> {
+    const args = ["capture-pane", "-t", handle.id, "-p"];
+    if (lines && lines > 0) {
+      args.push("-S", `-${lines}`);
+    }
+    const result = run("tmux", args);
     if (!result.ok) {
       throw new Error(`tmux capture-pane failed: ${result.stderr}`);
     }

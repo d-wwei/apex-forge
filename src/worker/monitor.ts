@@ -22,11 +22,11 @@ export interface WorkerStatus {
 export interface WorkerResult {
   task_id: string;
   verdict: "pass" | "fail" | "blocked";
-  summary: string;
-  findings: string[];
-  completed_at: string;
-  branch: string;
-  commit: string;
+  summary?: string;
+  findings?: string[];
+  completed_at?: string;
+  branch?: string;
+  commit?: string;
 }
 
 export interface WorkerMeta {
@@ -85,7 +85,7 @@ export async function listWorkers(): Promise<WorkerInfo[]> {
 
     if (!existsSync(metaPath)) continue;
 
-    const meta = await readJSON<WorkerMeta>(metaPath, null as any);
+    const meta = await readJSON<WorkerMeta | null>(metaPath, null);
     if (!meta) continue;
 
     const status = await readJSON<WorkerStatus | null>(join(dir, "status.json"), null);
@@ -106,7 +106,10 @@ export async function checkWorkerHealth(taskId: string): Promise<WorkerHealth> {
     throw new Error(`Worker ${taskId} not found (missing ${metaPath})`);
   }
 
-  const meta = await readJSON<WorkerMeta>(metaPath, null as any);
+  const meta = await readJSON<WorkerMeta | null>(metaPath, null);
+  if (!meta) {
+    throw new Error(`Worker ${taskId}: meta.json exists but failed to parse`);
+  }
   const status = await readJSON<WorkerStatus | null>(join(dir, "status.json"), null);
   const result = await readJSON<WorkerResult | null>(join(dir, "result.json"), null);
 

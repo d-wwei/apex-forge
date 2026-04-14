@@ -6,11 +6,12 @@ import { generateWorkerProtocol, agentStartCommand } from "../worker/protocol-te
 import { detectAdapter } from "../worker/terminal.js";
 import type { Task, TaskStore } from "../types/task.js";
 import type { ProtocolOptions } from "../worker/protocol-template.js";
-import type { WindowHandle } from "../worker/terminal.js";
+import type { WorkerMeta, WorkerResult } from "../worker/monitor.js";
 import { spawnCrossModel, parseCrossModelArgs, synthesizeResults } from "../worker/cross-model.js";
 import { listWorkers, checkWorkerHealth, getMonitorReport } from "../worker/monitor.js";
 import { formatCostReport, formatRateLimitStatus } from "../worker/cost.js";
 import { readCostSummary, readRateLimit } from "../worker/proxy.js";
+import { loadConfig } from "../state/config.js";
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -23,11 +24,16 @@ export function toSlug(title: string): string {
     .replace(/-+$/, "");
 }
 
-export function resolveAgent(args: string[], task: Task): string {
+export async function resolveAgent(args: string[], task: Task): Promise<string> {
+  // Priority: CLI --agent > task.agent > task.adapter > config.worker_default_agent > "claude"
   const idx = args.indexOf("--agent");
   if (idx >= 0 && args[idx + 1]) return args[idx + 1];
   if (task.agent) return task.agent;
   if (task.adapter) return task.adapter;
+  try {
+    const config = await loadConfig();
+    if (config.worker_default_agent) return config.worker_default_agent;
+  } catch { /* config unavailable — fall through */ }
   return "claude";
 }
 
@@ -50,16 +56,7 @@ function findTask(tasks: Task[], taskId: string): Task | undefined {
   return tasks.find((t) => t.id === taskId);
 }
 
-// ── Worker meta ──────────────────────────────────────────────────────
-
-interface WorkerMeta {
-  task_id: string;
-  window_handle: WindowHandle | null;
-  worktree_path: string;
-  branch: string;
-  started_at: string;
-  agent: string;
-}
+// WorkerMeta imported from ../worker/monitor.js
 
 // ── spawn ────────────────────────────────────────────────────────────
 
@@ -89,7 +86,7 @@ async function cmdSpawn(args: string[]): Promise<void> {
   }
 
   // 2. Resolve agent
-  const agent = resolveAgent(args, task);
+  const agent = await resolveAgent(args, task);
 
   // 3. Verify agent CLI is available
   const whichResult = spawnSync("which", [agent], { encoding: "utf-8" });
@@ -236,11 +233,7 @@ async function cmdKill(args: string[]): Promise<void> {
 
 type MergeStrategy = "local" | "pr" | "squash";
 
-interface WorkerResult {
-  verdict?: string;
-  summary?: string;
-  [key: string]: unknown;
-}
+// WorkerResult imported from ../worker/monitor.js
 
 function parseStrategy(args: string[]): MergeStrategy {
   const idx = args.indexOf("--strategy");
@@ -271,9 +264,9 @@ export async function cmdMerge(args: string[]): Promise<void> {
     console.error(`No result.json for ${taskId}. Worker must complete before merging.`);
     process.exit(1);
   }
-  const result = await readJSON<WorkerResult>(resultPath, {});
-  if (result.verdict !== "pass") {
-    console.error(`Cannot merge ${taskId}: verdict is '${result.verdict ?? "missing"}', expected 'pass'`);
+  const result = await readJSON<WorkerResult | null>(resultPath, null);
+  if (!result || result.verdict !== "pass") {
+    console.error(`Cannot merge ${taskId}: verdict is '${result?.verdict ?? "missing"}', expected 'pass'`);
     process.exit(1);
   }
 
@@ -426,7 +419,7 @@ Usage:
   apex worker list              List all workers with status
   apex worker status <task-id>  Show detailed worker status
   apex worker report            Full report: workers + cost + rate limits
-  apex worker cost [task-id]    Show token/cost usage (coming soon)
+  apex worker cost [task-id]    Show token/cost usage
   apex worker synthesize <task-id>
                                 Synthesize cross-model review results
 `);
@@ -542,6 +535,17 @@ export async function cmdWorker(args: string[]): Promise<void> {
         process.exit(1);
       }
       await synthesizeResults(synthTaskId);
+      break;
+    }
+    case "cost": {
+      const costTaskId = args[1];
+      const summary = await readCostSummary();
+      if (costTaskId && summary.by_task[costTaskId]) {
+        const t = summary.by_task[costTaskId];
+        console.log(`${costTaskId}: $${t.total_cost_usd.toFixed(4)}  (input: ${t.total_input_tokens}, output: ${t.total_output_tokens}, ${t.request_count} calls)`);
+      } else {
+        console.log(formatCostReport(summary));
+      }
       break;
     }
     case "help":

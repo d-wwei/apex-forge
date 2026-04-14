@@ -6,14 +6,14 @@
  * The synthesize command merges their results into a single verdict.
  */
 
-import { existsSync, readFileSync } from "fs";
+import { existsSync, readFileSync, mkdirSync, writeFileSync, readdirSync } from "fs";
 import { join, resolve } from "path";
 import { spawnSync } from "child_process";
-import { mkdirSync, writeFileSync } from "fs";
 import { readJSON, writeJSON } from "../utils/json.js";
 import { generateWorkerProtocol, agentStartCommand } from "./protocol-template.js";
 import { detectAdapter } from "./terminal.js";
-import type { Task, TaskStore } from "../types/task.js";
+import type { WorkerResult } from "./monitor.js";
+import type { TaskStore } from "../types/task.js";
 import type { ProtocolOptions } from "./protocol-template.js";
 
 // Re-export type for findings used in deduplication
@@ -31,6 +31,7 @@ export function generateCrossModelIds(taskId: string, agents: string[]): string[
 
 export function mergeVerdicts(verdicts: Record<string, string>): string {
   const vals = Object.values(verdicts);
+  if (vals.length === 0) return "mixed";
   if (vals.every((v) => v === "pass")) return "pass";
   if (vals.some((v) => v === "fail")) return "fail";
   return "mixed";
@@ -150,20 +151,11 @@ export async function spawnCrossModel(
 
 // ── synthesizeResults ────────────────────────────────────────────────
 
-interface WorkerResult {
-  task_id: string;
-  verdict?: string;
-  findings?: FindingLike[];
-  summary?: string;
-  completed_at?: string;
-}
-
 export async function synthesizeResults(taskId: string): Promise<void> {
   const projectRoot = process.cwd();
   const workersBase = join(projectRoot, ".apex", "workers");
 
   // Find all cross-model result files matching <taskId>-*
-  const { readdirSync } = await import("fs");
   let dirs: string[];
   try {
     dirs = readdirSync(workersBase).filter((d) => d.startsWith(`${taskId}-`));
@@ -197,7 +189,11 @@ export async function synthesizeResults(taskId: string): Promise<void> {
       const raw: WorkerResult = JSON.parse(readFileSync(resultPath, "utf-8"));
       verdicts[agent] = raw.verdict || "unknown";
       for (const f of raw.findings || []) {
-        allFindings.push({ ...f, source: f.source || agent });
+        if (typeof f === "string") {
+          allFindings.push({ description: f, severity: "note", source: agent });
+        } else {
+          allFindings.push({ ...f, source: (f as FindingLike).source || agent });
+        }
       }
     } catch {
       verdicts[agent] = "error";
@@ -214,7 +210,7 @@ export async function synthesizeResults(taskId: string): Promise<void> {
       const agentResults = dirs.map((dir) => {
         const agent = dir.slice(taskId.length + 1);
         const resultPath = join(workersBase, dir, "result.json");
-        let raw: WorkerResult = { task_id: dir };
+        let raw: WorkerResult = { task_id: dir, verdict: "fail" };
         try {
           raw = JSON.parse(readFileSync(resultPath, "utf-8"));
         } catch { /* use defaults */ }
@@ -227,7 +223,7 @@ export async function synthesizeResults(taskId: string): Promise<void> {
           duration_s: 0,
         };
       });
-      const synth = synthesizeFindings(agentResults);
+      const synth = synthesizeFindings(agentResults as any);
       // Write enriched synthesis
       const synthesis = {
         task_id: taskId,
