@@ -144,10 +144,32 @@ gh repo view 2>/dev/null && echo "EXISTING" || echo "NEW_OR_NO_REMOTE"
 
 **Path A — New repository** (no remote, or user is about to `gh repo create`):
 
-1. **MUST** invoke the `great-writer` skill in **GitHub README mode** to produce:
+**A0. Repository Naming (mandatory, cannot be skipped)**
+
+Analyze the project (directory name, package.json name, README title, code purpose) and
+generate 3-4 candidate repository names. Call `AskUserQuestion`:
+- question: "新仓库叫什么名字？"
+- header: "Repo Name"
+- options (generate based on project analysis):
+  1. label: "{kebab-case-name}", description: "基于项目目录名/包名"
+  2. label: "{descriptive-name}", description: "基于项目功能描述"
+  3. label: "{short-brand-name}", description: "简短品牌化命名"
+
+User can also type a custom name via "Other".
+
+**Naming conventions to follow when generating candidates:**
+- kebab-case (lowercase, hyphens)
+- Concise (1-3 words preferred, max 4)
+- Descriptive but not generic (avoid `my-project`, `app`, `tool`)
+- Check availability: `gh repo view {owner}/{name} 2>/dev/null` — if taken, don't suggest it
+
+Record the chosen name in `.apex/ship-metadata.json` as `"repo_name": "..."`.
+This name will be used in Step 6 (`gh repo create`) and Step 8 (metadata).
+
+**A1.** **MUST** invoke the `great-writer` skill in **GitHub README mode** to produce:
    - `README.md` (English) — project overview, features, quickstart, architecture, usage
    - `README_CN.md` or `README.zh-CN.md` (Chinese) — same content, native Chinese (not a translation)
-2. Prepare repository metadata for Step 8:
+**A2.** Prepare repository metadata for Step 8:
    - **Tags/topics**: 5-10 relevant topics (e.g., `cli`, `typescript`, `ai-agent`)
    - **Description**: one-line repo description (under 350 chars)
    - Write to `.apex/ship-metadata.json`:
