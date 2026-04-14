@@ -640,23 +640,27 @@ html, body {
   flex-shrink: 0;
 }
 
-.artifact-name {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-secondary);
-}
-
+.artifact-name,
 .artifact-link {
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--text-secondary);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  direction: rtl;
+  text-align: left;
+  min-width: 0;
+}
+
+.artifact-link {
   text-decoration: none;
   cursor: pointer;
   transition: color 0.15s;
 }
 .artifact-link:hover {
   color: var(--accent);
-  text-decoration: underline;
+  text-decoration: none;
 }
 
 /* --- System Telemetry --- */
