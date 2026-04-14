@@ -382,6 +382,7 @@ Before `apex stage complete ship`, run the Stage Exit Gate (`gates/stage-exit-ga
 | S4 | Preflight scan passed | No CRITICAL findings in committed files | Re-run `/opensource-preflight --mode quick --scope diff HEAD~1` |
 | S5 | CI status acknowledged | If repo has CI: checks passed, or user explicitly chose to proceed despite failures | `gh run list --limit 1` status check |
 | S6 | README exists | If pushed to a public repo: `README.md` must exist in the repo root. New repos must also have `README_CN.md` or `README.zh-CN.md`. | `git show HEAD:README.md` |
+| S7 | Push prompt issued | AskUserQuestion for push (Step 6) was **actually called** and user responded. "暂不推送" is a valid response; silently skipping the prompt is not. | Flow check: user response recorded |
 
 ### Substance Prompts (Tier 2+)
 
