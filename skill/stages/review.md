@@ -30,6 +30,45 @@ Before starting Review work, verify Execute stage completeness:
 
 ---
 
+## EVIDENTIARY DISCIPLINE
+
+```
+================================================================
+  THIS STAGE ENFORCES EVIDENTIARY DISCIPLINE.
+
+  While Review is active, all factual claims must be tagged:
+
+    [已验证] — Based on actual investigation (read code, traced
+               call graph, ran test, checked behavior).
+    [假设]   — Unverified speculation. Must be explicitly marked.
+
+  Review-specific violations:
+    ✗ "This code path can't be reached" without tracing callers.
+    ✗ "This edge case doesn't apply" without usage data or evidence.
+    ✗ "Input is already sanitized upstream" without tracing the
+      sanitization call chain.
+    ✗ "Performance is acceptable" without benchmark or measurement.
+    ✗ "Not an issue" dismissal of a finding without specific
+      evidence for why it's not an issue.
+    ✗ "This function handles null correctly" without reading
+      the implementation.
+
+  When about to dismiss a finding or claim code is safe:
+    → STOP. Either verify now (read the code, trace the path,
+      run the test), or tag [假设] and explain why verification
+      is deferred.
+
+  Findings MUST cite specific file:line evidence.
+  Dismissals MUST explain what was checked and why the issue
+  does not apply.
+
+  This is a hard constraint, same severity as "no code in
+  Brainstorm."
+================================================================
+```
+
+---
+
 ## Review Modes
 
 | Mode | Behavior |
@@ -191,6 +230,8 @@ Before `apex stage complete review`, run the Stage Exit Gate (`gates/stage-exit-
 |---|--------|----------------|
 | Q1 | Are findings backed by specific file:line evidence? Read each finding and flag any that says "potential issue" or "might be problematic" without citing a specific file path and line number. | Review artifact |
 | Q2 | Is the adversarial section genuine? Does it identify real risks with concrete scenarios, or does it contain boilerplate like "no significant issues found"? A genuine adversarial section names at least one specific assumption violation or abuse case with a concrete scenario. | Review artifact |
+| Q3 | Are "not an issue" dismissals backed by [已验证] evidence? Flag any finding dismissal that claims code is safe, an edge case doesn't apply, or a path can't be reached without citing specific file:line evidence or test output. Untagged dismissals are violations. | Review artifact |
+| Q4 | Are behavioral claims about code verified? Flag assertions like "this handles null", "input is sanitized upstream", or "this function is thread-safe" that lack [已验证] tag with specific evidence (file read, traced call chain, ran test). | Review artifact, codebase |
 
 ---
 
