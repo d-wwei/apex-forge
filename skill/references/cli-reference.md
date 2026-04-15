@@ -41,10 +41,11 @@ apex stage get                         Show current stage state as JSON
 apex trace-skill STAGE SKILL VER STATUS MAP  Record skill invocation trace
 apex check-bindings                    Verify installed skill versions match bindings.yaml
 
-# Ship Checkpoints (record conversation-flow steps for hard gate enforcement)
+# Stage Checkpoints (record conversation-flow steps for hard gate enforcement)
 apex ship checkpoint iteration-summary   Record that Step 6a iteration summary was output
 apex ship checkpoint push-prompt         Record that Step 6b push prompt was issued
 apex ship checkpoint compound-transition Record that compound transition was announced
+apex compound checkpoint re-entry-prompt Record that 3-option re-entry prompt was issued
 
 # Recovery
 apex recover                           Clean stale state, fix stuck tasks

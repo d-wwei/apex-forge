@@ -262,6 +262,12 @@ After reporting, call `AskUserQuestion` with:
   2. label: "在新进程中继续 roadmap", description: "结束当前会话，输出续接提示词供粘贴到新会话使用（避免上下文过长浪费 token）"
   3. label: "结束本轮", description: "保持 compound 状态，下次回来可以看到上轮完成记录"
 
+**After the user responds** (regardless of choice), record the checkpoint:
+```bash
+apex compound checkpoint re-entry-prompt
+```
+This is a hard gate — `apex stage complete compound` will BLOCK if this checkpoint is missing (S6).
+
 **Option A: "继续下一个迭代"**
 
 1. `apex stage set idle`

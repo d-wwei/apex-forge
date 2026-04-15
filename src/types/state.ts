@@ -30,6 +30,8 @@ export interface StageState {
   orchestration_events?: OrchestrationEvent[];
   /** Checkpoints recorded during Ship stage (push-prompt, iteration-summary, etc.) */
   ship_checkpoints?: string[];
+  /** Checkpoints recorded during Compound stage (re-entry-prompt, etc.) */
+  compound_checkpoints?: string[];
 }
 
 /** Per-session pipeline view used by the dashboard for multi-session display. */

@@ -10,13 +10,60 @@ import { appendJSONL } from "../utils/logger.js";
 import { isoTimestamp, sessionId } from "../utils/timestamp.js";
 import type { StageState } from "../types/state.js";
 import { appendEvent, rebuildAndCache, sessionStateCachePath } from "./event-log.js";
-import { existsSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { readdir } from "fs/promises";
 import { execSync } from "child_process";
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Gate Helper Functions
+// ---------------------------------------------------------------------------
+
+/**
+ * Check if a markdown file contains a section matching the given pattern.
+ * Matches ## or # headers case-insensitively.
+ */
+function hasSection(filePath: string, sectionPattern: RegExp): boolean {
+  if (!existsSync(filePath)) return false;
+  try {
+    const content = readFileSync(filePath, "utf-8");
+    return sectionPattern.test(content);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Parse YAML frontmatter from a markdown file.
+ * Returns key-value pairs from the --- delimited block.
+ */
+function parseFrontmatter(filePath: string): Record<string, string> {
+  if (!existsSync(filePath)) return {};
+  try {
+    const content = readFileSync(filePath, "utf-8");
+    const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    if (!match) return {};
+    const fm: Record<string, string> = {};
+    for (const line of match[1].split(/\r?\n/)) {
+      const colonIdx = line.indexOf(":");
+      if (colonIdx > 0) {
+        const key = line.slice(0, colonIdx).trim();
+        let val = line.slice(colonIdx + 1).trim();
+        // Strip outer quotes (YAML allows "value" or 'value')
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+          val = val.slice(1, -1);
+        }
+        if (key) fm[key] = val;
+      }
+    }
+    return fm;
+  } catch {
+    return {};
+  }
+}
 
 const STATE_PATH = ".apex/state.json";
 
@@ -109,36 +156,170 @@ export async function runStructuralGate(stage: string): Promise<{ pass: boolean;
 
   switch (stage) {
     case "brainstorm": {
-      items.push({ id: "S1", pass: hasArtifact, reason: hasArtifact ? "Artifact registered" : "No artifact registered (run: apex stage artifact brainstorm <path>)" });
-      const artifactPath = stageArtifacts[0];
-      const fileExists = artifactPath ? existsSync(artifactPath) : false;
-      items.push({ id: "S2", pass: fileExists, reason: fileExists ? `File exists: ${artifactPath}` : "Artifact file not found on disk" });
-      break;
-    }
-    case "plan": {
-      items.push({ id: "S1", pass: hasArtifact, reason: hasArtifact ? "Artifact registered" : "No artifact registered (run: apex stage artifact plan <path>)" });
-      const artifactPath = stageArtifacts[0];
-      const fileExists = artifactPath ? existsSync(artifactPath) : false;
-      items.push({ id: "S2", pass: fileExists, reason: fileExists ? `File exists: ${artifactPath}` : "Artifact file not found on disk" });
-      const hasOpenTasks = allTasks.some(t => t.status === "open" || t.status === "assigned");
-      items.push({ id: "S3", pass: hasOpenTasks || allTasks.length > 0, reason: allTasks.length > 0 ? `${allTasks.length} tasks registered` : "No tasks registered (run: apex task create)" });
-      break;
-    }
-    case "execute": {
-      if (allTasks.length === 0) {
-        items.push({ id: "S1", pass: false, reason: "No tasks registered — create tasks first (apex task create)" });
+      // S1: Artifact file exists on disk
+      const bArtifact = stageArtifacts[stageArtifacts.length - 1];
+      const bFileExists = bArtifact ? existsSync(bArtifact) : false;
+      items.push({ id: "S1", pass: bFileExists, reason: bFileExists ? `File exists: ${bArtifact}` : "Artifact file not found on disk" });
+
+      // S2: Artifact registered in state
+      items.push({ id: "S2", pass: hasArtifact, reason: hasArtifact ? "Artifact registered" : "No artifact registered (run: apex stage artifact brainstorm <path>)" });
+
+      // S3: Acceptance criteria section exists
+      const bHasAC = bArtifact ? hasSection(bArtifact, /##?\s+acceptance\s+criteria/i) : false;
+      items.push({ id: "S3", pass: bHasAC, reason: bHasAC ? "Acceptance Criteria section found" : "No Acceptance Criteria section in artifact" });
+
+      // S4: Constraints section exists
+      const bHasConstraints = bArtifact ? hasSection(bArtifact, /##?\s+constraints/i) : false;
+      items.push({ id: "S4", pass: bHasConstraints, reason: bHasConstraints ? "Constraints section found" : "No Constraints section in artifact" });
+
+      // S5: Scope classification in frontmatter
+      const bFm = bArtifact ? parseFrontmatter(bArtifact) : {};
+      const bHasScope = !!bFm.scope;
+      items.push({ id: "S5", pass: bHasScope, reason: bHasScope ? `Scope: ${bFm.scope}` : "No scope field in frontmatter" });
+
+      // S6: Status approved
+      const bApproved = bFm.status === "approved";
+      items.push({ id: "S6", pass: bApproved, reason: bApproved ? "Status: approved" : `Status: ${bFm.status || "missing"} (needs approved)` });
+
+      // S7: Decisions transferred (conditional)
+      // If a decisions file exists, the requirements doc must have Confirmed Decisions section
+      const bDecisionsFile = bArtifact ? bArtifact.replace("-requirements.md", "-decisions.md") : "";
+      const bDecisionsExist = bDecisionsFile ? existsSync(bDecisionsFile) : false;
+      if (bDecisionsExist) {
+        const bHasDecisions = hasSection(bArtifact!, /##?\s+confirmed\s+decisions/i);
+        items.push({ id: "S7", pass: bHasDecisions, reason: bHasDecisions ? "Confirmed Decisions section found" : "Decisions file exists but no Confirmed Decisions section in requirements" });
       } else {
-        const nonDone = allTasks.filter(t => t.status !== "done");
-        const allDone = nonDone.length === 0;
-        items.push({ id: "S1", pass: allDone, reason: allDone ? `All ${allTasks.length} tasks done` : `${nonDone.length} task(s) not done: ${nonDone.map(t => t.id).join(", ")}` });
+        items.push({ id: "S7", pass: true, reason: "No decisions file — check skipped" });
       }
       break;
     }
+    case "plan": {
+      // S1: Artifact file exists
+      const pArtifact = stageArtifacts[stageArtifacts.length - 1];
+      const pFileExists = pArtifact ? existsSync(pArtifact) : false;
+      items.push({ id: "S1", pass: pFileExists, reason: pFileExists ? `File exists: ${pArtifact}` : "Artifact file not found on disk" });
+
+      // S2: Artifact registered in state
+      items.push({ id: "S2", pass: hasArtifact, reason: hasArtifact ? "Artifact registered" : "No artifact registered (run: apex stage artifact plan <path>)" });
+
+      // S3: File manifest section
+      const pHasManifest = pArtifact ? hasSection(pArtifact, /##?\s+(file\s+manifest|files?\s+(to\s+)?(change|modify|create|touch))/i) : false;
+      items.push({ id: "S3", pass: pHasManifest, reason: pHasManifest ? "File manifest section found" : "No file manifest section in plan" });
+
+      // S4: Test file paths section
+      const pHasTests = pArtifact ? hasSection(pArtifact, /##?\s+test/i) : false;
+      items.push({ id: "S4", pass: pHasTests, reason: pHasTests ? "Test section found" : "No test file paths section in plan" });
+
+      // S5: Task decomposition section
+      const pHasTasks = pArtifact ? hasSection(pArtifact, /##?\s+task/i) : false;
+      items.push({ id: "S5", pass: pHasTasks, reason: pHasTasks ? "Task decomposition section found" : "No task decomposition section in plan" });
+
+      // S6: Tasks registered in apex task list
+      items.push({ id: "S6", pass: allTasks.length > 0, reason: allTasks.length > 0 ? `${allTasks.length} tasks registered` : "No tasks registered (run: apex task create)" });
+
+      // S7: Status approved in frontmatter
+      const pFm = pArtifact ? parseFrontmatter(pArtifact) : {};
+      const pApproved = pFm.status === "approved";
+      items.push({ id: "S7", pass: pApproved, reason: pApproved ? "Status: approved" : `Status: ${pFm.status || "missing"} (needs approved)` });
+
+      break;
+    }
+    case "execute": {
+      // S1: All tasks done
+      if (allTasks.length === 0) {
+        items.push({ id: "S1", pass: false, reason: "No tasks registered — create tasks first (apex task create)" });
+      } else {
+        const nonDone = allTasks.filter(t => t.status !== "done" && t.status !== "blocked");
+        const allDone = nonDone.length === 0;
+        items.push({ id: "S1", pass: allDone, reason: allDone ? `All ${allTasks.length} tasks done` : `${nonDone.length} task(s) not done: ${nonDone.map(t => t.id).join(", ")}` });
+      }
+
+      // S2: Test files exist — check plan artifact for test paths
+      const planArtifacts = state.artifacts["plan"] ?? [];
+      const planPath = planArtifacts[0];
+      if (planPath && existsSync(planPath)) {
+        // Look for .test. or .spec. files mentioned in the plan
+        try {
+          const planContent = readFileSync(planPath, "utf-8");
+          const testFileMatches = planContent.match(/[\w/.-]+\.(?:test|spec)\.\w+/g) || [];
+          const uniqueTestFiles = [...new Set(testFileMatches)];
+          if (uniqueTestFiles.length > 0) {
+            const missing = uniqueTestFiles.filter(f => !existsSync(f));
+            const allExist = missing.length === 0;
+            items.push({ id: "S2", pass: allExist, reason: allExist ? `${uniqueTestFiles.length} test file(s) exist` : `Missing test files: ${missing.join(", ")}` });
+          } else {
+            items.push({ id: "S2", pass: true, reason: "No test file paths found in plan — check skipped" });
+          }
+        } catch {
+          items.push({ id: "S2", pass: true, reason: "Could not read plan — check skipped" });
+        }
+      } else {
+        items.push({ id: "S2", pass: true, reason: "No plan artifact — check skipped" });
+      }
+
+      // S3: Execution log exists
+      const execArtifacts = stageArtifacts;
+      let hasExecLog = false;
+      if (execArtifacts.length > 0) {
+        hasExecLog = execArtifacts.some(a => existsSync(a));
+      }
+      // Also check for any execution log in docs/execution/
+      if (!hasExecLog) {
+        try {
+          const files = await readdir("docs/execution");
+          hasExecLog = files.some(f => f.toString().endsWith(".md"));
+        } catch { /* dir doesn't exist */ }
+      }
+      items.push({ id: "S3", pass: hasExecLog, reason: hasExecLog ? "Execution log exists" : "No execution log found (docs/execution/{name}-log.md)" });
+
+      break;
+    }
     case "review": {
-      items.push({ id: "S1", pass: hasArtifact, reason: hasArtifact ? "Artifact registered" : "No review artifact registered" });
-      const artifactPath = stageArtifacts[0];
-      const fileExists = artifactPath ? existsSync(artifactPath) : false;
-      items.push({ id: "S2", pass: fileExists, reason: fileExists ? `File exists: ${artifactPath}` : "Review artifact file not found" });
+      // S1: Artifact file exists
+      const rArtifact = stageArtifacts[stageArtifacts.length - 1];
+      const rFileExists = rArtifact ? existsSync(rArtifact) : false;
+      items.push({ id: "S1", pass: rFileExists, reason: rFileExists ? `File exists: ${rArtifact}` : "Review artifact file not found" });
+
+      // S2: Artifact registered in state
+      items.push({ id: "S2", pass: hasArtifact, reason: hasArtifact ? "Artifact registered" : "No review artifact registered" });
+
+      // S3: Security reviewer section
+      const rHasSecurity = rArtifact ? hasSection(rArtifact, /##?\s+security/i) : false;
+      items.push({ id: "S3", pass: rHasSecurity, reason: rHasSecurity ? "Security section found" : "No Security Reviewer section" });
+
+      // S4: Correctness reviewer section
+      const rHasCorrectness = rArtifact ? hasSection(rArtifact, /##?\s+correctness/i) : false;
+      items.push({ id: "S4", pass: rHasCorrectness, reason: rHasCorrectness ? "Correctness section found" : "No Correctness Reviewer section" });
+
+      // S5: Spec compliance reviewer section
+      const rHasSpec = rArtifact ? hasSection(rArtifact, /##?\s+(spec\b|specification)\s*(compliance)?/i) : false;
+      items.push({ id: "S5", pass: rHasSpec, reason: rHasSpec ? "Spec Compliance section found" : "No Spec Compliance Reviewer section" });
+
+      // S6: Adversarial reviewer section
+      const rHasAdversarial = rArtifact ? hasSection(rArtifact, /##?\s+adversarial/i) : false;
+      items.push({ id: "S6", pass: rHasAdversarial, reason: rHasAdversarial ? "Adversarial section found" : "No Adversarial Reviewer section" });
+
+      // S7: Status field is DONE or DONE_WITH_CONCERNS
+      const rFm = rArtifact ? parseFrontmatter(rArtifact) : {};
+      const rStatusOk = rFm.status === "DONE" || rFm.status === "DONE_WITH_CONCERNS";
+      items.push({ id: "S7", pass: rStatusOk, reason: rStatusOk ? `Status: ${rFm.status}` : `Status: ${rFm.status || "missing"} (needs DONE or DONE_WITH_CONCERNS)` });
+
+      // S8: No unresolved P0
+      let rHasP0 = false;
+      if (rArtifact && existsSync(rArtifact)) {
+        try {
+          const rContent = readFileSync(rArtifact, "utf-8");
+          // Check for P0 that is NOT resolved/fixed
+          const p0Lines = rContent.split("\n").filter(l => /\bP0\b/i.test(l));
+          rHasP0 = p0Lines.some(l => !/\b(resolved|fixed|closed|done)\b/i.test(l));
+        } catch { /* ignore */ }
+      }
+      items.push({ id: "S8", pass: !rHasP0, reason: !rHasP0 ? "No unresolved P0 findings" : "Unresolved P0 finding detected — must fix before shipping" });
+
+      // S9: No unresolved P2 (all must be resolved or converted to task)
+      // This is a softer check — P2s should be addressed but won't block in programmatic gate.
+      // Left to SubAgent substance check for nuanced evaluation.
+
       break;
     }
     case "ship": {
@@ -179,18 +360,45 @@ export async function runStructuralGate(stage: string): Promise<{ pass: boolean;
       break;
     }
     case "compound": {
-      // Check that a solution doc or roadmap snapshot exists
+      // S1: Solution doc exists (this iteration)
       let hasSolution = false;
       try {
         const files = await readdir("docs/solutions", { recursive: true });
         hasSolution = files.some(f => f.toString().endsWith(".md"));
       } catch { /* dir doesn't exist */ }
+      items.push({ id: "S1", pass: hasSolution, reason: hasSolution ? "Solution doc exists" : "No solution doc found (docs/solutions/{category}/{name}.md)" });
+
+      // S2: Root Cause / Problem section
+      const cArtifacts = stageArtifacts;
+      const cArtifact = cArtifacts[0];
+      const cHasRootCause = cArtifact ? hasSection(cArtifact, /##?\s+(root\s+cause|problem|根因)/i) : false;
+      items.push({ id: "S2", pass: cHasRootCause, reason: cHasRootCause ? "Root Cause section found" : "No Root Cause/Problem section in solution doc" });
+
+      // S3: Prevention section
+      const cHasPrevention = cArtifact ? hasSection(cArtifact, /##?\s+(prevention|预防|防止)/i) : false;
+      items.push({ id: "S3", pass: cHasPrevention, reason: cHasPrevention ? "Prevention section found" : "No Prevention section in solution doc" });
+
+      // S4: Roadmap snapshot exists
       let hasRoadmap = false;
       try {
         const files = await readdir("docs/roadmaps");
         hasRoadmap = files.some(f => f.toString().endsWith(".md"));
       } catch { /* dir doesn't exist */ }
-      items.push({ id: "S1", pass: hasSolution || hasRoadmap, reason: (hasSolution || hasRoadmap) ? "Solution/roadmap doc exists" : "No solution doc or roadmap snapshot found" });
+      items.push({ id: "S4", pass: hasRoadmap, reason: hasRoadmap ? "Roadmap snapshot exists" : "No roadmap snapshot found (docs/roadmaps/roadmap-*.md)" });
+
+      // S5: Memory entry written this session
+      let hasMemory = false;
+      try {
+        const memStore = await readJSON<{ facts: Array<{ id: string }> }>(".apex/memory.json", { facts: [] });
+        hasMemory = memStore.facts.length > 0;
+      } catch { /* ignore */ }
+      items.push({ id: "S5", pass: hasMemory, reason: hasMemory ? "Memory entries exist" : "No memory entries — write at least 1 learning (apex memory add)" });
+
+      // S6: Re-entry prompt was issued (checkpoint)
+      const cCheckpoints = state.compound_checkpoints ?? [];
+      const hasReentry = cCheckpoints.includes("re-entry-prompt");
+      items.push({ id: "S6", pass: hasReentry, reason: hasReentry ? "Re-entry prompt issued" : "Re-entry prompt not issued (run: apex compound checkpoint re-entry-prompt)" });
+
       break;
     }
     default: {
@@ -307,6 +515,31 @@ export async function addShipCheckpoint(name: string): Promise<StageState> {
   }
 
   appendEvent("state", "ship.checkpoint", { name });
+  await rebuildAndCache("state");
+  return loadState();
+}
+
+// ---------------------------------------------------------------------------
+// Compound Checkpoints
+// ---------------------------------------------------------------------------
+
+const VALID_COMPOUND_CHECKPOINTS = [
+  "re-entry-prompt", // S6: The 3-option re-entry AskUserQuestion was called
+] as const;
+
+export type CompoundCheckpointName = typeof VALID_COMPOUND_CHECKPOINTS[number];
+
+/**
+ * Record a Compound stage checkpoint event.
+ */
+export async function addCompoundCheckpoint(name: string): Promise<StageState> {
+  if (!VALID_COMPOUND_CHECKPOINTS.includes(name as CompoundCheckpointName)) {
+    throw new Error(
+      `Invalid compound checkpoint: "${name}". Valid: ${VALID_COMPOUND_CHECKPOINTS.join(", ")}`
+    );
+  }
+
+  appendEvent("state", "compound.checkpoint", { name });
   await rebuildAndCache("state");
   return loadState();
 }
