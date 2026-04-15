@@ -743,23 +743,37 @@ function renderSessionExpandedRows(sessions) {
 }
 
 function renderTelemetry(analytics) {
-  // Filter: only real skill invocations, not pipeline stage events
+  const all = analytics || [];
+  // Skill events for ranking + success rate
   const pipelineNames = new Set(['brainstorm','plan','execute','review','ship','compound','idle','task','artifact','memory']);
-  const skillEvents = (analytics || []).filter(a => !pipelineNames.has(a.skill || a.name || ''));
+  const skillEvents = all.filter(a => !pipelineNames.has(a.skill || a.name || ''));
+  // Stage completed events for avg duration (these have real set→completed time diffs)
+  const stageCompleted = all.filter(a => a.outcome === 'success' && pipelineNames.has(a.skill || '') && (a.duration_s || 0) > 0);
 
-  if (skillEvents.length === 0) {
+  if (skillEvents.length === 0 && stageCompleted.length === 0) {
     document.getElementById('stat-total').textContent = '0';
     document.getElementById('stat-avg').innerHTML = '0<span class="stat-unit">' + t('telemetry.seconds') + '</span>';
     document.getElementById('stat-rate').textContent = '--';
     renderSkillBars([]);
     return;
   }
-  const bySkill = {}; let totalDur = 0, successes = 0;
-  const okOutcomes = new Set(['success','pass','APPROVED','PASS']);
-  for (const a of skillEvents) { const s = a.skill || a.name || 'unknown'; if (!bySkill[s]) bySkill[s] = { count: 0, dur: 0 }; bySkill[s].count++; const dur = a.duration_s != null ? a.duration_s : (a.duration || 0); bySkill[s].dur += dur; totalDur += dur; if (okOutcomes.has(a.outcome || a.result || '')) successes++; }
-  document.getElementById('stat-total').textContent = skillEvents.length.toLocaleString();
-  document.getElementById('stat-avg').innerHTML = (totalDur / skillEvents.length).toFixed(1) + '<span class="stat-unit">' + t('telemetry.seconds') + '</span>';
-  document.getElementById('stat-rate').textContent = (successes / skillEvents.length * 100).toFixed(1) + '%';
+
+  // Avg duration from stage completions (real timing data)
+  var avgDur = 0;
+  if (stageCompleted.length > 0) {
+    var totalStageDur = 0;
+    for (const s of stageCompleted) totalStageDur += (s.duration_s || 0);
+    avgDur = totalStageDur / stageCompleted.length;
+  }
+
+  // Skill ranking + success rate from skill invocations
+  const bySkill = {}; let successes = 0;
+  const okOutcomes = new Set(['success','pass','APPROVED','PASS','completed','PASS_WITH_NOTE']);
+  for (const a of skillEvents) { const s = a.skill || a.name || 'unknown'; if (!bySkill[s]) bySkill[s] = { count: 0, dur: 0 }; bySkill[s].count++; if (okOutcomes.has(a.outcome || a.result || '')) successes++; }
+
+  document.getElementById('stat-total').textContent = all.length.toLocaleString();
+  document.getElementById('stat-avg').innerHTML = avgDur.toFixed(1) + '<span class="stat-unit">' + t('telemetry.seconds') + '</span>';
+  document.getElementById('stat-rate').textContent = skillEvents.length > 0 ? (successes / skillEvents.length * 100).toFixed(1) + '%' : '--';
   const entries = Object.entries(bySkill).sort((a, b) => b[1].count - a[1].count).slice(0, 5);
   const maxCount = Math.max(...entries.map(([, v]) => v.count), 1);
   renderSkillBars(entries.map(([name, data]) => ({ name: name.toUpperCase(), count: data.count, pct: Math.round(data.count / maxCount * 100) })));
