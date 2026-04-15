@@ -13,6 +13,13 @@ export interface SkillInvocation {
   af_mapping: string;
 }
 
+export interface OrchestrationEvent {
+  action: string;
+  task?: string;
+  timestamp: string;
+  detail?: Record<string, unknown>;
+}
+
 export interface StageState {
   current_stage: string;
   last_updated: string;
@@ -20,6 +27,7 @@ export interface StageState {
   artifacts: Record<string, string[]>;
   history: StageHistory[];
   skill_invocations?: SkillInvocation[];
+  orchestration_events?: OrchestrationEvent[];
 }
 
 /** Per-session pipeline view used by the dashboard for multi-session display. */

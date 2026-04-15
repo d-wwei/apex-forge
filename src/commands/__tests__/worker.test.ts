@@ -109,6 +109,16 @@ describe("cmdWorker", () => {
       const task = {} as any;
       expect(await resolveAgent([], task)).toBe("claude");
     });
+
+    test("uses task.agent when set (priority 2)", async () => {
+      const { resolveAgent } = await import("../worker.js");
+      const task = { agent: "gemini", adapter: "codex" } as any;
+      expect(await resolveAgent([], task)).toBe("gemini");
+    });
+
+    // Note: worker_agent_rules and worker_default_agent tests require config parser to handle
+    // optional fields not in DEFAULT_CONFIG. The code paths are type-checked; parser upgrade
+    // is tracked in the Multi-Agent Adaptation Layer spec (Section 13 of plan-agent-architecture).
   });
 
   // --- spawn --dry-run ---

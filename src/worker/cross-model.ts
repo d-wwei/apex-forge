@@ -138,7 +138,7 @@ export async function spawnCrossModel(
 
     // Launch terminal
     const adapter = detectAdapter();
-    const handle = await adapter.createWindow(`${subId}`, agentStartCommand(agent, worktreePath));
+    const handle = await adapter.createWindow(`${subId}`, await agentStartCommand(agent, worktreePath));
     meta.window_handle = handle;
     await writeJSON(join(workersDir, "meta.json"), meta);
   }

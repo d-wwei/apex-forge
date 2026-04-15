@@ -162,8 +162,19 @@ export async function runStructuralGate(stage: string): Promise<{ pass: boolean;
       break;
     }
     default: {
-      // Unknown stage — pass through (no gate defined)
-      items.push({ id: "S0", pass: true, reason: `No structural gate defined for stage: ${stage}` });
+      if (stage.startsWith("orchestrate:")) {
+        // Orchestration stages: check artifact registered
+        items.push({ id: "S1", pass: hasArtifact, reason: hasArtifact ? "Artifact registered" : "No artifact registered for orchestration stage" });
+        const subStage = stage.slice("orchestrate:".length);
+        // For brainstorm/plan sub-stages, also check file exists
+        if ((subStage === "brainstorm" || subStage === "plan") && stageArtifacts[0]) {
+          const fileExists = existsSync(stageArtifacts[0]);
+          items.push({ id: "S2", pass: fileExists, reason: fileExists ? `File exists: ${stageArtifacts[0]}` : "Artifact file not found on disk" });
+        }
+      } else {
+        // Unknown stage — pass through (no gate defined)
+        items.push({ id: "S0", pass: true, reason: `No structural gate defined for stage: ${stage}` });
+      }
     }
   }
 

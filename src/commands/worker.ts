@@ -25,13 +25,17 @@ export function toSlug(title: string): string {
 }
 
 export async function resolveAgent(args: string[], task: Task): Promise<string> {
-  // Priority: CLI --agent > task.agent > task.adapter > config.worker_default_agent > "claude"
+  // Priority: CLI --agent > task.agent > task.adapter > worker_agent_rules[category] > worker_default_agent > "claude"
   const idx = args.indexOf("--agent");
   if (idx >= 0 && args[idx + 1]) return args[idx + 1];
   if (task.agent) return task.agent;
   if (task.adapter) return task.adapter;
   try {
     const config = await loadConfig();
+    if (config.worker_agent_rules && task.category) {
+      const rule = config.worker_agent_rules.find(r => r.category === task.category);
+      if (rule) return rule.agent;
+    }
     if (config.worker_default_agent) return config.worker_default_agent;
   } catch { /* config unavailable — fall through */ }
   return "claude";
@@ -169,7 +173,7 @@ async function cmdSpawn(args: string[]): Promise<void> {
   // 8. Create terminal window
   const slug = toSlug(task.title);
   const windowName = `${taskId}-${slug}`;
-  const command = agentStartCommand(agent, worktreePath);
+  const command = await agentStartCommand(agent, worktreePath);
 
   const adapter = detectAdapter();
   const handle = await adapter.createWindow(windowName, command);

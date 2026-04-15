@@ -332,6 +332,17 @@ export function materializeState(events: DomainEvent[]): StageState {
         state.last_updated = evt.ts;
         break;
       }
+      case "orchestration.event": {
+        if (!state.orchestration_events) state.orchestration_events = [];
+        state.orchestration_events.push({
+          action: p.action as string,
+          task: p.task as string | undefined,
+          timestamp: evt.ts,
+          detail: p as Record<string, unknown>,
+        });
+        state.last_updated = evt.ts;
+        break;
+      }
     }
   }
 
