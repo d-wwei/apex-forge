@@ -153,6 +153,38 @@ function navigateToProject(project) {
   initialLoad();
 }
 
+// ===== 3b. Section Collapse =====
+
+function toggleSectionCollapse(sectionId) {
+  const el = document.getElementById(sectionId);
+  if (!el) return;
+  el.classList.toggle('section-collapsed');
+  updateSectionCollapseBtn(sectionId);
+}
+
+function updateSectionCollapseBtn(sectionId) {
+  const el = document.getElementById(sectionId);
+  if (!el) return;
+  var btn = document.getElementById(sectionId + '-toggle');
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.id = sectionId + '-toggle';
+    btn.className = 'section-toggle-btn';
+    btn.onclick = function() { toggleSectionCollapse(sectionId); };
+    el.parentNode.insertBefore(btn, el.nextSibling);
+  }
+  const isCollapsed = el.classList.contains('section-collapsed');
+  const hasOverflow = isCollapsed && el.scrollHeight > el.clientHeight + 2;
+  el.classList.toggle('section-has-overflow', hasOverflow);
+  btn.textContent = isCollapsed ? t('panel.expand') : t('panel.collapse');
+  btn.style.display = (isCollapsed && !hasOverflow) ? 'none' : '';
+}
+
+function updateAllSectionCollapse() {
+  updateSectionCollapseBtn('pipeline-artifacts');
+  updateSectionCollapseBtn('skill-ranking');
+}
+
 function toggleKanban() {
   kanbanCollapsed = !kanbanCollapsed;
   localStorage.setItem('kanbanCollapsed', kanbanCollapsed);
@@ -408,6 +440,7 @@ function render(data) {
   renderKanban(data.tasks, data._worktrees);
   renderPipeline(data.state, data.tasks, data._worktrees, data.sessionPipelines, data.project);
   renderTelemetry(data.analytics);
+  updateAllSectionCollapse();
   renderActivity(data.analytics);
   renderMemory(data.memory, data.globalMemory);
 
@@ -955,6 +988,7 @@ async function initialLoad() {
 
 document.addEventListener('DOMContentLoaded', () => {
   applyLocale();
+  updateAllSectionCollapse();
   loadProjectCards();
 
   // Sub-tab switching
