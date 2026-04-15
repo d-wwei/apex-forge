@@ -142,6 +142,70 @@ describe("generateWorkerProtocol", () => {
   });
 });
 
+describe("generateWorkerProtocol — English (lang=en)", () => {
+  const enOpts = makeOpts({ agent: "codex" });
+
+  it("generates English task section", () => {
+    const md = generateWorkerProtocol(enOpts);
+    expect(md).toContain("## Your Task");
+    expect(md).not.toContain("## 你的任务");
+  });
+
+  it("generates English execution protocol section", () => {
+    const md = generateWorkerProtocol(enOpts);
+    expect(md).toContain("## Execution Protocol");
+    expect(md).not.toContain("## 执行协议");
+  });
+
+  it("generates English core rules section", () => {
+    const md = generateWorkerProtocol(enOpts);
+    expect(md).toContain("## Core Rules");
+    expect(md).toContain("TDD");
+    expect(md).toContain("E3");
+    expect(md).not.toContain("## 核心规则");
+  });
+
+  it("generates English communication section with JSON fields", () => {
+    const md = generateWorkerProtocol(enOpts);
+    expect(md).toContain("## Communication Protocol");
+    expect(md).toContain('"task_id"');
+    expect(md).toContain('"verdict"');
+    expect(md).toContain("status.json");
+    expect(md).toContain("result.json");
+  });
+
+  it("generates English directive section", () => {
+    const md = generateWorkerProtocol(enOpts);
+    expect(md).toContain("## Plan Agent Communication Protocol");
+    expect(md).toContain("[PLAN-AGENT]");
+    expect(md).toContain("directive.json");
+  });
+
+  it("generates English boundaries section", () => {
+    const md = generateWorkerProtocol(enOpts);
+    expect(md).toContain("## Work Boundaries");
+    expect(md).not.toContain("## 工作边界");
+  });
+
+  it("generates English cross-model section when enabled", () => {
+    const md = generateWorkerProtocol(makeOpts({ agent: "codex", crossModel: true }));
+    expect(md).toContain("## Cross-Model Independent Review");
+    expect(md).not.toContain("## 跨模型独立评审");
+  });
+
+  it("still generates Chinese for claude agent", () => {
+    const md = generateWorkerProtocol(makeOpts({ agent: "claude" }));
+    expect(md).toContain("## 你的任务");
+    expect(md).toContain("## 执行协议");
+    expect(md).toContain("## 核心规则");
+  });
+
+  it("defaults to Chinese when no agent specified", () => {
+    const md = generateWorkerProtocol(makeOpts());
+    expect(md).toContain("## 你的任务");
+  });
+});
+
 describe("agentStartCommand", () => {
   const worktree = "/home/user/myproject/.apex/worktrees/T3";
 
