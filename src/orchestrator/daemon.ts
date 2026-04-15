@@ -82,12 +82,18 @@ export async function discoverWorkers(state: DaemonState): Promise<void> {
     const meta = await readJSON<WorkerMeta | null>(metaPath, null);
     if (!meta) continue;
 
+    // Check if result.json already exists (worker completed while daemon was down)
+    const resultPath = join(workersDir, taskId, "result.json");
+    const hasResult = existsSync(resultPath);
+
     state.workers.set(taskId, {
       taskId,
       meta,
-      lastHealth: { alive: true, completed: false, crashed: false },
-      resultChecked: false,
+      lastHealth: { alive: !hasResult, completed: hasResult, crashed: false },
+      resultChecked: false, // tick will process on next cycle
     });
+
+    console.log(`[daemon] Recovered worker ${taskId} (agent: ${meta.agent}${hasResult ? ", has result" : ""})`);
   }
 }
 

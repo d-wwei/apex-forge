@@ -182,14 +182,9 @@ apex stage set orchestrate:monitoring
 
 ```bash
 # 1. 写 directive 文件
-cat > .apex/workers/{task_id}/directive.json << 'EOF'
-{
-  "from": "plan-agent",
-  "created_at": "<ISO>",
-  "action": "amend",
-  "content": { "description": "新的要求...", "urgency": "normal" }
-}
-EOF
+apex worker directive {task_id} amend "新的要求..."
+# 紧急时加 --urgent：
+apex worker directive {task_id} amend "立即停止当前工作" --urgent
 
 # 2. 如果紧急，中断 Worker（通过终端 adapter）
 apex worker interrupt {task_id}
@@ -343,3 +338,65 @@ apex orchestrate event <action> [--task <id>] [--detail <json>]
 | Forget to start daemon | No auto-integrate, no auto-spawn | `apex orch start` after kickoff |
 | Merge without daemon | Lose incremental merge benefits | Let daemon handle merge; use `merge-all` only as fallback |
 | Skip Closure | No summary, stale worktrees remain | Always run final-check + summary |
+
+---
+
+## Cross-Session Recovery
+
+When a new session starts `/apex-master`, check for interrupted orchestration before anything else.
+
+### Detection
+
+```bash
+apex status --json
+# If stage is orchestrate:* (not idle) → previous session was interrupted
+```
+
+Check daemon status:
+```bash
+# .apex/orch.lock exists?
+# → PID alive → daemon still running
+# → PID dead → daemon also crashed
+```
+
+### Recovery Options
+
+Present to user via `AskUserQuestion`:
+```
+检测到中断的编排会话：
+  原 session: {lock.session_id}
+  阶段: {current_stage}
+  任务: {total} total, {done} done, {in_progress} in_progress
+  Daemon: {alive ? "运行中" : "已停止"} (PID {lock.pid})
+  活跃 Worker: {list active workers with agent and stage}
+
+选择：
+  1. 恢复编排 (Recommended) — 接管 daemon，继续监控
+  2. 查看状态 — 先看详情再决定
+  3. 重新开始 — 终止所有 Worker，重置状态
+```
+
+### Recovery Procedure (option 1: resume)
+
+```bash
+# 1. Update lock with new session's Plan Agent handle
+apex orch start --force --handle '{"id":"<handle>","name":"plan-agent","adapter":"<adapter>"}'
+# If daemon was alive, --force kills old + starts new
+# If daemon was dead, clears stale lock + starts new
+
+# 2. Read accumulated notifications
+# Daemon writes to .apex/notifications/ when Plan Agent is disconnected
+# apex orch status shows pending count
+# Read and present each to user chronologically
+
+# 3. Scan for unprocessed escalations
+# Check .apex/workers/*/escalation.json for any unprocessed files
+
+# 4. Resume M&C
+apex stage set orchestrate:monitoring
+# Enter event-driven loop as normal
+```
+
+### Recovery Protocol File
+
+For detailed step-by-step recovery procedures, see `master-recovery.md`.

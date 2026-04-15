@@ -762,6 +762,9 @@ Commands:
   worker status TASK_ID         Show detailed worker status
   worker report                 Full report: workers + cost + rate limits
   worker cost [TASK_ID]         Show token/cost usage
+  worker interrupt TASK_ID         Send interrupt signal to worker
+  worker directive TASK ACTION CONTENT [--urgent]
+                                Write directive.json (amend|pause|abort|info)
   worker merge TASK [--strategy] Merge completed worker branch
   worker merge-all [--strategy] Merge all passing workers
   worker synthesize TASK_ID     Synthesize cross-model results
@@ -803,6 +806,12 @@ Commands:
   convert --platform PLATFORM  Convert skills for cursor|codex|factory|gemini|windsurf
   convert --list               List all discovered skills
   orchestrate [--dry-run] [--once]   Run task orchestrator
+  orchestrate event ACTION [--task ID] [--detail JSON]
+                                Record orchestration event
+  orch start [--force] [--handle JSON]
+                                Start orchestration daemon
+  orch stop                     Stop orchestration daemon
+  orch status                   Show daemon status
   recover                       Recover from crashes (clean stale state)
   version                       Show version
   help                          Show this help

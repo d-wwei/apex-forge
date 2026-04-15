@@ -322,7 +322,8 @@ const VALID_DIRECTIVE_ACTIONS = ["amend", "pause", "abort", "info"] as const;
 export async function cmdDirective(args: string[]): Promise<void> {
   const taskId = args[0];
   const action = args[1];
-  const content = args[2];
+  const contentParts = args.slice(2).filter(a => !a.startsWith("--"));
+  const content = contentParts.join(" ");
 
   if (!taskId || !action || !content) {
     console.error("Usage: apex worker directive <task-id> <action> <content>");

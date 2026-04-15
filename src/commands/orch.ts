@@ -29,7 +29,7 @@ interface LockInfo {
  * Acquire the orchestration lock atomically.
  * Returns true if acquired, false if another daemon is running.
  */
-function acquireLock(sessionId: string, planAgentHandle: WindowHandle | null): boolean {
+export function acquireLock(sessionId: string, planAgentHandle: WindowHandle | null): boolean {
   const lockData = JSON.stringify({
     pid: process.pid,
     session_id: sessionId,
@@ -66,7 +66,7 @@ function acquireLock(sessionId: string, planAgentHandle: WindowHandle | null): b
   }
 }
 
-function releaseLock(): void {
+export function releaseLock(): void {
   try { unlinkSync(LOCK_PATH); } catch {}
 }
 
@@ -88,6 +88,36 @@ function isLockAlive(lock: LockInfo): boolean {
   }
 }
 
+// ── Lock update (for recovery / force-takeover) ───────────────────────
+
+/**
+ * Update fields in an existing lock file without re-acquiring.
+ * Used by Plan Agent recovery to register a new terminal handle.
+ */
+export function updateLock(fields: Partial<LockInfo>): void {
+  if (!existsSync(LOCK_PATH)) return;
+  try {
+    const lock: LockInfo = JSON.parse(readFileSync(LOCK_PATH, "utf-8"));
+    const updated = { ...lock, ...fields };
+    writeFileSync(LOCK_PATH, JSON.stringify(updated, null, 2));
+  } catch {
+    // Corrupt or race — ignore silently
+  }
+}
+
+/**
+ * Parse --handle flag from args. Returns WindowHandle or null.
+ */
+export function parseHandleFlag(args: string[]): WindowHandle | null {
+  const idx = args.indexOf("--handle");
+  if (idx < 0 || !args[idx + 1]) return null;
+  try {
+    return JSON.parse(args[idx + 1]) as WindowHandle;
+  } catch {
+    return null;
+  }
+}
+
 // ── Commands ───────────────────────────────────────────────────────────
 
 async function cmdStart(args: string[]): Promise<void> {
@@ -103,7 +133,9 @@ async function cmdStart(args: string[]): Promise<void> {
     }
   }
 
-  if (!acquireLock(sessionId, null)) {
+  const planAgentHandle = parseHandleFlag(args);
+
+  if (!acquireLock(sessionId, planAgentHandle)) {
     const lock = readLock();
     console.error("Error: 已有活跃的编排会话");
     if (lock) {
@@ -121,10 +153,13 @@ async function cmdStart(args: string[]): Promise<void> {
 
   console.log(`Orchestration daemon started (PID ${process.pid})`);
 
-  const state = createDaemonState(process.cwd(), null);
+  const state = createDaemonState(process.cwd(), planAgentHandle);
 
-  // Graceful shutdown
+  // Graceful shutdown (guarded against double-call from signal + post-loop)
+  let shutdownCalled = false;
   const shutdown = () => {
+    if (shutdownCalled) return;
+    shutdownCalled = true;
     console.log("\nOrchestration daemon stopping...");
     state.running = false;
     releaseLock();
@@ -135,7 +170,7 @@ async function cmdStart(args: string[]): Promise<void> {
 
   await runDaemon(state);
 
-  shutdown();
+  shutdown(); // Safe: no-op if signal handler already ran
   console.log("Orchestration daemon stopped.");
 }
 
