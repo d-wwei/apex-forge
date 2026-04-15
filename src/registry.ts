@@ -69,6 +69,29 @@ export function hubPort(): number {
 }
 
 /**
+ * Check if dir is a git repository (searches upward, not downward).
+ */
+function isGitRepo(dir: string): boolean {
+  try {
+    const r = spawnSync("git", ["rev-parse", "--git-dir"], {
+      cwd: dir, encoding: "utf-8", timeout: 3000,
+    });
+    return r.status === 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * True if a is an ancestor of b or b is an ancestor of a.
+ */
+function isAncestorOrDescendant(a: string, b: string): boolean {
+  const aN = a.endsWith("/") ? a : a + "/";
+  const bN = b.endsWith("/") ? b : b + "/";
+  return aN.startsWith(bN) || bN.startsWith(aN);
+}
+
+/**
  * Resolve the canonical project root for a directory.
  *
  * Two directories are the same project if they share the same canonical root.
@@ -109,19 +132,39 @@ function getCanonicalProjectRoot(dir: string): string {
  * Register a project dashboard as active.
  * Deduplicates by canonical project root: if another directory with the same
  * root is already registered, replaces it instead of creating a duplicate.
+ * Also deduplicates parent/child paths: if one is a git repo and the other
+ * is not, the non-git entry is discarded (prevents ghost registrations from
+ * running `apex init` in the wrong directory).
  */
 export function register(entry: ProjectEntry) {
   const reg = readRegistry();
   const canonicalRoot = getCanonicalProjectRoot(entry.path);
+  const entryIsGit = isGitRepo(entry.path);
 
-  // Remove entries that share the same canonical root OR the same path
+  // If an existing git-repo entry is an ancestor/descendant of this non-git
+  // entry, the new entry is a ghost — don't add it.
+  let dominated = false;
+
   reg.projects = reg.projects.filter((p) => {
     if (p.path === entry.path) return false;
     if (getCanonicalProjectRoot(p.path) === canonicalRoot) return false;
+
+    // Path containment: parent/child directories
+    if (isAncestorOrDescendant(p.path, entry.path)) {
+      const pIsGit = isGitRepo(p.path);
+      // Both are git repos → genuinely separate projects, keep both
+      if (pIsGit && entryIsGit) return true;
+      // Existing is git, new is not → new is a ghost, keep existing
+      if (pIsGit && !entryIsGit) { dominated = true; return true; }
+      // Existing is not git, new is (or neither) → remove existing
+      return false;
+    }
     return true;
   });
 
-  reg.projects.push(entry);
+  if (!dominated) {
+    reg.projects.push(entry);
+  }
   writeRegistry(reg);
 }
 
