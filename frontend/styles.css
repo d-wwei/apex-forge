@@ -533,6 +533,37 @@ html, body {
 
 .panel-body { padding: 20px; }
 
+/* --- Section Collapse --- */
+.section-collapsible.section-collapsed {
+  max-height: 200px;
+  overflow: hidden;
+  position: relative;
+}
+.section-collapsible.section-collapsed.section-has-overflow::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: linear-gradient(transparent, var(--bg-card));
+  pointer-events: none;
+}
+.section-toggle-btn {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  padding: 6px 0 0;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.section-toggle-btn:hover {
+  color: var(--accent-gold-light);
+}
+
 /* --- Pipeline Orchestration --- */
 .pipeline-stages {
   display: flex;

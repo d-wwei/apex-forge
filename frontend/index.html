@@ -152,7 +152,7 @@
             <div id="wt-expanded-rows" class="wt-expanded-rows" style="display:none"></div>
             <!-- Session expand/collapse rows -->
             <div id="session-expanded-rows" class="wt-expanded-rows" style="display:none"></div>
-            <div class="pipeline-artifacts" id="pipeline-artifacts">
+            <div class="pipeline-artifacts section-collapsible section-collapsed" id="pipeline-artifacts">
               <!-- Artifacts rendered by JS -->
             </div>
           </div>
@@ -162,7 +162,6 @@
         <div class="panel">
           <div class="panel-header">
             <span class="panel-title" data-i18n="telemetry.title">System Telemetry</span>
-            <button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:16px;letter-spacing:2px;">...</button>
           </div>
           <div class="panel-body">
             <div class="telemetry-stats" id="telemetry-stats">
@@ -179,7 +178,7 @@
                 <span class="stat-value green" id="stat-rate">--%</span>
               </div>
             </div>
-            <div class="skill-ranking" id="skill-ranking">
+            <div class="skill-ranking section-collapsible section-collapsed" id="skill-ranking">
               <div class="skill-ranking-title" data-i18n="telemetry.skillRanking">Skill Performance Ranking</div>
               <div id="skill-bars"></div>
             </div>
