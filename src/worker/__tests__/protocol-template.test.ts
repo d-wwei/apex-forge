@@ -92,6 +92,15 @@ describe("generateWorkerProtocol", () => {
     expect(md).toContain("apex task block T3");
   });
 
+  it("includes Plan Agent directive check section", () => {
+    const md = generateWorkerProtocol(makeOpts());
+    expect(md).toContain("## Plan Agent 通信协议");
+    expect(md).toContain("[PLAN-AGENT]");
+    expect(md).toContain("[PLAN-AGENT:INTERRUPT]");
+    expect(md).toContain("directive.json");
+    expect(md).toContain("escalation.json");
+  });
+
   it("includes work boundaries section", () => {
     const md = generateWorkerProtocol(makeOpts());
     expect(md).toContain("## 工作边界");
@@ -136,27 +145,27 @@ describe("generateWorkerProtocol", () => {
 describe("agentStartCommand", () => {
   const worktree = "/home/user/myproject/.apex/worktrees/T3";
 
-  it("returns correct claude command", () => {
-    const cmd = agentStartCommand("claude", worktree);
+  it("returns correct claude command (fallback)", async () => {
+    const cmd = await agentStartCommand("claude", worktree);
     expect(cmd).toBe(
       `cd "${worktree}" && claude --append-system-prompt-file .apex/worker-protocol.md`,
     );
   });
 
-  it("returns correct codex command", () => {
-    const cmd = agentStartCommand("codex", worktree);
+  it("returns correct codex command (fallback)", async () => {
+    const cmd = await agentStartCommand("codex", worktree);
     expect(cmd).toBe(`cd "${worktree}" && codex --full-auto`);
   });
 
-  it("returns correct gemini command", () => {
-    const cmd = agentStartCommand("gemini", worktree);
+  it("returns correct gemini command (fallback)", async () => {
+    const cmd = await agentStartCommand("gemini", worktree);
     expect(cmd).toBe(
       `cd "${worktree}" && gemini --yolo -p "$(cat .apex/worker-protocol.md)"`,
     );
   });
 
-  it("defaults to claude command for unknown agent", () => {
-    const cmd = agentStartCommand("unknown-agent", worktree);
+  it("defaults to claude command for unknown agent", async () => {
+    const cmd = await agentStartCommand("unknown-agent", worktree);
     expect(cmd).toBe(
       `cd "${worktree}" && claude --append-system-prompt-file .apex/worker-protocol.md`,
     );
