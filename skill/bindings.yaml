@@ -98,16 +98,28 @@ review:
       - gate: design-baseline        # Phase 1 (objective) + Phase 2 (multi-persona sub-agents)
         verdict_on_fail: REJECTED
 
-  - trigger: "product experience or UX evaluation"
-    skill: product-review
-    priority: 4
-    concurrent: true
-
   - trigger: "代码审查完成后，获取独立第二意见"
     skill: codex-consult
     mode: review
     priority: 5
     concurrent: true
+
+# ─── Post-Ship (optional, user-selected before Compound) ─────
+
+post-ship:
+  - trigger: "product has web, mobile, or desktop app UI"
+    skill: product-review
+    alias: product-user-review
+    priority: 1
+    concurrent: false
+    note: "UX experience evaluation — requires a running product"
+
+  - trigger: "system health audit against design goals"
+    skill: product-goal-based-audit
+    alias: product-goal-based-audit
+    priority: 2
+    concurrent: false
+    note: "7-phase audit — requires running infrastructure"
 
 # ─── Compound Stage ───────────────────────────────────────────
 
