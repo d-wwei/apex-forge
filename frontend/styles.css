@@ -845,6 +845,20 @@ html, body {
 .memory-panel .panel-body::-webkit-scrollbar-track { background: var(--bg-card); }
 .memory-panel .panel-body::-webkit-scrollbar-thumb { background: var(--bg-tag); border-radius: 3px; }
 
+.memory-layer-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  padding: 8px 0 4px 0;
+  margin-top: 4px;
+}
+.memory-layer-label:first-child {
+  margin-top: 0;
+}
+
 .memory-fact {
   background: var(--bg-deep);
   border-left: 4px solid;

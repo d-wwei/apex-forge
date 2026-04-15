@@ -409,7 +409,7 @@ function render(data) {
   renderPipeline(data.state, data.tasks, data._worktrees, data.sessionPipelines, data.project);
   renderTelemetry(data.analytics);
   renderActivity(data.analytics);
-  renderMemory(data.memory);
+  renderMemory(data.memory, data.globalMemory);
 
   // Update worktree controls if worktree data available
   if (data._worktrees) updateWtControls();
@@ -768,10 +768,12 @@ function renderActivityRow(r, highlighted) {
   return '<div class="activity-row' + (highlighted ? ' highlighted' : '') + '"><span class="activity-time">' + esc(r.time) + '</span><span class="activity-skill">' + esc(r.skill) + '</span><span class="activity-status ' + r.status + '">' + statusText + ' ' + statusIcon + '</span><span class="activity-duration">' + esc(r.dur) + '</span></div>';
 }
 
-function renderMemory(memory) {
+function renderMemory(memory, globalMemory) {
   const el = document.getElementById('memory-list');
-  const facts = memory.facts || [];
-  if (facts.length === 0) {
+  const projectFacts = (memory && memory.facts) || [];
+  const globalFacts = (globalMemory && globalMemory.facts) || [];
+
+  if (projectFacts.length === 0 && globalFacts.length === 0) {
     el.innerHTML = '<div class="empty-state">' +
       '<div class="empty-state-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" stroke="currentColor" stroke-width="1.2"/><path d="M5 6h6M5 8.5h4M5 11h2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></div>' +
       '<div class="empty-state-title">' + t('memory.noFacts') + '</div>' +
@@ -780,10 +782,26 @@ function renderMemory(memory) {
     '</div>';
     return;
   }
-  el.innerHTML = [...facts].sort((a, b) => b.confidence - a.confidence).map(f => {
-    const conf = f.confidence != null ? f.confidence : 0;
-    return renderMemoryFact({ confidence: conf, level: conf >= 0.8 ? 'high' : conf >= 0.5 ? 'med' : 'low', content: f.content, tags: f.tags || [] });
-  }).join('');
+
+  var html = '';
+
+  if (globalFacts.length > 0) {
+    html += '<div class="memory-layer-label">' + t('memory.globalLayer') + ' (' + globalFacts.length + ')</div>';
+    html += [...globalFacts].sort((a, b) => b.confidence - a.confidence).map(f => {
+      const conf = f.confidence != null ? f.confidence : 0;
+      return renderMemoryFact({ confidence: conf, level: conf >= 0.8 ? 'high' : conf >= 0.5 ? 'med' : 'low', content: f.content, tags: f.tags || [], layer: 'global' });
+    }).join('');
+  }
+
+  if (projectFacts.length > 0) {
+    html += '<div class="memory-layer-label">' + t('memory.projectLayer') + ' (' + projectFacts.length + ')</div>';
+    html += [...projectFacts].sort((a, b) => b.confidence - a.confidence).map(f => {
+      const conf = f.confidence != null ? f.confidence : 0;
+      return renderMemoryFact({ confidence: conf, level: conf >= 0.8 ? 'high' : conf >= 0.5 ? 'med' : 'low', content: f.content, tags: f.tags || [], layer: 'project' });
+    }).join('');
+  }
+
+  el.innerHTML = html;
 }
 
 function renderMemoryFact(f) {

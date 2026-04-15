@@ -1431,6 +1431,7 @@ async function buildStatePayload(projectDir: string, projectName: string) {
     },
     tasks,
     memory: await readJSON(join(apexDir, "memory.json"), { facts: [], next_id: 1 }),
+    globalMemory: await readJSON(join(process.env.HOME || "/tmp", ".apex-forge", "memory.json"), { facts: [], next_id: 1 }),
     state: derivedState,
     analytics: loadEvents(apexDir),
     sessions: Array.from(sessions),

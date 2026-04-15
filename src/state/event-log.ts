@@ -522,3 +522,60 @@ export async function rebuildAllCaches(): Promise<void> {
   await rebuildAndCache("state");
   await rebuildAndCache("memory");
 }
+
+// ---------------------------------------------------------------------------
+// Global memory layer (~/.apex-forge/)
+// ---------------------------------------------------------------------------
+
+const GLOBAL_DIR = join(process.env.HOME || "/tmp", ".apex-forge");
+const GLOBAL_LOG_DIR = join(GLOBAL_DIR, "log");
+const GLOBAL_MEMORY_LOG = join(GLOBAL_LOG_DIR, "memory.jsonl");
+const GLOBAL_MEMORY_CACHE = join(GLOBAL_DIR, "memory.json");
+
+function ensureGlobalLogDir(): void {
+  if (!existsSync(GLOBAL_LOG_DIR)) {
+    mkdirSync(GLOBAL_LOG_DIR, { recursive: true });
+  }
+}
+
+export function appendGlobalMemoryEvent(
+  type: string,
+  payload: Record<string, unknown>,
+): void {
+  ensureGlobalLogDir();
+  const event: DomainEvent = {
+    ts: isoTimestamp(),
+    session_id: currentSessionId(),
+    domain: "memory",
+    type,
+    payload,
+  };
+  appendFileSync(GLOBAL_MEMORY_LOG, JSON.stringify(event) + "\n");
+}
+
+export function readGlobalMemoryEvents(): DomainEvent[] {
+  if (!existsSync(GLOBAL_MEMORY_LOG)) return [];
+  try {
+    return readFileSync(GLOBAL_MEMORY_LOG, "utf-8")
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => {
+        try { return JSON.parse(line) as DomainEvent; } catch { return null; }
+      })
+      .filter(Boolean) as DomainEvent[];
+  } catch {
+    return [];
+  }
+}
+
+export async function rebuildGlobalMemoryCache(): Promise<void> {
+  const events = readGlobalMemoryEvents();
+  const store = materializeMemory(events);
+  ensureGlobalLogDir();
+  await writeJSON(GLOBAL_MEMORY_CACHE, store);
+}
+
+export function getGlobalMemoryCachePath(): string {
+  return GLOBAL_MEMORY_CACHE;
+}

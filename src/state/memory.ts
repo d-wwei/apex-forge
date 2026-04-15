@@ -9,7 +9,7 @@ import { readJSON } from "../utils/json.js";
 import { isoTimestamp } from "../utils/timestamp.js";
 import { FactNotFoundError } from "../utils/errors.js";
 import type { Fact, MemoryStore } from "../types/memory.js";
-import { appendEvent, rebuildAndCache } from "./event-log.js";
+import { appendEvent, rebuildAndCache, appendGlobalMemoryEvent, rebuildGlobalMemoryCache, getGlobalMemoryCachePath } from "./event-log.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -26,6 +26,10 @@ const PRUNE_THRESHOLD = 0.5;
 
 async function loadStore(): Promise<MemoryStore> {
   return readJSON<MemoryStore>(MEMORY_PATH, EMPTY_STORE);
+}
+
+async function loadGlobalStore(): Promise<MemoryStore> {
+  return readJSON<MemoryStore>(getGlobalMemoryCachePath(), EMPTY_STORE);
 }
 
 // saveStore removed — writes go through event log + rebuildAndCache
@@ -176,4 +180,66 @@ export async function memoryPrune(): Promise<{
   }
 
   return { removed: removedIds.length, kept: original - removedIds.length };
+}
+
+// ---------------------------------------------------------------------------
+// Global memory operations
+// ---------------------------------------------------------------------------
+
+/**
+ * Add a fact to the global memory store (~/.apex-forge/memory.json).
+ * These are cross-project, cross-agent universal insights.
+ */
+export async function memoryAddGlobal(
+  content: string,
+  confidence: number,
+  tags: string[] = [],
+  source: string = "",
+): Promise<Fact> {
+  if (confidence < 0 || confidence > 1) {
+    throw new RangeError(`Confidence must be between 0.0 and 1.0, got ${confidence}`);
+  }
+
+  const store = await loadGlobalStore();
+  const now = isoTimestamp();
+  const id = `G${store.next_id}`;
+
+  appendGlobalMemoryEvent("fact.added", {
+    id,
+    content,
+    confidence,
+    tags,
+    source: source || `session ${now.slice(0, 10)}`,
+  });
+
+  await rebuildGlobalMemoryCache();
+  const updated = await loadGlobalStore();
+  return updated.facts.find((f) => f.id === id)!;
+}
+
+/**
+ * List facts merged from both project and global stores.
+ * Each fact is tagged with its layer ("project" or "global").
+ */
+export async function memoryListMerged(minConfidence: number = 0): Promise<(Fact & { layer: "project" | "global" })[]> {
+  const project = await loadStore();
+  const global = await loadGlobalStore();
+
+  const projectFacts = project.facts
+    .filter((f) => f.confidence >= minConfidence)
+    .map((f) => ({ ...f, layer: "project" as const }));
+
+  const globalFacts = global.facts
+    .filter((f) => f.confidence >= minConfidence)
+    .map((f) => ({ ...f, layer: "global" as const }));
+
+  return [...globalFacts, ...projectFacts]
+    .sort((a, b) => b.confidence - a.confidence);
+}
+
+/**
+ * Load global memory store for Dashboard.
+ */
+export async function memoryGetGlobal(): Promise<MemoryStore> {
+  return loadGlobalStore();
 }
