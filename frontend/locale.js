@@ -44,9 +44,14 @@ const LOCALE = {
 
     // Telemetry
     'telemetry.title': 'System Telemetry',
-    'telemetry.totalRuns': 'Total Runs',
-    'telemetry.avgDuration': 'Avg Duration',
-    'telemetry.successRate': 'Success Rate',
+    'telemetry.totalIterations': 'Total Iterations',
+    'telemetry.featureTasks': 'Features / Tasks',
+    'telemetry.avgTaskTime': 'Avg Task Time',
+    'telemetry.reviewFixRate': 'Review Fix Rate',
+    'telemetry.inProgress': 'In Progress',
+    'telemetry.completed': 'Completed',
+    'telemetry.delivered': 'Delivered',
+    'telemetry.minPerTask': 'min/task',
     'telemetry.skillRanking': 'Skill Performance Ranking',
     'telemetry.noSkillData': 'No skill data yet',
     'telemetry.calls': ' CALLS',
@@ -54,6 +59,9 @@ const LOCALE = {
 
     // Activity
     'activity.title': 'Activity Stream',
+    'activity.totalActivities': 'Total Activities',
+    'activity.successRate': 'Success Rate',
+    'activity.avgDuration': 'Avg Duration',
     'activity.noActivity': 'No Activity',
     'activity.noActivityHint': 'Skill invocations and tool calls will appear here as you work.',
     'activity.success': 'SUCCESS',
@@ -64,6 +72,9 @@ const LOCALE = {
     'memory.noFacts': 'No Memory Facts',
     'memory.noFactsHint': 'Project knowledge and learned patterns are stored here.',
     'memory.noFactsCmd': '/apex-forge-memory add',
+    'memory.totalMemories': 'Total Memories',
+    'memory.globalMemories': 'Global',
+    'memory.projectMemories': 'Project',
     'memory.globalLayer': 'Global Memory',
     'memory.projectLayer': 'Project Memory',
     'memory.high': 'HIGH',
@@ -152,9 +163,14 @@ const LOCALE = {
 
     // Telemetry
     'telemetry.title': '系统遥测',
-    'telemetry.totalRuns': '总运行次数',
-    'telemetry.avgDuration': '平均耗时',
-    'telemetry.successRate': '成功率',
+    'telemetry.totalIterations': '总迭代数',
+    'telemetry.featureTasks': '功能/任务数',
+    'telemetry.avgTaskTime': '平均任务耗时',
+    'telemetry.reviewFixRate': 'Review 修复率',
+    'telemetry.inProgress': '进行中',
+    'telemetry.completed': '已完成',
+    'telemetry.delivered': '已交付',
+    'telemetry.minPerTask': 'min/task',
     'telemetry.skillRanking': 'Skill 性能排行',
     'telemetry.noSkillData': '暂无 Skill 数据',
     'telemetry.calls': ' 次调用',
@@ -162,6 +178,9 @@ const LOCALE = {
 
     // Activity
     'activity.title': '活动流',
+    'activity.totalActivities': '总活动数',
+    'activity.successRate': '活动成功率',
+    'activity.avgDuration': '平均活动耗时',
     'activity.noActivity': '暂无活动',
     'activity.noActivityHint': 'Skill 调用和工具操作将在你工作时自动记录在此。',
     'activity.success': '成功',
@@ -169,6 +188,9 @@ const LOCALE = {
 
     // Memory
     'memory.title': '认知记忆',
+    'memory.totalMemories': '总记忆数',
+    'memory.globalMemories': '全局',
+    'memory.projectMemories': '项目',
     'memory.noFacts': '暂无记忆',
     'memory.noFactsHint': '项目知识和学习到的模式会存储在此。',
     'memory.noFactsCmd': '/apex-forge-memory add',

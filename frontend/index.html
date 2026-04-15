@@ -166,16 +166,22 @@
           <div class="panel-body">
             <div class="telemetry-stats" id="telemetry-stats">
               <div class="stat-card gold">
-                <span class="stat-label" data-i18n="telemetry.totalRuns">Total Runs</span>
-                <span class="stat-value" id="stat-total">0</span>
+                <span class="stat-label" data-i18n="telemetry.totalIterations">Total Iterations</span>
+                <span class="stat-value" id="stat-iterations">0</span>
+                <span class="stat-sub" id="stat-iterations-sub"></span>
               </div>
               <div class="stat-card blue">
-                <span class="stat-label" data-i18n="telemetry.avgDuration">Avg Duration</span>
-                <span class="stat-value" id="stat-avg">--<span class="stat-unit">s</span></span>
+                <span class="stat-label" data-i18n="telemetry.featureTasks">Features / Tasks</span>
+                <span class="stat-value" id="stat-features">0</span>
+                <span class="stat-sub" id="stat-features-sub"></span>
               </div>
               <div class="stat-card green">
-                <span class="stat-label" data-i18n="telemetry.successRate">Success Rate</span>
-                <span class="stat-value green" id="stat-rate">--%</span>
+                <span class="stat-label" data-i18n="telemetry.avgTaskTime">Avg Task Time</span>
+                <span class="stat-value" id="stat-avg-task">--<span class="stat-unit">min/task</span></span>
+              </div>
+              <div class="stat-card purple">
+                <span class="stat-label" data-i18n="telemetry.reviewFixRate">Review Fix Rate</span>
+                <span class="stat-value" id="stat-review-rate">--%</span>
               </div>
             </div>
             <div class="skill-ranking section-collapsible section-collapsed" id="skill-ranking">
@@ -247,11 +253,22 @@
           <div class="panel-header">
             <span class="panel-title" data-i18n="activity.title">Activity Stream</span>
           </div>
-          <div class="panel-body" id="activity-stream">
-            <div class="empty-state">
-              <div class="empty-state-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M8 5v3.5l2.5 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-              <div class="empty-state-title" data-i18n="activity.noActivity">No Activity</div>
-              <div class="empty-state-hint" data-i18n="activity.noActivityHint">Skill invocations and tool calls will appear here as you work.</div>
+          <div class="panel-body">
+            <div class="activity-stats" id="activity-stats">
+              <div class="stat-card gold stat-card-sm">
+                <span class="stat-label" data-i18n="activity.totalActivities">Total Activities</span>
+                <span class="stat-value" id="stat-act-total">0</span>
+              </div>
+              <div class="stat-card green stat-card-sm">
+                <span class="stat-label" data-i18n="activity.successRate">Success Rate</span>
+                <span class="stat-value" id="stat-act-rate">--%</span>
+              </div>
+              <div class="stat-card blue stat-card-sm">
+                <span class="stat-label" data-i18n="activity.avgDuration">Avg Duration</span>
+                <span class="stat-value" id="stat-act-dur">--<span class="stat-unit">s</span></span>
+              </div>
+            </div>
+            <div id="activity-stream">
             </div>
           </div>
         </div>
@@ -264,13 +281,23 @@
               <path d="M1 1L5.5 5.5L10 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-muted)"/>
             </svg>
           </div>
-          <div class="panel-body" id="memory-list">
-            <div class="empty-state">
-              <div class="empty-state-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" stroke="currentColor" stroke-width="1.2"/><path d="M5 6h6M5 8.5h4M5 11h2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></div>
-              <div class="empty-state-title" data-i18n="memory.noFacts">No Memory Facts</div>
-              <div class="empty-state-hint" data-i18n="memory.noFactsHint">Project knowledge and learned patterns are stored here.</div>
-              <div class="empty-state-cmd">/apex-forge-memory add</div>
+          <div class="panel-body">
+            <div class="memory-stats" id="memory-stats">
+              <div class="stat-card gold stat-card-sm">
+                <span class="stat-label" data-i18n="memory.totalMemories">Total Memories</span>
+                <span class="stat-value" id="stat-mem-total">0</span>
+              </div>
+              <div class="stat-card blue stat-card-sm">
+                <span class="stat-label" data-i18n="memory.globalMemories">Global</span>
+                <span class="stat-value" id="stat-mem-global">0</span>
+              </div>
+              <div class="stat-card green stat-card-sm">
+                <span class="stat-label" data-i18n="memory.projectMemories">Project</span>
+                <span class="stat-value" id="stat-mem-project">0</span>
+              </div>
+              <div class="confidence-chart" id="confidence-chart"></div>
             </div>
+            <div id="memory-list"></div>
           </div>
         </div>
       </div>

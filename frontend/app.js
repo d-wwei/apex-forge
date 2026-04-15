@@ -439,7 +439,7 @@ function switchToFilter(label) {
 function render(data) {
   renderKanban(data.tasks, data._worktrees);
   renderPipeline(data.state, data.tasks, data._worktrees, data.sessionPipelines, data.project);
-  renderTelemetry(data.analytics);
+  renderTelemetry(data.state, data.tasks, data.analytics);
   updateAllSectionCollapse();
   renderActivity(data.analytics);
   renderMemory(data.memory, data.globalMemory);
@@ -742,27 +742,59 @@ function renderSessionExpandedRows(sessions) {
   }).join('');
 }
 
-function renderTelemetry(analytics) {
-  // Filter: only real skill invocations, not pipeline stage events
-  const pipelineNames = new Set(['brainstorm','plan','execute','review','ship','compound','idle','task','artifact','memory']);
-  const skillEvents = (analytics || []).filter(a => !pipelineNames.has(a.skill || a.name || ''));
+function renderTelemetry(state, tasks, analytics) {
+  var history = (state && state.history) || [];
+  var taskList = (tasks && tasks.tasks) || [];
+  var all = analytics || [];
 
-  if (skillEvents.length === 0) {
-    document.getElementById('stat-total').textContent = '0';
-    document.getElementById('stat-avg').innerHTML = '0<span class="stat-unit">' + t('telemetry.seconds') + '</span>';
-    document.getElementById('stat-rate').textContent = '--';
-    renderSkillBars([]);
-    return;
+  // --- Metric 1: Total Iterations (in-progress + completed) ---
+  var iterStarts = history.filter(function(h) { return h.stage === 'brainstorm' || (h.stage === 'execute' && !history.some(function(p) { return p.stage === 'brainstorm' && !p.completed; })); });
+  var iterEnds = history.filter(function(h) { return (h.stage === 'ship' || h.stage === 'compound') && h.completed; });
+  var completedIter = 0;
+  for (var i = 0; i < iterEnds.length; i++) {
+    if (iterEnds[i].stage === 'ship' || iterEnds[i].stage === 'compound') completedIter++;
   }
-  const bySkill = {}; let totalDur = 0, successes = 0;
-  const okOutcomes = new Set(['success','pass','APPROVED','PASS']);
-  for (const a of skillEvents) { const s = a.skill || a.name || 'unknown'; if (!bySkill[s]) bySkill[s] = { count: 0, dur: 0 }; bySkill[s].count++; const dur = a.duration_s != null ? a.duration_s : (a.duration || 0); bySkill[s].dur += dur; totalDur += dur; if (okOutcomes.has(a.outcome || a.result || '')) successes++; }
-  document.getElementById('stat-total').textContent = skillEvents.length.toLocaleString();
-  document.getElementById('stat-avg').innerHTML = (totalDur / skillEvents.length).toFixed(1) + '<span class="stat-unit">' + t('telemetry.seconds') + '</span>';
-  document.getElementById('stat-rate').textContent = (successes / skillEvents.length * 100).toFixed(1) + '%';
-  const entries = Object.entries(bySkill).sort((a, b) => b[1].count - a[1].count).slice(0, 5);
-  const maxCount = Math.max(...entries.map(([, v]) => v.count), 1);
-  renderSkillBars(entries.map(([name, data]) => ({ name: name.toUpperCase(), count: data.count, pct: Math.round(data.count / maxCount * 100) })));
+  // Deduplicate: count unique ship completions as iterations
+  var shipCompleted = history.filter(function(h) { return h.stage === 'ship' && h.completed; }).length;
+  var inProgressIter = Math.max(0, iterStarts.length - shipCompleted);
+  document.getElementById('stat-iterations').textContent = (inProgressIter + shipCompleted).toString();
+  document.getElementById('stat-iterations-sub').textContent = t('telemetry.inProgress') + ' ' + inProgressIter + ' + ' + t('telemetry.completed') + ' ' + shipCompleted;
+
+  // --- Metric 2: Features/Tasks (in-progress + delivered) ---
+  var inProgressTasks = taskList.filter(function(t) { return t.status !== 'done'; }).length;
+  var doneTasks = taskList.filter(function(t) { return t.status === 'done'; }).length;
+  document.getElementById('stat-features').textContent = taskList.length.toString();
+  document.getElementById('stat-features-sub').textContent = t('telemetry.inProgress') + ' ' + inProgressTasks + ' + ' + t('telemetry.delivered') + ' ' + doneTasks;
+
+  // --- Metric 3: Avg Task Time (min/task) ---
+  var totalPipelineMin = 0;
+  for (var j = 0; j < history.length; j++) {
+    var h = history[j];
+    if (h.completed && h.started) {
+      totalPipelineMin += (new Date(h.completed).getTime() - new Date(h.started).getTime()) / 60000;
+    }
+  }
+  var avgTaskMin = doneTasks > 0 ? (totalPipelineMin / doneTasks).toFixed(1) : '--';
+  document.getElementById('stat-avg-task').innerHTML = avgTaskMin + '<span class="stat-unit">' + t('telemetry.minPerTask') + '</span>';
+
+  // --- Metric 4: Review Fix Rate ---
+  var reviewStarts = history.filter(function(h) { return h.stage === 'review'; }).length;
+  var reviewCompleted = history.filter(function(h) { return h.stage === 'review' && h.completed; }).length;
+  var reviewRate = reviewStarts > 0 ? ((reviewCompleted / reviewStarts) * 100).toFixed(0) : '--';
+  document.getElementById('stat-review-rate').textContent = reviewRate + '%';
+
+  // --- Skill Performance Ranking (unchanged logic) ---
+  var pipelineNames = new Set(['brainstorm','plan','execute','review','ship','compound','idle','task','artifact','memory']);
+  var skillEvents = all.filter(function(a) { return !pipelineNames.has(a.skill || a.name || ''); });
+  var bySkill = {};
+  for (var k = 0; k < skillEvents.length; k++) {
+    var s = skillEvents[k].skill || skillEvents[k].name || 'unknown';
+    if (!bySkill[s]) bySkill[s] = { count: 0 };
+    bySkill[s].count++;
+  }
+  var entries = Object.entries(bySkill).sort(function(a, b) { return b[1].count - a[1].count; }).slice(0, 5);
+  var maxCount = Math.max.apply(null, entries.map(function(e) { return e[1].count; }).concat([1]));
+  renderSkillBars(entries.map(function(e) { return { name: e[0].toUpperCase(), count: e[1].count, pct: Math.round(e[1].count / maxCount * 100) }; }));
 }
 
 function renderSkillBars(bars) {
@@ -775,8 +807,19 @@ function renderSkillBars(bars) {
 }
 
 function renderActivity(analytics) {
+  var events = analytics || [];
+  var failSet = new Set(['error', 'failed', 'fail', 'blocked', 'timeout']);
+
+  // --- Activity stats ---
+  document.getElementById('stat-act-total').textContent = events.length;
+  var nonFailed = events.filter(function(a) { return !failSet.has(a.outcome || a.result || ''); });
+  document.getElementById('stat-act-rate').textContent = events.length > 0 ? ((nonFailed.length / events.length) * 100).toFixed(1) + '%' : '--%';
+  var withDur = events.filter(function(a) { return (a.duration_s || 0) > 0; });
+  var avgDur = withDur.length > 0 ? (withDur.reduce(function(s, a) { return s + (a.duration_s || 0); }, 0) / withDur.length).toFixed(1) : '--';
+  document.getElementById('stat-act-dur').innerHTML = avgDur + '<span class="stat-unit">s</span>';
+
   const el = document.getElementById('activity-stream');
-  if (!analytics || analytics.length === 0) {
+  if (!events || events.length === 0) {
     el.innerHTML = '<div class="empty-state">' +
       '<div class="empty-state-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M8 5v3.5l2.5 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>' +
       '<div class="empty-state-title">' + t('activity.noActivity') + '</div>' +
@@ -784,12 +827,11 @@ function renderActivity(analytics) {
     '</div>';
     return;
   }
-  el.innerHTML = analytics.slice(-30).reverse().map(a => {
+  el.innerHTML = events.slice(-30).reverse().map(a => {
     const ts = (a.ts || a.timestamp || '').slice(11, 23) || '--:--:--.---';
     const skill = (a.skill || a.name || 'unknown').toUpperCase();
     const oc = a.outcome || a.result || 'unknown';
-    const failOutcomes = new Set(['error', 'failed', 'fail', 'blocked', 'timeout']);
-    const isFail = failOutcomes.has(oc);
+    const isFail = failSet.has(oc);
     const dur = a.source === 'hook' ? (a.meta && a.meta.file ? esc(a.meta.file.split('/').pop()) : '') : (a.duration_s != null ? a.duration_s : (a.duration || 0)).toFixed(3) + 's';
     return renderActivityRow({ time: ts, skill, status: isFail ? 'failed' : 'success', label: oc, dur }, false);
   }).join('');
@@ -805,6 +847,19 @@ function renderMemory(memory, globalMemory) {
   const el = document.getElementById('memory-list');
   const projectFacts = (memory && memory.facts) || [];
   const globalFacts = (globalMemory && globalMemory.facts) || [];
+  const allFacts = [].concat(projectFacts, globalFacts);
+
+  // --- Memory stats ---
+  document.getElementById('stat-mem-total').textContent = allFacts.length;
+  document.getElementById('stat-mem-global').textContent = globalFacts.length;
+  document.getElementById('stat-mem-project').textContent = projectFacts.length;
+
+  var high = 0, med = 0, low = 0;
+  for (var i = 0; i < allFacts.length; i++) {
+    var c = allFacts[i].confidence != null ? allFacts[i].confidence : 0;
+    if (c >= 0.8) high++; else if (c >= 0.5) med++; else low++;
+  }
+  renderConfidenceDonut(high, med, low);
 
   if (projectFacts.length === 0 && globalFacts.length === 0) {
     el.innerHTML = '<div class="empty-state">' +
@@ -890,6 +945,32 @@ function renderDesignComparison() {
 function esc(s) {
   if (!s) return '';
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function renderConfidenceDonut(high, med, low) {
+  var el = document.getElementById('confidence-chart');
+  var total = high + med + low;
+  if (total === 0) {
+    el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;color:var(--text-dim);font-size:9px;font-family:var(--font-mono)">--</div>';
+    return;
+  }
+  var r = 24, cx = 30, cy = 30, sw = 8;
+  var circ = 2 * Math.PI * r;
+  var hLen = (high / total) * circ, mLen = (med / total) * circ, lLen = (low / total) * circ;
+  var hOff = 0, mOff = -(hLen), lOff = -(hLen + mLen);
+  el.innerHTML = '<svg viewBox="0 0 60 60" class="donut-svg">' +
+    '<g transform="rotate(-90 30 30)">' +
+    (hLen > 0 ? '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="var(--accent-green)" stroke-width="' + sw + '" stroke-dasharray="' + hLen + ' ' + (circ - hLen) + '" stroke-dashoffset="' + hOff + '"/>' : '') +
+    (mLen > 0 ? '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="var(--accent-gold)" stroke-width="' + sw + '" stroke-dasharray="' + mLen + ' ' + (circ - mLen) + '" stroke-dashoffset="' + mOff + '"/>' : '') +
+    (lLen > 0 ? '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="var(--accent-red)" stroke-width="' + sw + '" stroke-dasharray="' + lLen + ' ' + (circ - lLen) + '" stroke-dashoffset="' + lOff + '"/>' : '') +
+    '</g>' +
+    '<text x="' + cx + '" y="' + cy + '" text-anchor="middle" dominant-baseline="central" fill="var(--text-primary)" font-family="var(--font-heading)" font-size="11" font-weight="700">' + total + '</text>' +
+    '</svg>' +
+    '<div class="donut-legend">' +
+    '<span class="donut-leg-item"><span class="donut-dot" style="background:var(--accent-green)"></span>' + high + '</span>' +
+    '<span class="donut-leg-item"><span class="donut-dot" style="background:var(--accent-gold)"></span>' + med + '</span>' +
+    '<span class="donut-leg-item"><span class="donut-dot" style="background:var(--accent-red)"></span>' + low + '</span>' +
+    '</div>';
 }
 
 function openLocalFile(path) {
