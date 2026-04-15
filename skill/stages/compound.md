@@ -50,7 +50,7 @@ Before starting Compound work, verify Ship stage completeness:
 | 2. Solution Extractor | 提取方案、失败尝试、泛化模式 | Solution summary with generalized pattern |
 | 3. Related Docs Finder | 查找相关/过时文档 | Related doc list with overlap assessment |
 | 4. Iteration Reflector | 6 维反思 + 迭代机会 + 路线图快照 | 3-8 iteration opportunities + roadmap snapshot |
-| 5. Memory Router | 三筛子（泛化性/复现性/衰减性）路由知识到正确记忆层级 | 路由决策表 + 记忆文件写入 |
+| 5. Memory Writer | 将教训/模式写入项目记忆或全局记忆（硬门控） | 记忆文件 + MEMORY.md 更新 |
 
 ---
 
@@ -122,6 +122,104 @@ If Track 3 identified stale docs:
 1. Read each stale doc.
 2. Update it or add a "Superseded by" note pointing to the new doc.
 3. Do NOT delete stale docs -- they may contain useful historical context.
+
+---
+
+## Memory Write (HARD GATE)
+
+```
+================================================================
+  THIS STEP ENFORCES MANDATORY MEMORY WRITE.
+
+  After pattern extraction (Tracks 1-4), every lesson/pattern
+  MUST be written to memory before the Exit Gate.
+
+  Skipping this step = Exit Gate S5 fails = stage cannot complete.
+================================================================
+```
+
+### Step 1: Collect Lessons
+
+From the Compound analysis (Tracks 1-4), extract every discrete lesson, pattern, or feedback item.
+Each item is one of these types (matching the project memory schema):
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `feedback` | Agent behavior correction or confirmation | "折叠粒度应对齐信息层级" |
+| `pattern` | Reusable architectural/process pattern | "恢复触发条件决定存储层" |
+| `project` | Project-specific fact or decision | "Dashboard 前端是 vanilla JS" |
+
+If no lessons were extracted, this is a Compound quality failure — go back and do the analysis properly.
+
+### Step 2: Classify Each Lesson
+
+**Default: project memory.** Every lesson goes to project memory unless it meets the global promotion criteria.
+
+**Global promotion criteria** (ALL must be true):
+1. **跨项目通用**: The lesson applies to ANY project using apex-forge, not just this codebase
+2. **不依赖项目上下文**: Understanding the lesson does not require knowing this project's architecture
+3. **长期有效**: The lesson won't become stale when this project's code changes
+
+Examples:
+- "UI 折叠粒度对齐信息层级" → **Global** (universal UI principle)
+- "TDD + Review 互补性" → **Global** (universal process principle)
+- "Dashboard 前端用 sessionStorage 而非 localStorage" → **Project** (specific to this codebase)
+- "apex dashboard 通过 #project= hash 传递项目路径" → **Project** (specific implementation detail)
+
+### Step 3: Write Project Memory
+
+For each lesson classified as project-level:
+
+1. Write memory file to the project memory directory:
+   ```
+   {project_memory_dir}/{type}_{kebab_name}.md
+   ```
+   With frontmatter:
+   ```yaml
+   ---
+   name: {lesson title}
+   description: {one-line summary for MEMORY.md index}
+   type: {feedback|pattern|project}
+   ---
+
+   {lesson content}
+
+   **Why:** {reason/context}
+   **How to apply:** {when/where this applies}
+   ```
+
+2. Append to `MEMORY.md` index:
+   ```
+   - [{title}]({filename}) — {one-line hook, under 150 chars}
+   ```
+
+3. Before writing, check if an existing memory covers the same topic — update instead of duplicate.
+
+### Step 4: Propose Global Promotions
+
+For each lesson that meets the global promotion criteria.
+**If no lessons qualify for global promotion, skip this step entirely.**
+
+1. Present to user via `AskUserQuestion`:
+   - question: "以下教训具有跨项目通用性，是否写入全局记忆？"
+   - header: "Global Memory"
+   - For each candidate, list as an option with description
+   - Include a "全部跳过" option
+
+2. For user-approved items, write to global memory directory (`~/.claude/memory/`):
+   - Same frontmatter format as project memory
+   - Append to global `MEMORY.md` index
+
+3. If user declines all, that's fine — project memory is already written (Step 3).
+
+### Step 5: Verification
+
+After writing, verify:
+- [ ] At least 1 new memory file exists in project memory dir (mtime this session)
+- [ ] MEMORY.md index updated with new entry
+- [ ] No duplicate entries in MEMORY.md
+
+If verification fails, fix before proceeding to Exit Gate.
 
 ---
 
