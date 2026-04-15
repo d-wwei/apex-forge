@@ -2,6 +2,7 @@ import { describe, it, expect } from "bun:test";
 import {
   generateWorkerProtocol,
   agentStartCommand,
+  sectionCommunicationForCapabilities,
   type ProtocolOptions,
 } from "../protocol-template.js";
 import type { Task } from "../../types/task.js";
@@ -242,5 +243,76 @@ describe("agentStartCommand", () => {
     await expect(agentStartCommand("unknown-agent", worktree)).rejects.toThrow(
       /unknown agent/i,
     );
+  });
+});
+
+describe("sectionCommunication — capability degradation", () => {
+  const fullCaps = {
+    canExecuteBash: true,
+    canWriteFiles: true,
+    canReadFiles: true,
+    canRunApexCLI: true,
+    preferredLanguage: "en" as const,
+    maxPromptBytes: 200_000,
+  };
+  const fileWriteCaps = { ...fullCaps, canExecuteBash: false, canRunApexCLI: false };
+  const minimalCaps = { ...fileWriteCaps, canWriteFiles: false };
+  const commOpts = { task: makeTask(), projectRoot: "/proj" };
+
+  it("full bash mode includes heredoc and apex commands", () => {
+    const result = sectionCommunicationForCapabilities(commOpts, "en", fullCaps);
+    expect(result).toContain("cat >");
+    expect(result).toContain("APEX_EOF");
+    expect(result).toContain("apex task submit");
+  });
+
+  it("file-write mode uses Write instructions, no heredoc", () => {
+    const result = sectionCommunicationForCapabilities(commOpts, "en", fileWriteCaps);
+    expect(result).toContain("Write the following JSON");
+    expect(result).not.toContain("cat >");
+    expect(result).toContain("status.json");
+    expect(result).toContain("result.json");
+  });
+
+  it("minimal mode uses Create file, no heredoc, no apex CLI", () => {
+    const result = sectionCommunicationForCapabilities(commOpts, "en", minimalCaps);
+    expect(result).toContain("Create file");
+    expect(result).not.toContain("cat >");
+    expect(result).not.toContain("Write the following JSON");
+    expect(result).not.toContain("apex task submit");
+  });
+
+  it("file-write mode works in Chinese", () => {
+    const result = sectionCommunicationForCapabilities(commOpts, "zh", fileWriteCaps);
+    expect(result).toContain("将以下 JSON 写入");
+    expect(result).not.toContain("cat >");
+  });
+
+  it("minimal mode works in Chinese", () => {
+    const result = sectionCommunicationForCapabilities(commOpts, "zh", minimalCaps);
+    expect(result).toContain("创建文件");
+    expect(result).not.toContain("cat >");
+  });
+
+  it("all tiers include task_id and verdict JSON fields", () => {
+    for (const caps of [fullCaps, fileWriteCaps, minimalCaps]) {
+      const result = sectionCommunicationForCapabilities(commOpts, "en", caps);
+      expect(result).toContain('"task_id"');
+      expect(result).toContain('"verdict"');
+    }
+  });
+
+  it("file-write mode includes apex CLI as Run instructions", () => {
+    const result = sectionCommunicationForCapabilities(commOpts, "en", fileWriteCaps);
+    expect(result).toContain("apex task submit");
+    expect(result).toContain("apex task verify");
+    expect(result).toContain("apex task block");
+  });
+
+  it("minimal mode excludes all apex CLI commands", () => {
+    const result = sectionCommunicationForCapabilities(commOpts, "en", minimalCaps);
+    expect(result).not.toContain("apex task submit");
+    expect(result).not.toContain("apex task verify");
+    expect(result).not.toContain("apex task block");
   });
 });

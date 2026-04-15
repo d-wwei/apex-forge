@@ -10,6 +10,7 @@
 import type { Task } from "../types/task.js";
 import { loadConfig } from "../state/config.js";
 import { resolveAdapterWithConfig, BUILTIN_ADAPTERS } from "./agent-adapter.js";
+import type { AgentCapabilities } from "./agent-adapter.js";
 import type { AdaptersMap } from "../types/config.js";
 
 // ── Public types ──────────────────────────────────────────────────────
@@ -116,11 +117,15 @@ function sectionCoreRules(lang: "zh" | "en"): string {
 3. **验证门控**: 任何成功声明前必须运行验证命令并确认输出。"应该可以" 不是完成证据。`;
 }
 
-function sectionCommunication(opts: ProtocolOptions, lang: "zh" | "en"): string {
-  const { task, projectRoot } = opts;
-  const workersDir = `${projectRoot}/.apex/workers/${task.id}`;
+// ── Communication tier helpers ───────────────────────────────────────
 
-  // Bash blocks are identical in both languages — only surrounding text changes.
+/** Tier 1: full bash — heredoc + apex CLI commands. */
+function fullBashCommunication(
+  task: Task,
+  workersDir: string,
+  projectRoot: string,
+  lang: "zh" | "en",
+): string {
   const statusBlock = `\
 \`\`\`bash
 cat > ${workersDir}/status.json << 'APEX_EOF'
@@ -192,6 +197,229 @@ ${resultBlock}
 ### 遇到阻塞时
 
 ${blockBlock}`;
+}
+
+/** Tier 2: file-write — "Write the following JSON" instructions + "Run:" apex CLI. */
+function fileWriteCommunication(
+  task: Task,
+  workersDir: string,
+  projectRoot: string,
+  lang: "zh" | "en",
+): string {
+  const statusJson = `\
+{
+  "task_id": "${task.id}",
+  "stage": "<current_stage>",
+  "progress": "<description>",
+  "last_activity": "<ISO timestamp>",
+  "errors": []
+}`;
+
+  const resultJson = `\
+{
+  "task_id": "${task.id}",
+  "verdict": "pass",
+  "summary": "<what you accomplished>",
+  "findings": [],
+  "completed_at": "<ISO timestamp>",
+  "branch": "apex/${task.id}",
+  "commit": "<commit hash>"
+}`;
+
+  if (lang === "en") {
+    return `\
+## Communication Protocol
+
+You work in an isolated worktree. Report status to the main project:
+
+### Progress Update (after each sub-task)
+
+Write the following JSON to \`${workersDir}/status.json\`:
+
+\`\`\`json
+${statusJson}
+\`\`\`
+
+### On Completion
+
+Write the following JSON to \`${workersDir}/result.json\`:
+
+\`\`\`json
+${resultJson}
+\`\`\`
+
+Then run:
+
+- \`cd ${projectRoot} && apex task submit ${task.id} "<evidence description>"\`
+- \`cd ${projectRoot} && apex task verify ${task.id} pass\`
+
+### When Blocked
+
+Run: \`cd ${projectRoot} && apex task block ${task.id} "<reason>"\``;
+  }
+
+  return `\
+## 通信协议
+
+你在独立的 worktree 中工作。需要向主项目报告状态:
+
+### 进度更新 (每完成一个子任务)
+
+将以下 JSON 写入 \`${workersDir}/status.json\`:
+
+\`\`\`json
+${statusJson}
+\`\`\`
+
+### 完成时
+
+将以下 JSON 写入 \`${workersDir}/result.json\`:
+
+\`\`\`json
+${resultJson}
+\`\`\`
+
+然后运行:
+
+- \`cd ${projectRoot} && apex task submit ${task.id} "<evidence description>"\`
+- \`cd ${projectRoot} && apex task verify ${task.id} pass\`
+
+### 遇到阻塞时
+
+运行: \`cd ${projectRoot} && apex task block ${task.id} "<reason>"\``;
+}
+
+/** Tier 3: minimal — "Create file" instructions only. No bash, no apex CLI. */
+function minimalCommunication(
+  task: Task,
+  workersDir: string,
+  lang: "zh" | "en",
+): string {
+  const statusJson = `\
+{
+  "task_id": "${task.id}",
+  "stage": "<current_stage>",
+  "progress": "<description>",
+  "last_activity": "<ISO timestamp>",
+  "errors": []
+}`;
+
+  const resultJson = `\
+{
+  "task_id": "${task.id}",
+  "verdict": "pass",
+  "summary": "<what you accomplished>",
+  "findings": [],
+  "completed_at": "<ISO timestamp>",
+  "branch": "apex/${task.id}",
+  "commit": "<commit hash>"
+}`;
+
+  if (lang === "en") {
+    return `\
+## Communication Protocol
+
+You work in an isolated worktree. Report status to the main project:
+
+### Progress Update (after each sub-task)
+
+Create file \`${workersDir}/status.json\` with content:
+
+\`\`\`json
+${statusJson}
+\`\`\`
+
+### On Completion
+
+Create file \`${workersDir}/result.json\` with content:
+
+\`\`\`json
+${resultJson}
+\`\`\`
+
+### When Blocked
+
+Create file \`${workersDir}/blocked.json\` with content:
+
+\`\`\`json
+{
+  "task_id": "${task.id}",
+  "reason": "<reason>"
+}
+\`\`\``;
+  }
+
+  return `\
+## 通信协议
+
+你在独立的 worktree 中工作。需要向主项目报告状态:
+
+### 进度更新 (每完成一个子任务)
+
+创建文件 \`${workersDir}/status.json\`，内容:
+
+\`\`\`json
+${statusJson}
+\`\`\`
+
+### 完成时
+
+创建文件 \`${workersDir}/result.json\`，内容:
+
+\`\`\`json
+${resultJson}
+\`\`\`
+
+### 遇到阻塞时
+
+创建文件 \`${workersDir}/blocked.json\`，内容:
+
+\`\`\`json
+{
+  "task_id": "${task.id}",
+  "reason": "<reason>"
+}
+\`\`\``;
+}
+
+// ── Capability-based dispatch ────────────────────────────────────────
+
+/**
+ * Generate communication instructions based on agent capabilities.
+ * Exported for direct testing with mock capabilities.
+ *
+ * Tiers:
+ *   1. Full bash (canExecuteBash + canRunApexCLI) — heredoc + apex CLI
+ *   2. File-write (canWriteFiles, no apex CLI) — "Write JSON" + "Run:" instructions
+ *   3. Minimal (no bash, no file write) — "Create file" instructions only
+ */
+export function sectionCommunicationForCapabilities(
+  opts: { task: Task; projectRoot: string },
+  lang: "zh" | "en",
+  caps: AgentCapabilities,
+): string {
+  const { task, projectRoot } = opts;
+  const workersDir = `${projectRoot}/.apex/workers/${task.id}`;
+
+  if (caps.canExecuteBash && caps.canRunApexCLI) {
+    return fullBashCommunication(task, workersDir, projectRoot, lang);
+  } else if (caps.canWriteFiles) {
+    return fileWriteCommunication(task, workersDir, projectRoot, lang);
+  } else {
+    return minimalCommunication(task, workersDir, lang);
+  }
+}
+
+function sectionCommunication(opts: ProtocolOptions, lang: "zh" | "en"): string {
+  let caps = BUILTIN_ADAPTERS.claude.capabilities; // default: full capability
+  if (opts.agent && BUILTIN_ADAPTERS[opts.agent]) {
+    caps = BUILTIN_ADAPTERS[opts.agent].capabilities;
+  }
+  return sectionCommunicationForCapabilities(
+    { task: opts.task, projectRoot: opts.projectRoot },
+    lang,
+    caps,
+  );
 }
 
 function sectionBoundaries(opts: ProtocolOptions, lang: "zh" | "en"): string {
