@@ -41,4 +41,5 @@ export interface SessionPipeline {
   stale: boolean;
   /** Bilingual summary from session.summary event, or fallback from first task title */
   summary?: { en?: string; zh?: string };
+  orchestration_events?: OrchestrationEvent[];
 }

@@ -444,6 +444,7 @@ export function materializePerSession(events: DomainEvent[]): SessionPipeline[] 
       artifacts: state.artifacts,
       stale: (now - lastUpdatedMs) > SESSION_STALE_MS,
       summary: sessionSummary,
+      orchestration_events: state.orchestration_events,
     });
   }
 
