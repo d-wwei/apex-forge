@@ -8,6 +8,7 @@
  */
 
 import type { Task } from "../types/task.js";
+import { loadConfig } from "../state/config.js";
 
 // ── Public types ──────────────────────────────────────────────────────
 
@@ -147,6 +148,46 @@ function sectionCrossModel(): string {
 - 重点关注: 逻辑错误、安全漏洞、边界条件、竞态条件`;
 }
 
+function sectionDirectiveCheck(opts: ProtocolOptions): string {
+  const { task, projectRoot } = opts;
+  const workersDir = `${projectRoot}/.apex/workers/${task.id}`;
+  return `\
+## Plan Agent 通信协议
+
+### 终端消息处理
+
+收到以 [PLAN-AGENT] 开头的消息时，这是来自 Plan Agent 的指令:
+- \`[PLAN-AGENT]\` → 常规指令，读取 directive.json 后继续
+- \`[PLAN-AGENT:INTERRUPT]\` → 紧急指令，立即读取 directive.json
+- \`[PLAN-AGENT:RESUME]\` → 暂停已解除，继续之前的工作
+
+收到不带 [PLAN-AGENT] 前缀的消息时，这是人类用户直接操作你的终端。
+正常响应用户，但在下一个阶段边界写入 escalation:
+
+\`\`\`bash
+cat > ${workersDir}/escalation.json << 'APEX_EOF'
+{ "task_id": "${task.id}", "type": "human_intervention", "stage": "<current_stage>", "summary": "人类用户直接操作了终端", "created_at": "<ISO timestamp>" }
+APEX_EOF
+\`\`\`
+
+### 阶段边界检查
+
+每次 \`apex stage complete <stage>\` 之后、\`apex stage set <next>\` 之前:
+检查 directive.json 是否存在:
+
+\`\`\`bash
+test -f ${workersDir}/directive.json && cat ${workersDir}/directive.json
+\`\`\`
+
+如果存在:
+- action: "amend" → 读取修改内容，调整后续工作
+- action: "pause" → 暂停，等待 [PLAN-AGENT:RESUME]
+- action: "abort" → 写 result.json (verdict: "aborted")，退出
+- action: "info" → 读取补充信息，继续工作
+
+读取后重命名: \`mv ${workersDir}/directive.json ${workersDir}/directive.$(date +%s).consumed.json\``;
+}
+
 // ── Main generator ────────────────────────────────────────────────────
 
 export function generateWorkerProtocol(opts: ProtocolOptions): string {
@@ -156,6 +197,7 @@ export function generateWorkerProtocol(opts: ProtocolOptions): string {
     sectionExecution(),
     sectionCoreRules(),
     sectionCommunication(opts),
+    sectionDirectiveCheck(opts),
     sectionBoundaries(opts),
   ];
 
@@ -168,7 +210,18 @@ export function generateWorkerProtocol(opts: ProtocolOptions): string {
 
 // ── Agent start command ───────────────────────────────────────────────
 
-export function agentStartCommand(agent: string, worktreePath: string): string {
+export async function agentStartCommand(agent: string, worktreePath: string): Promise<string> {
+  // 1. Try config.adapters for custom agent commands
+  try {
+    const config = await loadConfig();
+    if (config.adapters?.[agent]) {
+      const entry = config.adapters[agent];
+      const args = entry.args ? entry.args.join(" ") : "";
+      return `cd "${worktreePath}" && ${entry.command} ${args}`.trimEnd();
+    }
+  } catch { /* config unavailable — fall through to builtins */ }
+
+  // 2. Built-in fallback
   switch (agent) {
     case "codex":
       return `cd "${worktreePath}" && codex --full-auto`;

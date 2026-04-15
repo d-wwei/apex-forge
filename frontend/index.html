@@ -50,15 +50,39 @@
           <h2 class="home-title" data-i18n="home.title">YOUR PROJECTS</h2>
           <span class="home-subtitle" id="home-subtitle">6 projects &middot; 4 active &middot; 2 archived</span>
         </div>
-        <button class="home-new-btn" id="home-new-btn" data-i18n="home.newProject">+ NEW PROJECT</button>
+        <div class="home-guide-wrap">
+          <button class="home-guide-btn" id="home-guide-btn" data-i18n="home.guide">? GUIDE</button>
+          <div class="home-guide-popover" id="home-guide-popover">
+            <div class="guide-popover-title" data-i18n="home.guideTitle">How to add a project</div>
+            <div class="guide-popover-body">
+              <span data-i18n="home.guideText">Run this command in your project directory:</span>
+              <code class="guide-popover-code">apex dashboard</code>
+              <span class="guide-popover-hint" data-i18n="home.guideHint">The project will appear here automatically.</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="home-search">
-        <div class="home-search-input">
-          <span class="home-search-placeholder" data-i18n="home.searchPlaceholder">Search projects...</span>
+        <input type="text" class="home-search-input" id="home-search-input" data-i18n-placeholder="home.searchPlaceholder" placeholder="Search projects...">
+        <div class="home-dropdown" id="home-status-dropdown">
+          <button class="home-dropdown-btn" id="home-status-btn" data-i18n="home.statusAll">All</button>
+          <div class="home-dropdown-menu" id="home-status-menu">
+            <div class="home-dropdown-item active" data-value="all" data-i18n="home.statusAll">All</div>
+            <div class="home-dropdown-item" data-value="running" data-i18n="home.statusRunning">Running</div>
+            <div class="home-dropdown-item" data-value="active" data-i18n="home.statusActive">Active</div>
+            <div class="home-dropdown-item" data-value="archived" data-i18n="home.statusArchived">Archived</div>
+          </div>
         </div>
-        <div class="home-filter-btn" data-i18n="home.filterStatus">Status: All</div>
-        <div class="home-filter-btn" data-i18n="home.filterSort">Sort: Recent</div>
+        <div class="home-dropdown" id="home-sort-dropdown">
+          <button class="home-dropdown-btn" id="home-sort-btn" data-i18n="home.sortLastActive">Last Active</button>
+          <div class="home-dropdown-menu" id="home-sort-menu">
+            <div class="home-dropdown-item active" data-value="lastActive" data-i18n="home.sortLastActive">Last Active</div>
+            <div class="home-dropdown-item" data-value="created" data-i18n="home.sortCreated">Last Created</div>
+            <div class="home-dropdown-item" data-value="name" data-i18n="home.sortName">Name</div>
+            <div class="home-dropdown-item" data-value="success" data-i18n="home.sortSuccess">Success</div>
+          </div>
+        </div>
       </div>
 
       <div class="home-grid" id="project-grid">

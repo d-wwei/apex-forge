@@ -40,6 +40,11 @@ let currentWorktrees = null;    // worktree data from last SSE payload
 // Session pipeline state
 let sessionExpanded = false;    // session pipeline expand/collapse
 
+// Home filter/sort state
+let searchQuery = '';
+let statusFilter = 'all';
+let sortMode = 'lastActive';
+
 // ===== 2c. Hidden Projects =====
 
 function getHiddenProjects() {
@@ -76,10 +81,7 @@ function onHideProject(path) {
   if (currentProject && currentProject.path === path) {
     navigateToHome();
   }
-  if (loadedProjects) {
-    renderProjectCards(loadedProjects);
-    renderSidebar(loadedProjects);
-  }
+  applyProjectFilters();
 }
 
 // ===== 2b. i18n =====
@@ -94,10 +96,7 @@ function toggleLang() {
   localStorage.setItem('lang', currentLang);
   applyLocale();
   // Re-render dynamic content with new language
-  if (loadedProjects) {
-    renderProjectCards(loadedProjects);
-    renderSidebar(loadedProjects);
-  }
+  applyProjectFilters();
 }
 
 function applyLocale() {
@@ -106,6 +105,12 @@ function applyLocale() {
     const key = el.getAttribute('data-i18n');
     const val = t(key);
     if (val !== key) el.textContent = val;
+  });
+  // Update placeholder attributes with data-i18n-placeholder
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    const key = el.getAttribute('data-i18n-placeholder');
+    const val = t(key);
+    if (val !== key) el.placeholder = val;
   });
   // Update lang toggle buttons
   const label = currentLang === 'en' ? '中' : 'EN';
@@ -273,6 +278,31 @@ function renderProjectCards(projects) {
   });
 }
 
+function applyProjectFilters() {
+  if (!loadedProjects) return;
+  var filtered = loadedProjects;
+  // Search
+  if (searchQuery) {
+    var q = searchQuery.toLowerCase();
+    filtered = filtered.filter(function(p) { return p.name.toLowerCase().includes(q) || (p.description && p.description.toLowerCase().includes(q)); });
+  }
+  // Status filter
+  if (statusFilter !== 'all') {
+    filtered = filtered.filter(function(p) { return p.status === statusFilter; });
+  }
+  // Sort
+  if (sortMode === 'name') {
+    filtered = filtered.slice().sort(function(a, b) { return a.name.localeCompare(b.name); });
+  } else if (sortMode === 'success') {
+    filtered = filtered.slice().sort(function(a, b) { return b.success - a.success; });
+  } else if (sortMode === 'created') {
+    filtered = filtered.slice().sort(function(a, b) { return (b.startedAt || '').localeCompare(a.startedAt || ''); });
+  }
+  // 'lastActive' = default API order (already sorted by last_active)
+  renderProjectCards(filtered);
+  renderSidebar(filtered);
+}
+
 function loadProjectCards() {
   fetch('/api/projects').then(r => r.json()).then(data => {
     const projects = (data.projects || []).map(p => ({
@@ -284,6 +314,7 @@ function loadProjectCards() {
       lastActive: p.last_active || 'unknown',
       port: p.port || null,
       path: p.path || '',
+      startedAt: p.startedAt || '',
       worktreeGroup: p.worktreeGroup || null,
     }));
     loadedProjects = projects.length ? projects : DEMO_PROJECTS;
@@ -295,8 +326,7 @@ function loadProjectCards() {
         unhideProject(hashPath);
       }
     }
-    renderProjectCards(loadedProjects);
-    renderSidebar(loadedProjects);
+    applyProjectFilters();
     // Hub auto-select: match #project=PATH from URL hash, localStorage, or fall back to first
     const visibleForSelect = filterVisibleProjects(projects);
     if (currentView === 'home' && visibleForSelect.length > 0
@@ -319,8 +349,7 @@ function loadProjectCards() {
     }
   }).catch(() => {
     loadedProjects = DEMO_PROJECTS;
-    renderProjectCards(DEMO_PROJECTS);
-    renderSidebar(DEMO_PROJECTS);
+    applyProjectFilters();
   });
 }
 
@@ -1081,6 +1110,52 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('view-' + tab.dataset.view).classList.add('active');
     });
   });
+
+  // Home search/filter/sort
+  const searchInput = document.getElementById('home-search-input');
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      searchQuery = searchInput.value.trim();
+      applyProjectFilters();
+    });
+  }
+  // Custom dropdown wiring
+  function initDropdown(btnId, menuId, onChange) {
+    const btn = document.getElementById(btnId);
+    const menu = document.getElementById(menuId);
+    if (!btn || !menu) return;
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      document.querySelectorAll('.home-dropdown-menu.visible').forEach(m => { if (m !== menu) m.classList.remove('visible'); });
+      menu.classList.toggle('visible');
+    });
+    menu.querySelectorAll('.home-dropdown-item').forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menu.querySelectorAll('.home-dropdown-item').forEach(i => i.classList.remove('active'));
+        item.classList.add('active');
+        btn.textContent = item.textContent;
+        menu.classList.remove('visible');
+        onChange(item.dataset.value);
+      });
+    });
+  }
+  initDropdown('home-status-btn', 'home-status-menu', (val) => { statusFilter = val; applyProjectFilters(); });
+  initDropdown('home-sort-btn', 'home-sort-menu', (val) => { sortMode = val; applyProjectFilters(); });
+  document.addEventListener('click', () => {
+    document.querySelectorAll('.home-dropdown-menu.visible').forEach(m => m.classList.remove('visible'));
+  });
+
+  // Guide popover toggle
+  const guideBtn = document.getElementById('home-guide-btn');
+  const guidePop = document.getElementById('home-guide-popover');
+  if (guideBtn && guidePop) {
+    guideBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      guidePop.classList.toggle('visible');
+    });
+    document.addEventListener('click', () => guidePop.classList.remove('visible'));
+  }
 
   // Sidebar logo → Toggle sidebar expand/collapse
   const sidebarLogo = document.getElementById('sidebar-logo');

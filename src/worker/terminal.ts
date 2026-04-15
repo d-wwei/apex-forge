@@ -19,6 +19,7 @@ export interface TerminalAdapter {
   close(handle: WindowHandle): Promise<void>;
   isAlive(handle: WindowHandle): Promise<boolean>;
   rename(handle: WindowHandle, name: string): Promise<void>;
+  sendKey(handle: WindowHandle, key: string): Promise<void>;
 }
 
 // --- Helpers ---
@@ -133,6 +134,13 @@ export class CmuxAdapter implements TerminalAdapter {
     }
     handle.name = name;
   }
+
+  async sendKey(handle: WindowHandle, key: string): Promise<void> {
+    const result = run(this.bin(), ["send-key", handle.id, key]);
+    if (!result.ok) {
+      throw new Error(`cmux send-key failed: ${result.stderr}`);
+    }
+  }
 }
 
 // --- TmuxAdapter ---
@@ -195,6 +203,13 @@ export class TmuxAdapter implements TerminalAdapter {
       throw new Error(`tmux rename-window failed: ${result.stderr}`);
     }
     handle.name = name;
+  }
+
+  async sendKey(handle: WindowHandle, key: string): Promise<void> {
+    const result = run("tmux", ["send-keys", "-t", handle.id, key]);
+    if (!result.ok) {
+      throw new Error(`tmux send-keys failed: ${result.stderr}`);
+    }
   }
 }
 

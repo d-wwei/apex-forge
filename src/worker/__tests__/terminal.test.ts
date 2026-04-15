@@ -50,6 +50,7 @@ describe("CmuxAdapter", () => {
     expect(typeof adapter.close).toBe("function");
     expect(typeof adapter.isAlive).toBe("function");
     expect(typeof adapter.rename).toBe("function");
+    expect(typeof adapter.sendKey).toBe("function");
   });
 });
 
@@ -77,6 +78,7 @@ describe("TmuxAdapter", () => {
     expect(typeof adapter.close).toBe("function");
     expect(typeof adapter.isAlive).toBe("function");
     expect(typeof adapter.rename).toBe("function");
+    expect(typeof adapter.sendKey).toBe("function");
   });
 });
 
@@ -108,6 +110,7 @@ describe("detectAdapter", () => {
       expect(typeof adapter.close).toBe("function");
       expect(typeof adapter.isAlive).toBe("function");
       expect(typeof adapter.rename).toBe("function");
+      expect(typeof adapter.sendKey).toBe("function");
     } catch (e: any) {
       // If no terminal multiplexer is available, that's expected
       expect(e.message).toContain("requires tmux or cmux");

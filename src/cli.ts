@@ -648,6 +648,11 @@ async function main() {
         await cmdDaemon(rest);
         break;
       }
+      case "orch": {
+        const { cmdOrch } = await import("./commands/orch.js");
+        await cmdOrch(rest);
+        break;
+      }
       case "convert": {
         const { main: runConverter } = await import("./converter.js");
         await runConverter(rest);
