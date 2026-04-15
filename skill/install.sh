@@ -285,6 +285,7 @@ echo "Installing companion skills to $SKILLS_HOME..."
 
 # Format: name|url|tag (empty tag = HEAD, always latest)
 DEPS=(
+  "apex-manager|https://github.com/d-wwei/apex-manager|"
   "systematic-debugging|https://github.com/d-wwei/systematic-debugging|"
   "thorough-code-review|https://github.com/d-wwei/thorough-code-review|"
   "security-audit|https://github.com/d-wwei/security-audit|"

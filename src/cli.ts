@@ -22,7 +22,7 @@ import {
   listTraceSummaries,
   getTraceSpans,
 } from "./tracing.js";
-import { addSkillInvocation, setStage, completeStage, addArtifact, getState, runStructuralGate, addShipCheckpoint } from "./state/state.js";
+import { addSkillInvocation, setStage, completeStage, addArtifact, getState, runStructuralGate, addShipCheckpoint, addCompoundCheckpoint } from "./state/state.js";
 import { satisfies } from "./utils/semver.js";
 import { cmdUpdate } from "./commands/update.js";
 import { cmdHeal } from "./commands/heal.js";
@@ -546,6 +546,25 @@ async function main() {
         }
         break;
       }
+      case "compound": {
+        const sub = rest[0];
+        if (sub === "checkpoint") {
+          const name = rest[1];
+          if (!name) { console.error("Usage: apex compound checkpoint <name>"); process.exit(1); }
+          try {
+            await addCompoundCheckpoint(name);
+            console.log(`Compound checkpoint recorded: ${name}`);
+          } catch (err: any) {
+            console.error(err.message);
+            process.exit(1);
+          }
+        } else {
+          console.error(`Unknown compound subcommand: ${sub}`);
+          console.error("Usage: apex compound checkpoint <name>");
+          process.exit(1);
+        }
+        break;
+      }
       case "stage": {
         const sub = rest[0];
         if (sub === "set") {
@@ -766,6 +785,7 @@ Commands:
   stage artifact STAGE PATH     Add an artifact to a stage
   stage get                     Show current stage state as JSON
   ship checkpoint NAME          Record a ship-stage checkpoint (iteration-summary, push-prompt, compound-transition)
+  compound checkpoint NAME      Record a compound-stage checkpoint (re-entry-prompt)
   worktree create TASK_ID       Create git worktree for task
   worktree list                 List worktrees
   worktree cleanup TASK_ID      Remove worktree
