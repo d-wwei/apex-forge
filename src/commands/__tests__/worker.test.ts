@@ -197,6 +197,22 @@ describe("cmdWorker", () => {
     });
   });
 
+  // --- check ---
+
+  describe("check", () => {
+    test("prints status for all known agents", async () => {
+      const { cmdWorker } = await import("../worker.js");
+      try {
+        await cmdWorker(["check"]);
+      } catch {}
+      const output = logSpy.mock.calls.map((c: any[]) => c[0]).join("\n");
+      expect(output).toContain("claude");
+      expect(output).toContain("codex");
+      expect(output).toContain("gemini");
+      expect(output).toContain("opencode");
+    }, 30_000);
+  });
+
   // --- slugify ---
 
   describe("toSlug", () => {

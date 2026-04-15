@@ -12,6 +12,8 @@ import { listWorkers, checkWorkerHealth, getMonitorReport } from "../worker/moni
 import { formatCostReport, formatRateLimitStatus } from "../worker/cost.js";
 import { readCostSummary, readRateLimit } from "../worker/proxy.js";
 import { loadConfig } from "../state/config.js";
+import { checkAgent, checkAllAgents } from "../worker/capability-check.js";
+import { BUILTIN_ADAPTERS } from "../worker/agent-adapter.js";
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -95,10 +97,16 @@ async function cmdSpawn(args: string[]): Promise<void> {
 
   // 3. Verify agent CLI is available (skip for dry-run — no terminal will be created)
   if (!isDryRun) {
-    const whichResult = spawnSync("which", [agent], { encoding: "utf-8" });
-    if (whichResult.status !== 0) {
+    const check = await checkAgent(agent);
+    if (!check.available) {
       console.error(`Agent CLI '${agent}' not found. Install it or use --agent to specify a different agent.`);
       process.exit(1);
+    }
+    if (check.issues.length > 0) {
+      console.warn(`Agent '${agent}' warnings: ${check.issues.join("; ")}`);
+    }
+    if (check.version) {
+      console.log(`Agent: ${agent} (${check.version})`);
     }
   }
 
@@ -409,6 +417,24 @@ async function cmdMergeAll(args: string[]): Promise<void> {
   }
 }
 
+// ── check ───────────────────────────────────────────────────────────
+
+async function cmdCheck(): Promise<void> {
+  const results = await checkAllAgents();
+  console.log("Agent Status:");
+  for (const [name, result] of Object.entries(results)) {
+    const adapter = BUILTIN_ADAPTERS[name];
+    const status = result.available ? "\u2713 available" : "\u2717 not found";
+    const version = result.version ?? "-";
+    const injection = adapter.protocolInjection.type;
+    const interrupt = adapter.interruptKeys.join(", ");
+    console.log(`  ${name.padEnd(10)} ${status.padEnd(15)} ${version.padEnd(20)} (protocol: ${injection}, interrupt: ${interrupt})`);
+    for (const issue of result.issues) {
+      console.log(`             \u26a0 ${issue}`);
+    }
+  }
+}
+
 // ── Help ─────────────────────────────────────────────────────────────
 
 function printHelp(): void {
@@ -426,6 +452,7 @@ Usage:
   apex worker list              List all workers with status
   apex worker status <task-id>  Show detailed worker status
   apex worker report            Full report: workers + cost + rate limits
+  apex worker check              Check availability of all known agents
   apex worker cost [task-id]    Show token/cost usage
   apex worker synthesize <task-id>
                                 Synthesize cross-model review results
@@ -449,6 +476,9 @@ export async function cmdWorker(args: string[]): Promise<void> {
       break;
     case "merge-all":
       await cmdMergeAll(args.slice(1));
+      break;
+    case "check":
+      await cmdCheck();
       break;
     case "list": {
       const workers = await listWorkers();
