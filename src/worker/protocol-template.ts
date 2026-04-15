@@ -9,6 +9,8 @@
 
 import type { Task } from "../types/task.js";
 import { loadConfig } from "../state/config.js";
+import { resolveAdapterWithConfig } from "./agent-adapter.js";
+import type { AdaptersMap } from "../types/config.js";
 
 // ── Public types ──────────────────────────────────────────────────────
 
@@ -211,24 +213,19 @@ export function generateWorkerProtocol(opts: ProtocolOptions): string {
 // ── Agent start command ───────────────────────────────────────────────
 
 export async function agentStartCommand(agent: string, worktreePath: string): Promise<string> {
-  // 1. Try config.adapters for custom agent commands
+  // Load config adapters if available
+  let configAdapters: AdaptersMap = {};
   try {
     const config = await loadConfig();
-    if (config.adapters?.[agent]) {
-      const entry = config.adapters[agent];
-      const args = entry.args ? entry.args.join(" ") : "";
-      return `cd "${worktreePath}" && ${entry.command} ${args}`.trimEnd();
+    if (config.adapters) {
+      configAdapters = config.adapters;
     }
-  } catch { /* config unavailable — fall through to builtins */ }
+  } catch { /* config unavailable */ }
 
-  // 2. Built-in fallback
-  switch (agent) {
-    case "codex":
-      return `cd "${worktreePath}" && codex --full-auto`;
-    case "gemini":
-      return `cd "${worktreePath}" && gemini --yolo -p "$(cat .apex/worker-protocol.md)"`;
-    case "claude":
-    default:
-      return `cd "${worktreePath}" && claude --append-system-prompt-file .apex/worker-protocol.md`;
-  }
+  // Resolve via adapter (config > builtin > error)
+  const adapter = resolveAdapterWithConfig(agent, configAdapters);
+  return adapter.buildStartCommand({
+    worktreePath,
+    protocolPath: ".apex/worker-protocol.md",
+  });
 }

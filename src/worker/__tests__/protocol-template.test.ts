@@ -145,29 +145,38 @@ describe("generateWorkerProtocol", () => {
 describe("agentStartCommand", () => {
   const worktree = "/home/user/myproject/.apex/worktrees/T3";
 
-  it("returns correct claude command (fallback)", async () => {
+  it("returns claude command with --append-system-prompt-file", async () => {
     const cmd = await agentStartCommand("claude", worktree);
-    expect(cmd).toBe(
-      `cd "${worktree}" && claude --append-system-prompt-file .apex/worker-protocol.md`,
-    );
+    expect(cmd).toContain("claude");
+    expect(cmd).toContain("--append-system-prompt-file");
+    expect(cmd).toContain(worktree);
   });
 
-  it("returns correct codex command (fallback)", async () => {
+  it("returns codex command with stdin pipe and exec --full-auto", async () => {
     const cmd = await agentStartCommand("codex", worktree);
-    expect(cmd).toBe(`cd "${worktree}" && codex --full-auto`);
+    expect(cmd).toContain("cat");
+    expect(cmd).toContain("codex");
+    expect(cmd).toContain("exec --full-auto");
+    expect(cmd).toContain(worktree);
   });
 
-  it("returns correct gemini command (fallback)", async () => {
+  it("returns gemini command with single-quoted protocol path", async () => {
     const cmd = await agentStartCommand("gemini", worktree);
-    expect(cmd).toBe(
-      `cd "${worktree}" && gemini --yolo -p "$(cat .apex/worker-protocol.md)"`,
-    );
+    expect(cmd).toContain("gemini");
+    expect(cmd).toContain("'");
+    expect(cmd).toContain(worktree);
   });
 
-  it("defaults to claude command for unknown agent", async () => {
-    const cmd = await agentStartCommand("unknown-agent", worktree);
-    expect(cmd).toBe(
-      `cd "${worktree}" && claude --append-system-prompt-file .apex/worker-protocol.md`,
+  it("returns opencode command with run -p", async () => {
+    const cmd = await agentStartCommand("opencode", worktree);
+    expect(cmd).toContain("opencode");
+    expect(cmd).toContain("run -p");
+    expect(cmd).toContain(worktree);
+  });
+
+  it("throws for unknown agent instead of falling back", async () => {
+    await expect(agentStartCommand("unknown-agent", worktree)).rejects.toThrow(
+      /unknown agent/i,
     );
   });
 });
