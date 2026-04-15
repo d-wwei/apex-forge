@@ -431,7 +431,25 @@ After successful Exit Gate:
 > **Shipped.** Commit `{hash}` on branch `{branch}`.
 > {PR URL or "Push to remote and create PR manually."}
 
-Compound is mandatory. After Ship completes:
+### Ship → Compound Interlock (HARD GATE)
+
+```
+================================================================
+  After Ship completes, the ONLY permitted next action is:
+
+    apex stage set compound
+
+  The following are PROHIBITED until Compound completes:
+    - Asking "继续下一个迭代?" or any re-entry question
+    - Asking "结束本轮?" or any session-end question
+    - Setting stage to idle
+    - Processing a new task
+
+  Re-entry questions belong to Compound's Completion section.
+  Ship does NOT own the pipeline lifecycle decision.
+================================================================
+```
+
 ```bash
 apex stage set compound
 ```
