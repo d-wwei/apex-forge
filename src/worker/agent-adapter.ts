@@ -13,10 +13,11 @@ import type { AdaptersMap } from "../types/config.js";
 // ── Supporting types ─────────────────────────────────────────────────
 
 export type ProtocolInjectionMethod =
-  | "system-prompt-file"   // claude: --append-system-prompt-file <path>
-  | "stdin"                // codex: cat protocol | codex ...
-  | "cli-argument"         // gemini/opencode: -p "$(cat path)"
-  | "env-var";             // hypothetical future agent
+  | { type: "system-prompt-file"; flag: string }
+  | { type: "cli-argument"; flag: string }
+  | { type: "stdin" }
+  | { type: "env-var"; name: string }
+  | { type: "none" };
 
 export interface AgentCapabilities {
   canExecuteBash: boolean;
@@ -58,7 +59,7 @@ export interface AgentAdapter {
 const claudeAdapter: AgentAdapter = {
   name: "claude",
   binary: "claude",
-  protocolInjection: "system-prompt-file",
+  protocolInjection: { type: "system-prompt-file", flag: "--append-system-prompt-file" },
   interruptKeys: ["Escape"],
   skipProxyEnv: false,
   capabilities: {
@@ -79,9 +80,9 @@ const claudeAdapter: AgentAdapter = {
 const codexAdapter: AgentAdapter = {
   name: "codex",
   binary: "codex",
-  protocolInjection: "stdin",
+  protocolInjection: { type: "stdin" },
   interruptKeys: ["C-c"],
-  skipProxyEnv: false,
+  skipProxyEnv: true,
   capabilities: {
     canExecuteBash: true,
     canWriteFiles: true,
@@ -100,9 +101,9 @@ const codexAdapter: AgentAdapter = {
 const geminiAdapter: AgentAdapter = {
   name: "gemini",
   binary: "gemini",
-  protocolInjection: "cli-argument",
+  protocolInjection: { type: "cli-argument", flag: "-p" },
   interruptKeys: ["C-c"],
-  skipProxyEnv: false,
+  skipProxyEnv: true,
   capabilities: {
     canExecuteBash: true,
     canWriteFiles: true,
@@ -120,9 +121,9 @@ const geminiAdapter: AgentAdapter = {
 const opencodeAdapter: AgentAdapter = {
   name: "opencode",
   binary: "opencode",
-  protocolInjection: "cli-argument",
+  protocolInjection: { type: "cli-argument", flag: "-p" },
   interruptKeys: ["C-c"],
-  skipProxyEnv: false,
+  skipProxyEnv: true,
   capabilities: {
     canExecuteBash: true,
     canWriteFiles: true,
@@ -133,7 +134,7 @@ const opencodeAdapter: AgentAdapter = {
   },
   buildStartCommand(opts: StartOpts): string {
     const model = opts.model ? ` --model ${opts.model}` : "";
-    return `cd "${opts.worktreePath}" && opencode${model}`;
+    return `cd "${opts.worktreePath}" && opencode${model} run -p "$(cat '${opts.protocolPath}')"`;
   },
 };
 
@@ -150,9 +151,9 @@ function makeDefaultAdapter(name: string, command: string, args: string[]): Agen
   return {
     name,
     binary: command,
-    protocolInjection: "cli-argument",
+    protocolInjection: { type: "none" },
     interruptKeys: ["C-c"],
-    skipProxyEnv: false,
+    skipProxyEnv: true,
     capabilities: {
       canExecuteBash: true,
       canWriteFiles: true,

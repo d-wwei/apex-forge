@@ -64,9 +64,11 @@ describe("buildStartCommand", () => {
     expect(cmd).toContain(`$(cat '${baseOpts.protocolPath}')`);
   });
 
-  test("opencode: uses cli-argument injection", () => {
+  test("opencode: uses run -p with single-quoted cat path", () => {
     const cmd = BUILTIN_ADAPTERS.opencode.buildStartCommand(baseOpts);
     expect(cmd).toContain("opencode");
+    expect(cmd).toContain("run -p");
+    expect(cmd).toContain(`$(cat '${baseOpts.protocolPath}')`);
   });
 
   test("all commands include cd to worktreePath", () => {
@@ -143,20 +145,29 @@ describe("interruptKeys", () => {
 // ── protocolInjection ────────────────────────────────────────────────
 
 describe("protocolInjection", () => {
-  test("claude uses system-prompt-file", () => {
-    expect(BUILTIN_ADAPTERS.claude.protocolInjection).toBe("system-prompt-file");
+  test("claude uses system-prompt-file with flag", () => {
+    expect(BUILTIN_ADAPTERS.claude.protocolInjection).toEqual({
+      type: "system-prompt-file",
+      flag: "--append-system-prompt-file",
+    });
   });
 
   test("codex uses stdin", () => {
-    expect(BUILTIN_ADAPTERS.codex.protocolInjection).toBe("stdin");
+    expect(BUILTIN_ADAPTERS.codex.protocolInjection).toEqual({ type: "stdin" });
   });
 
-  test("gemini uses cli-argument", () => {
-    expect(BUILTIN_ADAPTERS.gemini.protocolInjection).toBe("cli-argument");
+  test("gemini uses cli-argument with -p flag", () => {
+    expect(BUILTIN_ADAPTERS.gemini.protocolInjection).toEqual({
+      type: "cli-argument",
+      flag: "-p",
+    });
   });
 
-  test("opencode uses cli-argument", () => {
-    expect(BUILTIN_ADAPTERS.opencode.protocolInjection).toBe("cli-argument");
+  test("opencode uses cli-argument with -p flag", () => {
+    expect(BUILTIN_ADAPTERS.opencode.protocolInjection).toEqual({
+      type: "cli-argument",
+      flag: "-p",
+    });
   });
 });
 
