@@ -343,6 +343,15 @@ export function materializeState(events: DomainEvent[]): StageState {
         state.last_updated = evt.ts;
         break;
       }
+      case "ship.checkpoint": {
+        if (!state.ship_checkpoints) state.ship_checkpoints = [];
+        const name = p.name as string;
+        if (!state.ship_checkpoints.includes(name)) {
+          state.ship_checkpoints.push(name);
+        }
+        state.last_updated = evt.ts;
+        break;
+      }
     }
   }
 
@@ -427,6 +436,7 @@ export function materializePerSession(events: DomainEvent[]): SessionPipeline[] 
           break;
         }
         // skill.invoked intentionally omitted — not needed for pipeline display
+        // ship.checkpoint intentionally omitted — gate reads from per-session state, not pipeline display
         case "session.summary": {
           sessionSummary = {
             en: (p.en as string) || sessionSummary?.en,

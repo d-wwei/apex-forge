@@ -33,6 +33,19 @@ apex telemetry start SKILL             Start tracking a skill run
 apex telemetry end OUTCOME             End tracking (success|error|abort)
 apex telemetry report                  Show usage analytics
 
+# Pipeline Stages
+apex stage set NAME                    Set current stage (brainstorm, plan, execute, review, ship, compound)
+apex stage complete NAME               Mark stage completed (runs structural gate)
+apex stage artifact STAGE PATH         Register an artifact for a stage
+apex stage get                         Show current stage state as JSON
+apex trace-skill STAGE SKILL VER STATUS MAP  Record skill invocation trace
+apex check-bindings                    Verify installed skill versions match bindings.yaml
+
+# Ship Checkpoints (record conversation-flow steps for hard gate enforcement)
+apex ship checkpoint iteration-summary   Record that Step 6a iteration summary was output
+apex ship checkpoint push-prompt         Record that Step 6b push prompt was issued
+apex ship checkpoint compound-transition Record that compound transition was announced
+
 # Recovery
 apex recover                           Clean stale state, fix stuck tasks
 ```

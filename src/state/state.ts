@@ -12,6 +12,7 @@ import type { StageState } from "../types/state.js";
 import { appendEvent, rebuildAndCache, sessionStateCachePath } from "./event-log.js";
 import { existsSync } from "fs";
 import { readdir } from "fs/promises";
+import { execSync } from "child_process";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -141,9 +142,40 @@ export async function runStructuralGate(stage: string): Promise<{ pass: boolean;
       break;
     }
     case "ship": {
-      // Check that a review artifact exists in state
+      // S1: Review artifact exists in state
       const reviewArtifacts = state.artifacts["review"] ?? [];
-      items.push({ id: "S1", pass: reviewArtifacts.length > 0, reason: reviewArtifacts.length > 0 ? "Review artifact confirmed" : "No review artifact — complete Review first" });
+      const hasReview = reviewArtifacts.length > 0;
+      items.push({ id: "S1", pass: hasReview, reason: hasReview ? "Review artifact confirmed" : "No review artifact — complete Review first" });
+
+      // S2: Git commit exists (at least one commit in the repo)
+      let hasCommit = false;
+      try {
+        const gitLog = execSync("git log -1 --oneline", { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }).trim();
+        hasCommit = gitLog.length > 0;
+      } catch { /* no git or no commits */ }
+      items.push({ id: "S2", pass: hasCommit, reason: hasCommit ? "Git commit exists" : "No git commit found — commit your changes first" });
+
+      // S3: Compound transition announced (checkpoint)
+      const checkpoints = state.ship_checkpoints ?? [];
+      const hasCompoundTransition = checkpoints.includes("compound-transition");
+      items.push({ id: "S3", pass: hasCompoundTransition, reason: hasCompoundTransition ? "Compound transition announced" : "Compound transition not announced (run: apex ship checkpoint compound-transition)" });
+
+      // S4 (preflight scan) and S5 (CI green) intentionally omitted from programmatic gate —
+      // they depend on external tools (opensource-preflight, gh CLI) that may not be available.
+      // These are checked by the SubAgent-based substance gate in ship.md instead.
+
+      // S6: README.md exists in repo root
+      const hasReadme = existsSync("README.md");
+      items.push({ id: "S6", pass: hasReadme, reason: hasReadme ? "README.md exists" : "README.md not found in repo root" });
+
+      // S7: Push prompt was issued (checkpoint)
+      const hasPushPrompt = checkpoints.includes("push-prompt");
+      items.push({ id: "S7", pass: hasPushPrompt, reason: hasPushPrompt ? "Push prompt issued" : "Push prompt not issued (run: apex ship checkpoint push-prompt)" });
+
+      // S8: Iteration summary was issued (checkpoint)
+      const hasIterationSummary = checkpoints.includes("iteration-summary");
+      items.push({ id: "S8", pass: hasIterationSummary, reason: hasIterationSummary ? "Iteration summary issued" : "Iteration summary not issued (run: apex ship checkpoint iteration-summary)" });
+
       break;
     }
     case "compound": {
@@ -247,6 +279,35 @@ export async function statusSummary(): Promise<string> {
  * Return the full state as a plain object (for session-start hook injection).
  */
 export async function statusJSON(): Promise<object> {
+  return loadState();
+}
+
+// ---------------------------------------------------------------------------
+// Ship Checkpoints
+// ---------------------------------------------------------------------------
+
+/** Valid checkpoint names for the Ship stage. */
+const VALID_SHIP_CHECKPOINTS = [
+  "iteration-summary",   // S8: Step 6a iteration summary was output
+  "push-prompt",         // S7: Step 6b push prompt was issued via AskUserQuestion
+  "compound-transition", // S3: Compound transition message was output
+] as const;
+
+export type ShipCheckpointName = typeof VALID_SHIP_CHECKPOINTS[number];
+
+/**
+ * Record a Ship stage checkpoint event.
+ * The structural gate checks for these to verify conversation-flow steps happened.
+ */
+export async function addShipCheckpoint(name: string): Promise<StageState> {
+  if (!VALID_SHIP_CHECKPOINTS.includes(name as ShipCheckpointName)) {
+    throw new Error(
+      `Invalid ship checkpoint: "${name}". Valid: ${VALID_SHIP_CHECKPOINTS.join(", ")}`
+    );
+  }
+
+  appendEvent("state", "ship.checkpoint", { name });
+  await rebuildAndCache("state");
   return loadState();
 }
 

@@ -28,6 +28,8 @@ export interface StageState {
   history: StageHistory[];
   skill_invocations?: SkillInvocation[];
   orchestration_events?: OrchestrationEvent[];
+  /** Checkpoints recorded during Ship stage (push-prompt, iteration-summary, etc.) */
+  ship_checkpoints?: string[];
 }
 
 /** Per-session pipeline view used by the dashboard for multi-session display. */

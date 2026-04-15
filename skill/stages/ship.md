@@ -252,6 +252,12 @@ Four sections, each 2-5 sentences:
 - 具体：名词看得见，动词有力气
 - 不填充：每句都在干活，删开场白和拐杖词
 
+**After outputting the summary**, record the checkpoint:
+```bash
+apex ship checkpoint iteration-summary
+```
+This is a hard gate — `apex stage complete ship` will BLOCK if this checkpoint is missing (S8).
+
 **6b. Push prompt**
 
 After the summary, call `AskUserQuestion` with:
@@ -264,6 +270,12 @@ After the summary, call `AskUserQuestion` with:
 If user selects "推送": push the feature branch to remote.
 If user selects "暂不推送": skip push, Steps 7-9. Record in ship result.
 Skip entirely if no remote is configured.
+
+**After the user responds** (regardless of choice), record the checkpoint:
+```bash
+apex ship checkpoint push-prompt
+```
+This is a hard gate — `apex stage complete ship` will BLOCK if this checkpoint is missing (S7).
 
 **New repository creation**: if no remote exists and user wants to push,
 create the repo first via `gh repo create` (public/private per user choice),
@@ -420,7 +432,11 @@ After branch completion (and optional post-ship evaluation), Compound is the nex
 
 **No skip option.** Every iteration walks all six stages. Compound may be brief (one sentence: "无特别经验"), but it cannot be skipped. This is enforced by the Exit Gate (S3).
 
-Record that the transition was announced. This MUST happen before the Exit Gate runs.
+**After announcing the transition**, record the checkpoint:
+```bash
+apex ship checkpoint compound-transition
+```
+This is a hard gate — `apex stage complete ship` will BLOCK if this checkpoint is missing (S3).
 
 ---
 
@@ -432,8 +448,8 @@ Before `apex stage complete ship`, run the Stage Exit Gate (`gates/stage-exit-ga
 
 | # | Check | Criterion | Verification |
 |---|-------|-----------|-------------|
-| S1 | Git commit exists | `git log -1 --oneline` returns a commit for this pipeline | git log |
-| S2 | Review status confirmed | Review artifact status is DONE or DONE_WITH_CONCERNS | File re-read |
+| S1 | Review artifact confirmed | Review artifact exists in state with status DONE or DONE_WITH_CONCERNS | `.apex/state.json` artifacts check |
+| S2 | Git commit exists | `git log -1 --oneline` returns a commit for this pipeline | git log |
 | S3 | Compound transition announced | The mandatory Compound transition message was **actually output** (not deferred or skipped). | Flow check: transition message present in conversation |
 | S4 | Preflight scan passed | No CRITICAL findings in committed files | Re-run `/opensource-preflight --mode quick --scope diff HEAD~1` |
 | S5 | CI green | If repo has CI: all checks must pass. No bypass. If no CI configured: auto-pass. | `gh run list --limit 1` status check |

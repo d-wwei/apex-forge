@@ -22,7 +22,7 @@ import {
   listTraceSummaries,
   getTraceSpans,
 } from "./tracing.js";
-import { addSkillInvocation, setStage, completeStage, addArtifact, getState, runStructuralGate } from "./state/state.js";
+import { addSkillInvocation, setStage, completeStage, addArtifact, getState, runStructuralGate, addShipCheckpoint } from "./state/state.js";
 import { satisfies } from "./utils/semver.js";
 import { cmdUpdate } from "./commands/update.js";
 import { cmdHeal } from "./commands/heal.js";
@@ -527,9 +527,23 @@ async function main() {
       case "worktree":
         await cmdWorktree(rest);
         break;
-      case "worker": {
-        const { cmdWorker } = await import("./commands/worker.js");
-        await cmdWorker(rest);
+      case "ship": {
+        const sub = rest[0];
+        if (sub === "checkpoint") {
+          const name = rest[1];
+          if (!name) { console.error("Usage: apex ship checkpoint <name>"); process.exit(1); }
+          try {
+            await addShipCheckpoint(name);
+            console.log(`Ship checkpoint recorded: ${name}`);
+          } catch (err: any) {
+            console.error(err.message);
+            process.exit(1);
+          }
+        } else {
+          console.error(`Unknown ship subcommand: ${sub}`);
+          console.error("Usage: apex ship checkpoint <name>");
+          process.exit(1);
+        }
         break;
       }
       case "stage": {
@@ -651,11 +665,6 @@ async function main() {
         await cmdDaemon(rest);
         break;
       }
-      case "orch": {
-        const { cmdOrch } = await import("./commands/orch.js");
-        await cmdOrch(rest);
-        break;
-      }
       case "convert": {
         const { main: runConverter } = await import("./converter.js");
         await runConverter(rest);
@@ -756,18 +765,7 @@ Commands:
   stage complete NAME           Mark a stage as completed
   stage artifact STAGE PATH     Add an artifact to a stage
   stage get                     Show current stage state as JSON
-  worker spawn TASK [--agent A]  Spawn worker agent in terminal
-  worker kill TASK_ID           Kill worker and clean up
-  worker list                   List all workers with status
-  worker status TASK_ID         Show detailed worker status
-  worker report                 Full report: workers + cost + rate limits
-  worker cost [TASK_ID]         Show token/cost usage
-  worker interrupt TASK_ID         Send interrupt signal to worker
-  worker directive TASK ACTION CONTENT [--urgent]
-                                Write directive.json (amend|pause|abort|info)
-  worker merge TASK [--strategy] Merge completed worker branch
-  worker merge-all [--strategy] Merge all passing workers
-  worker synthesize TASK_ID     Synthesize cross-model results
+  ship checkpoint NAME          Record a ship-stage checkpoint (iteration-summary, push-prompt, compound-transition)
   worktree create TASK_ID       Create git worktree for task
   worktree list                 List worktrees
   worktree cleanup TASK_ID      Remove worktree
@@ -808,10 +806,6 @@ Commands:
   orchestrate [--dry-run] [--once]   Run task orchestrator
   orchestrate event ACTION [--task ID] [--detail JSON]
                                 Record orchestration event
-  orch start [--force] [--handle JSON]
-                                Start orchestration daemon
-  orch stop                     Stop orchestration daemon
-  orch status                   Show daemon status
   recover                       Recover from crashes (clean stale state)
   version                       Show version
   help                          Show this help

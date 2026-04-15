@@ -104,6 +104,16 @@ review:
     priority: 5
     concurrent: true
 
+# ─── Ship Stage ───────────────────────────────────────────────
+
+ship:
+  - trigger: "new repository — no remote exists or gh repo create is about to be called"
+    skill: great-writer
+    mode: github-readme
+    priority: 1
+    concurrent: false
+    note: "README generation is mandatory for all new repos. Check 5a validates invocation."
+
 # ─── Post-Ship (optional, user-selected before Compound) ─────
 
 post-ship:
