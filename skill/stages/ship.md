@@ -269,9 +269,9 @@ Skip entirely if no remote is configured.
 create the repo first via `gh repo create` (public/private per user choice),
 then push.
 
-### Step 7: CI Status Check
+### Step 7: CI Status Check (HARD GATE)
 
-Only runs if push succeeded (Step 6 completed). Detect whether the repo has CI configured and wait for results.
+Only runs if push succeeded (Step 6 completed). **ALL CI workflows must complete and pass.** This is a hard gate — Ship cannot proceed until CI is green.
 
 **Detection:**
 
@@ -285,43 +285,53 @@ If no CI config found → skip this step.
 **If CI is configured:**
 
 ```bash
-# Wait for checks to start (may take a few seconds after push)
-sleep 5
-# Poll CI status
-gh run list --branch $(git branch --show-current) --limit 1 --json status,conclusion,name,databaseId
+# Wait for checks to register (GitHub needs a few seconds after push)
+sleep 10
+# List ALL workflow runs triggered by this push — not just the latest one
+gh run list --branch $(git branch --show-current) --limit 10 --json status,conclusion,name,databaseId,event,createdAt
 ```
 
-**Poll loop** (max 10 minutes, check every 30 seconds):
+**Wait for ALL runs to complete.** For each run in the list:
 
 ```bash
+# Watch each run until it completes (blocks until done or fails)
 gh run watch <run_id> --exit-status 2>&1
 ```
 
-Or manual polling:
+If `gh run watch` is not available, poll manually every 30 seconds:
 ```bash
 gh run view <run_id> --json status,conclusion
 ```
+
+**Poll constraints:**
+- Check ALL runs, not just the first one. A push can trigger multiple workflows.
+- Max wait: 15 minutes. If any run is still `in_progress` after 15 minutes, report status and ask user.
+- Do NOT proceed while any run has `status: in_progress` or `status: queued`.
 
 **Verdict mapping:**
 
 | CI Result | Action |
 |-----------|--------|
-| All checks pass | Proceed to Step 8 |
-| Some checks fail | **STOP**. Report failed jobs with `gh run view <id> --log-failed`. Ask user: |
-| Timeout (10 min) | Report current status, ask user whether to wait or proceed |
+| ALL runs pass (every conclusion = "success") | Proceed to Step 8 |
+| ANY run fails | **STOP**. Do not proceed. Report ALL failed runs. |
+| Timeout (15 min) | Report which runs are still pending. Ask user to wait or abort. |
 
-When checks fail, call `AskUserQuestion`:
-- question: "CI 检查未通过。{N} 个 job 失败。如何处理？"
+**When any run fails**, report each failed run with:
+```bash
+gh run view <run_id> --log-failed 2>&1 | tail -50
+```
+
+Then call `AskUserQuestion`:
+- question: "CI 未通过。{N} 个 workflow 失败。如何处理？"
 - header: "CI"
 - options:
-  1. label: "查看失败日志并修复 (Recommended)", description: "查看失败的 job 日志，修复后重新推送"
+  1. label: "查看失败日志并修复 (Recommended)", description: "查看日志，修复后重新推送，再次等 CI"
   2. label: "中止 Ship", description: "回到 Execute 阶段修复问题"
 
-**No bypass option.** CI must pass before Ship can complete. "继续创建 PR with failing CI" is not offered.
+**No bypass option. No "proceed anyway". No "create PR with failing CI".** CI must be all-green before Ship can continue. This is non-negotiable.
 
-- **查看失败日志并修复**: run `gh run view <id> --log-failed`, diagnose, fix, amend commit, force push, re-run this step.
-- **继续创建 PR**: proceed but add CI failure notice to PR body.
-- **中止 Ship**: `apex stage set execute`, return to execute stage.
+- **查看失败日志并修复**: diagnose with `gh run view <id> --log-failed`, fix the code, commit, push, then **re-run Step 7 from the beginning** (wait for new CI runs).
+- **中止 Ship**: `apex stage set execute`, return to Execute stage to fix the issue properly.
 
 **GitLab 适配**: if `.gitlab-ci.yml` exists instead of GitHub Actions, use:
 ```bash
@@ -385,9 +395,26 @@ Execute the chosen option. For options A, B, D: clean up worktree if one was use
 
 ---
 
+## Post-Ship Evaluation (optional, before Compound)
+
+After branch completion, check `bindings.yaml` → `post-ship:` for available evaluations.
+Present the user with a choice via `AskUserQuestion`:
+
+| Option | When to show | Action |
+|--------|-------------|--------|
+| **直接进入复盘（Compound）** | Always | Skip evaluation, proceed to Compound |
+| **产品用户体验评审（Product User Review）** | Only when the project has a web, mobile, or desktop app | Load and follow `aliases/product-user-review.md` |
+| **产品目标审计（Product Goal-Based Audit）** | Always | Load and follow `aliases/product-goal-based-audit.md` |
+
+- If user selects an evaluation: execute it, then return here and proceed to Compound Transition.
+- If user selects "直接进入复盘": proceed immediately.
+- Multiple evaluations may be run sequentially if the user requests.
+
+---
+
 ## Compound Transition (mandatory, before Exit Gate)
 
-After branch completion, Compound is the next stage — not optional. Inform the user:
+After branch completion (and optional post-ship evaluation), Compound is the next stage — not optional. Inform the user:
 
 > 交付完成。进入复盘阶段（Compound）。
 
