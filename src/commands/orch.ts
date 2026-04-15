@@ -1,0 +1,207 @@
+/**
+ * Apex Forge — Orchestration Daemon CLI
+ *
+ * `apex orch start` — Start the orchestration daemon (tick loop for Worker monitoring)
+ * `apex orch stop`  — Stop the daemon
+ * `apex orch status` — Show daemon status
+ *
+ * Not to be confused with `apex daemon` which manages Dashboard launchd processes.
+ */
+
+import { existsSync, readFileSync, writeFileSync, unlinkSync } from "fs";
+import { createDaemonState, runDaemon } from "../orchestrator/daemon.js";
+import { readPendingNotifications } from "../orchestrator/notify.js";
+import type { WindowHandle } from "../worker/terminal.js";
+
+const LOCK_PATH = ".apex/orch.lock";
+const PID_PATH = ".apex/orch.pid";
+
+// ── Lock management ────────────────────────────────────────────────────
+
+interface LockInfo {
+  pid: number;
+  session_id: string;
+  plan_agent_handle: WindowHandle | null;
+  started_at: string;
+}
+
+/**
+ * Acquire the orchestration lock atomically.
+ * Returns true if acquired, false if another daemon is running.
+ */
+function acquireLock(sessionId: string, planAgentHandle: WindowHandle | null): boolean {
+  const lockData = JSON.stringify({
+    pid: process.pid,
+    session_id: sessionId,
+    plan_agent_handle: planAgentHandle,
+    started_at: new Date().toISOString(),
+  } satisfies LockInfo, null, 2);
+
+  // 1. Try atomic creation (O_CREAT | O_EXCL)
+  try {
+    writeFileSync(LOCK_PATH, lockData, { flag: "wx" });
+    return true;
+  } catch (e: any) {
+    if (e.code !== "EEXIST") throw e;
+  }
+
+  // 2. Lock exists — check if stale (PID dead)
+  let lock: LockInfo;
+  try {
+    lock = JSON.parse(readFileSync(LOCK_PATH, "utf-8"));
+  } catch {
+    // Corrupt lock file — remove and retry
+    try { unlinkSync(LOCK_PATH); } catch {}
+    return acquireLock(sessionId, planAgentHandle);
+  }
+
+  try {
+    process.kill(lock.pid, 0); // signal 0 = alive check
+    // PID alive → lock is valid
+    return false;
+  } catch {
+    // PID dead → stale lock, remove and retry
+    try { unlinkSync(LOCK_PATH); } catch {}
+    return acquireLock(sessionId, planAgentHandle);
+  }
+}
+
+function releaseLock(): void {
+  try { unlinkSync(LOCK_PATH); } catch {}
+}
+
+function readLock(): LockInfo | null {
+  if (!existsSync(LOCK_PATH)) return null;
+  try {
+    return JSON.parse(readFileSync(LOCK_PATH, "utf-8"));
+  } catch {
+    return null;
+  }
+}
+
+function isLockAlive(lock: LockInfo): boolean {
+  try {
+    process.kill(lock.pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ── Commands ───────────────────────────────────────────────────────────
+
+async function cmdStart(args: string[]): Promise<void> {
+  const sessionId = process.env.APEX_SESSION_ID ?? `orch-${Date.now()}`;
+  const force = args.includes("--force");
+
+  if (force) {
+    const lock = readLock();
+    if (lock) {
+      try { process.kill(lock.pid, "SIGTERM"); } catch {}
+      releaseLock();
+      console.log(`Terminated previous daemon (PID ${lock.pid})`);
+    }
+  }
+
+  if (!acquireLock(sessionId, null)) {
+    const lock = readLock();
+    console.error("Error: 已有活跃的编排会话");
+    if (lock) {
+      console.error(`  Session: ${lock.session_id}`);
+      console.error(`  Started: ${lock.started_at}`);
+      console.error(`  PID: ${lock.pid}`);
+    }
+    console.error("\n选项:");
+    console.error("  apex orch start --force    接管旧 session");
+    process.exit(1);
+  }
+
+  // Write PID for external monitoring
+  writeFileSync(PID_PATH, String(process.pid));
+
+  console.log(`Orchestration daemon started (PID ${process.pid})`);
+
+  const state = createDaemonState(process.cwd(), null);
+
+  // Graceful shutdown
+  const shutdown = () => {
+    console.log("\nOrchestration daemon stopping...");
+    state.running = false;
+    releaseLock();
+    try { unlinkSync(PID_PATH); } catch {}
+  };
+  process.on("SIGTERM", shutdown);
+  process.on("SIGINT", shutdown);
+
+  await runDaemon(state);
+
+  shutdown();
+  console.log("Orchestration daemon stopped.");
+}
+
+async function cmdStop(): Promise<void> {
+  const lock = readLock();
+  if (!lock) {
+    console.log("No orchestration daemon running.");
+    return;
+  }
+
+  if (!isLockAlive(lock)) {
+    console.log("Daemon PID is dead. Cleaning up stale lock.");
+    releaseLock();
+    try { unlinkSync(PID_PATH); } catch {}
+    return;
+  }
+
+  try {
+    process.kill(lock.pid, "SIGTERM");
+    console.log(`Sent SIGTERM to daemon (PID ${lock.pid})`);
+  } catch {
+    console.error(`Failed to signal daemon PID ${lock.pid}`);
+  }
+}
+
+async function cmdStatus(): Promise<void> {
+  const lock = readLock();
+  if (!lock) {
+    console.log("No orchestration daemon registered.");
+    return;
+  }
+
+  const alive = isLockAlive(lock);
+  console.log(`Orchestration Daemon:`);
+  console.log(`  Status:  ${alive ? "RUNNING" : "DEAD (stale lock)"}`);
+  console.log(`  PID:     ${lock.pid}`);
+  console.log(`  Session: ${lock.session_id}`);
+  console.log(`  Started: ${lock.started_at}`);
+
+  // Show pending notifications
+  const pending = readPendingNotifications();
+  if (pending.length > 0) {
+    console.log(`\n  Pending notifications: ${pending.length}`);
+    for (const n of pending.slice(0, 5)) {
+      console.log(`    - ${n.message.slice(0, 80)}`);
+    }
+  }
+}
+
+// ── Main dispatch ──────────────────────────────────────────────────────
+
+export async function cmdOrch(args: string[]): Promise<void> {
+  const sub = args[0];
+  const rest = args.slice(1);
+
+  switch (sub) {
+    case "start":
+      await cmdStart(rest);
+      break;
+    case "stop":
+      await cmdStop();
+      break;
+    case "status":
+      await cmdStatus();
+      break;
+    default:
+      console.log("Usage: apex orch <start|stop|status> [--force]");
+  }
+}
