@@ -226,6 +226,15 @@ Type mapping: feat (new feature), fix (bug fix), refactor, chore (config/build).
 
 Before asking about push, output a plain-language summary for the user. Write it like you're telling a colleague what happened — no jargon, no filler, concrete.
 
+**Artifact enforcement**: After outputting the summary to the user, also write the same content to `.apex/iteration-summary.md`. This file is checked by Step 6b and the Exit Gate — without it, push is blocked.
+
+```bash
+# Write after outputting summary (content = the 4-section summary you just output)
+cat > .apex/iteration-summary.md << 'SUMMARY'
+{paste the 4-section summary here}
+SUMMARY
+```
+
 Four sections, each 2-5 sentences:
 
 ```
@@ -253,6 +262,12 @@ Four sections, each 2-5 sentences:
 - 不填充：每句都在干活，删开场白和拐杖词
 
 **6b. Push prompt**
+
+**Pre-condition**: Before issuing the push prompt, verify `.apex/iteration-summary.md` exists:
+```bash
+test -f .apex/iteration-summary.md || echo "BLOCKED: iteration summary not written. Run Step 6a first."
+```
+If the file does not exist, do NOT issue the push prompt. Go back and execute Step 6a.
 
 After the summary, call `AskUserQuestion` with:
 - question: "是否推送到远程仓库？"
@@ -412,7 +427,7 @@ Before `apex stage complete ship`, run the Stage Exit Gate (`gates/stage-exit-ga
 | S5 | CI green | If repo has CI: all checks must pass. No bypass. If no CI configured: auto-pass. | `gh run list --limit 1` status check |
 | S6 | README exists | If pushed to a public repo: `README.md` must exist in the repo root. New repos must also have `README_CN.md` or `README.zh-CN.md`. | `git show HEAD:README.md` |
 | S7 | Push prompt issued | AskUserQuestion for push (Step 6) was **actually called** and user responded. "暂不推送" is a valid response; silently skipping the prompt is not. | Flow check: user response recorded |
-| S8 | Iteration summary issued | Step 6a iteration summary (4 sections: 做了什么/能干什么/怎么试/注意事项) was **actually output** before the push prompt. Cannot be skipped. | Flow check: summary text present in conversation |
+| S8 | Iteration summary issued | `.apex/iteration-summary.md` exists and contains all 4 sections (做了什么/能干什么/怎么试/注意事项). File must have been written during this pipeline cycle (check mtime). Cannot be skipped. | `test -f .apex/iteration-summary.md` + section scan |
 
 ### Substance Prompts (Tier 2+)
 
@@ -430,6 +445,11 @@ After successful Exit Gate:
 
 > **Shipped.** Commit `{hash}` on branch `{branch}`.
 > {PR URL or "Push to remote and create PR manually."}
+
+**Cleanup**: Remove temporary ship artifacts:
+```bash
+rm -f .apex/iteration-summary.md .apex/ship-metadata.json .apex/ship-release.json
+```
 
 Compound is mandatory. After Ship completes:
 ```bash
