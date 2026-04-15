@@ -14,6 +14,7 @@ import { readCostSummary, readRateLimit } from "../worker/proxy.js";
 import { loadConfig } from "../state/config.js";
 import { checkAgent, checkAllAgents } from "../worker/capability-check.js";
 import { BUILTIN_ADAPTERS } from "../worker/agent-adapter.js";
+import { interruptKeys } from "../worker/interrupt.js";
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -244,6 +245,75 @@ async function cmdKill(args: string[]): Promise<void> {
   console.log(`Worker ${taskId} killed and cleaned up`);
 }
 
+// ── interrupt ───────────────────────────────────────────────────────
+
+async function cmdInterrupt(args: string[]): Promise<void> {
+  const taskId = args[0];
+  if (!taskId) {
+    console.error("Usage: apex worker interrupt <task-id>");
+    process.exit(1);
+  }
+
+  const projectRoot = process.cwd();
+  const metaPath = join(projectRoot, ".apex", "workers", taskId, "meta.json");
+
+  if (!existsSync(metaPath)) {
+    console.error(`Worker ${taskId} not found (missing meta.json)`);
+    process.exit(1);
+  }
+
+  let meta: WorkerMeta;
+  try {
+    meta = JSON.parse(readFileSync(metaPath, "utf-8"));
+  } catch {
+    console.error(`Failed to parse .apex/workers/${taskId}/meta.json`);
+    process.exit(1);
+    return;
+  }
+
+  if (!meta.window_handle) {
+    console.error(`Worker ${taskId} has no terminal handle — cannot send interrupt`);
+    process.exit(1);
+  }
+
+  const terminal = detectAdapter();
+  const adapterName = terminal.name() as "cmux" | "tmux";
+  const keys = interruptKeys(meta.agent, adapterName);
+
+  for (const key of keys) {
+    try {
+      await terminal.sendKey(meta.window_handle, key);
+    } catch (err) {
+      console.error(`Failed to send key '${key}' to ${taskId}: ${err}`);
+      process.exit(1);
+    }
+  }
+
+  // Brief wait then check idle state
+  await new Promise((r) => setTimeout(r, 2000));
+  try {
+    const screen = await terminal.readScreen(meta.window_handle, 5);
+    if (isAgentIdle(screen, meta.agent)) {
+      console.log(`Worker ${taskId} interrupted successfully`);
+    } else {
+      console.log(`Worker ${taskId}: interrupt sent. Check: apex worker status ${taskId}`);
+    }
+  } catch {
+    console.log(`Worker ${taskId}: interrupt keys sent`);
+  }
+}
+
+function isAgentIdle(screen: string, agent: string): boolean {
+  switch (agent) {
+    case "claude":
+      return screen.includes("\u276f") && !screen.includes("esc to interrupt");
+    case "codex":
+    case "gemini":
+    default:
+      return screen.includes("$") || screen.includes("\u276f");
+  }
+}
+
 // ── merge ───────────────────────────────────────────────────────────
 
 type MergeStrategy = "local" | "pr" | "squash";
@@ -445,6 +515,7 @@ Usage:
   apex worker spawn <task-id> [--agent claude|codex|gemini] [--cross-model] [--dry-run]
                                 Spawn a worker agent for a task
   apex worker kill <task-id>    Kill worker and clean up worktree
+  apex worker interrupt <task-id> Send interrupt signal to worker
   apex worker merge <task-id> [--strategy local|pr|squash]
                                 Merge completed worker branch (default: local)
   apex worker merge-all [--strategy local|pr|squash]
@@ -470,6 +541,9 @@ export async function cmdWorker(args: string[]): Promise<void> {
       break;
     case "kill":
       await cmdKill(args.slice(1));
+      break;
+    case "interrupt":
+      await cmdInterrupt(args.slice(1));
       break;
     case "merge":
       await cmdMerge(args.slice(1));

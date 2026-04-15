@@ -213,6 +213,52 @@ describe("cmdWorker", () => {
     }, 30_000);
   });
 
+  // --- interrupt ---
+
+  describe("interrupt", () => {
+    test("errors with usage when no task-id given", async () => {
+      const { cmdWorker } = await import("../worker.js");
+      try {
+        await cmdWorker(["interrupt"]);
+      } catch (e: any) {
+        expect(e.message).toContain("process.exit(1)");
+      }
+      const output = errorSpy.mock.calls.map((c: any[]) => c[0]).join("\n");
+      expect(output).toContain("Usage");
+    });
+
+    test("errors when worker meta not found", async () => {
+      const { cmdWorker } = await import("../worker.js");
+      try {
+        await cmdWorker(["interrupt", "T99"]);
+      } catch (e: any) {
+        expect(e.message).toContain("process.exit(1)");
+      }
+      const output = errorSpy.mock.calls.map((c: any[]) => c[0]).join("\n");
+      expect(output).toContain("T99");
+    });
+
+    test("errors when worker has no terminal handle", async () => {
+      writeWorkerMeta(tmpDir, "T5", {
+        task_id: "T5",
+        window_handle: null,
+        worktree_path: ".apex/worktrees/T5",
+        branch: "apex/T5",
+        started_at: "2026-01-01T00:00:00Z",
+        agent: "claude",
+      });
+
+      const { cmdWorker } = await import("../worker.js");
+      try {
+        await cmdWorker(["interrupt", "T5"]);
+      } catch (e: any) {
+        expect(e.message).toContain("process.exit(1)");
+      }
+      const output = errorSpy.mock.calls.map((c: any[]) => c[0]).join("\n");
+      expect(output).toContain("T5");
+    });
+  });
+
   // --- slugify ---
 
   describe("toSlug", () => {
