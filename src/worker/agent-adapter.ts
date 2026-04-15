@@ -9,6 +9,7 @@
  */
 
 import type { AdaptersMap } from "../types/config.js";
+import { interruptKeys as getInterruptKeys } from "./interrupt.js";
 
 // ── Supporting types ─────────────────────────────────────────────────
 
@@ -60,7 +61,7 @@ const claudeAdapter: AgentAdapter = {
   name: "claude",
   binary: "claude",
   protocolInjection: { type: "system-prompt-file", flag: "--append-system-prompt-file" },
-  interruptKeys: ["Escape"],
+  interruptKeys: getInterruptKeys("claude", "tmux"),
   skipProxyEnv: false,
   capabilities: {
     canExecuteBash: true,
@@ -72,8 +73,8 @@ const claudeAdapter: AgentAdapter = {
     autoApprovalFlag: "--dangerously-skip-permissions",
   },
   buildStartCommand(opts: StartOpts): string {
-    const model = opts.model ? ` --model ${opts.model}` : "";
-    return `cd "${opts.worktreePath}" && claude${model} --append-system-prompt-file ${opts.protocolPath}`;
+    const model = opts.model ? ` --model "${opts.model}"` : "";
+    return `cd "${opts.worktreePath}" && claude${model} --append-system-prompt-file "${opts.protocolPath}"`;
   },
 };
 
@@ -81,7 +82,7 @@ const codexAdapter: AgentAdapter = {
   name: "codex",
   binary: "codex",
   protocolInjection: { type: "stdin" },
-  interruptKeys: ["C-c"],
+  interruptKeys: getInterruptKeys("codex", "tmux"),
   skipProxyEnv: true,
   capabilities: {
     canExecuteBash: true,
@@ -93,8 +94,8 @@ const codexAdapter: AgentAdapter = {
     autoApprovalFlag: "--full-auto",
   },
   buildStartCommand(opts: StartOpts): string {
-    const model = opts.model ? ` --model ${opts.model}` : "";
-    return `cd "${opts.worktreePath}" && cat ${opts.protocolPath} | codex${model} exec --full-auto`;
+    const model = opts.model ? ` --model "${opts.model}"` : "";
+    return `cd "${opts.worktreePath}" && cat "${opts.protocolPath}" | codex${model} exec --full-auto`;
   },
 };
 
@@ -102,7 +103,7 @@ const geminiAdapter: AgentAdapter = {
   name: "gemini",
   binary: "gemini",
   protocolInjection: { type: "cli-argument", flag: "-p" },
-  interruptKeys: ["C-c"],
+  interruptKeys: getInterruptKeys("gemini", "tmux"),
   skipProxyEnv: true,
   capabilities: {
     canExecuteBash: true,
@@ -111,9 +112,10 @@ const geminiAdapter: AgentAdapter = {
     canRunApexCLI: true,
     preferredLanguage: "en",
     maxPromptBytes: 200_000,
+    autoApprovalFlag: "--yolo",
   },
   buildStartCommand(opts: StartOpts): string {
-    const model = opts.model ? ` --model ${opts.model}` : "";
+    const model = opts.model ? ` --model "${opts.model}"` : "";
     return `cd "${opts.worktreePath}" && gemini${model} --yolo -p "$(cat '${opts.protocolPath}')"`;
   },
 };
@@ -122,7 +124,7 @@ const opencodeAdapter: AgentAdapter = {
   name: "opencode",
   binary: "opencode",
   protocolInjection: { type: "cli-argument", flag: "-p" },
-  interruptKeys: ["C-c"],
+  interruptKeys: getInterruptKeys("opencode", "tmux"),
   skipProxyEnv: true,
   capabilities: {
     canExecuteBash: true,
@@ -133,7 +135,7 @@ const opencodeAdapter: AgentAdapter = {
     maxPromptBytes: 200_000,
   },
   buildStartCommand(opts: StartOpts): string {
-    const model = opts.model ? ` --model ${opts.model}` : "";
+    const model = opts.model ? ` --model "${opts.model}"` : "";
     return `cd "${opts.worktreePath}" && opencode${model} run -p "$(cat '${opts.protocolPath}')"`;
   },
 };
@@ -152,7 +154,7 @@ function makeDefaultAdapter(name: string, command: string, args: string[]): Agen
     name,
     binary: command,
     protocolInjection: { type: "none" },
-    interruptKeys: ["C-c"],
+    interruptKeys: getInterruptKeys(name, "tmux"),
     skipProxyEnv: true,
     capabilities: {
       canExecuteBash: true,

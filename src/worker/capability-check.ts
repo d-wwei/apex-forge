@@ -27,8 +27,8 @@ export async function checkAgent(binary: string): Promise<CheckResult> {
     result.issues.push(`${binary} --version failed`);
   }
 
-  // Level 3: functional trust (if levels 1-2 passed)
-  result.functional = true;
+  // Level 3: functional trust — requires successful version query
+  result.functional = result.version !== null;
   return result;
 }
 

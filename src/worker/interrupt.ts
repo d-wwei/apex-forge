@@ -17,9 +17,10 @@ const KEY_MAP: Record<string, Record<AdapterName, string>> = {
 };
 
 const AGENT_KEYS: Record<string, string[]> = {
-  claude: ["esc"],
-  codex:  ["ctrlc"],
-  gemini: ["ctrlc"],
+  claude:   ["esc"],
+  codex:    ["ctrlc"],
+  gemini:   ["ctrlc"],
+  opencode: ["ctrlc"],
 };
 
 export function interruptKeys(agent: string, adapter: AdapterName = "tmux"): string[] {

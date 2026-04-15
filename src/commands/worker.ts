@@ -98,9 +98,10 @@ async function cmdSpawn(args: string[]): Promise<void> {
 
   // 3. Verify agent CLI is available (skip for dry-run — no terminal will be created)
   if (!isDryRun) {
-    const check = await checkAgent(agent);
+    const binary = BUILTIN_ADAPTERS[agent]?.binary ?? agent;
+    const check = await checkAgent(binary);
     if (!check.available) {
-      console.error(`Agent CLI '${agent}' not found. Install it or use --agent to specify a different agent.`);
+      console.error(`Agent CLI '${binary}' not found. Install it or use --agent to specify a different agent.`);
       process.exit(1);
     }
     if (check.issues.length > 0) {
@@ -314,6 +315,50 @@ function isAgentIdle(screen: string, agent: string): boolean {
   }
 }
 
+// ── directive ──────────────────────────────────────────────────────
+
+const VALID_DIRECTIVE_ACTIONS = ["amend", "pause", "abort", "info"] as const;
+
+export async function cmdDirective(args: string[]): Promise<void> {
+  const taskId = args[0];
+  const action = args[1];
+  const content = args[2];
+
+  if (!taskId || !action || !content) {
+    console.error("Usage: apex worker directive <task-id> <action> <content>");
+    console.error("  action: amend | pause | abort | info");
+    process.exit(1);
+  }
+
+  if (!VALID_DIRECTIVE_ACTIONS.includes(action as any)) {
+    console.error(`Invalid action '${action}'. Must be one of: ${VALID_DIRECTIVE_ACTIONS.join(", ")}`);
+    process.exit(1);
+  }
+
+  const projectRoot = process.cwd();
+  const workerDir = join(projectRoot, ".apex", "workers", taskId);
+
+  if (!existsSync(workerDir)) {
+    console.error(`Worker ${taskId} not found (missing .apex/workers/${taskId}/)`);
+    process.exit(1);
+  }
+
+  const urgent = hasFlag(args, "--urgent");
+
+  const directive = {
+    from: "plan-agent",
+    created_at: new Date().toISOString(),
+    action,
+    content: {
+      description: content,
+      urgency: urgent ? "high" : "normal",
+    },
+  };
+
+  writeFileSync(join(workerDir, "directive.json"), JSON.stringify(directive, null, 2));
+  console.log(`Directive written: ${action} → Worker ${taskId}${urgent ? " (urgent)" : ""}`);
+}
+
 // ── merge ───────────────────────────────────────────────────────────
 
 type MergeStrategy = "local" | "pr" | "squash";
@@ -516,6 +561,8 @@ Usage:
                                 Spawn a worker agent for a task
   apex worker kill <task-id>    Kill worker and clean up worktree
   apex worker interrupt <task-id> Send interrupt signal to worker
+  apex worker directive <task-id> <action> <content> [--urgent]
+                                Write directive.json (action: amend|pause|abort|info)
   apex worker merge <task-id> [--strategy local|pr|squash]
                                 Merge completed worker branch (default: local)
   apex worker merge-all [--strategy local|pr|squash]
@@ -544,6 +591,9 @@ export async function cmdWorker(args: string[]): Promise<void> {
       break;
     case "interrupt":
       await cmdInterrupt(args.slice(1));
+      break;
+    case "directive":
+      await cmdDirective(args.slice(1));
       break;
     case "merge":
       await cmdMerge(args.slice(1));

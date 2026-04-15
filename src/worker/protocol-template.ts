@@ -476,20 +476,38 @@ function sectionDirectiveCheck(opts: ProtocolOptions, lang: "zh" | "en"): string
   const { task, projectRoot } = opts;
   const workersDir = `${projectRoot}/.apex/workers/${task.id}`;
 
-  // Bash blocks are identical in both languages.
-  const escalationBlock = `\
+  // Determine whether the agent supports bash
+  const useBash = !opts.agent || (BUILTIN_ADAPTERS[opts.agent]?.capabilities.canExecuteBash ?? true);
+
+  const escalationJson = `{ "task_id": "${task.id}", "type": "human_intervention", "stage": "<current_stage>", "summary": "${lang === "en" ? "Human user directly operated the terminal" : "人类用户直接操作了终端"}", "created_at": "<ISO timestamp>" }`;
+
+  let escalationBlock: string;
+  let directiveCheckBlock: string;
+  let consumeBlock: string;
+
+  if (useBash) {
+    escalationBlock = `\
 \`\`\`bash
 cat > ${workersDir}/escalation.json << 'APEX_EOF'
-{ "task_id": "${task.id}", "type": "human_intervention", "stage": "<current_stage>", "summary": "${lang === "en" ? "Human user directly operated the terminal" : "人类用户直接操作了终端"}", "created_at": "<ISO timestamp>" }
+${escalationJson}
 APEX_EOF
 \`\`\``;
-
-  const directiveCheckBlock = `\
+    directiveCheckBlock = `\
 \`\`\`bash
 test -f ${workersDir}/directive.json && cat ${workersDir}/directive.json
 \`\`\``;
-
-  const consumeBlock = `\`mv ${workersDir}/directive.json ${workersDir}/directive.$(date +%s).consumed.json\``;
+    consumeBlock = `\`mv ${workersDir}/directive.json ${workersDir}/directive.$(date +%s).consumed.json\``;
+  } else {
+    escalationBlock = lang === "en"
+      ? `Write the following JSON to \`${workersDir}/escalation.json\`:\n\n\`\`\`json\n${escalationJson}\n\`\`\``
+      : `将以下 JSON 写入 \`${workersDir}/escalation.json\`:\n\n\`\`\`json\n${escalationJson}\n\`\`\``;
+    directiveCheckBlock = lang === "en"
+      ? `Check if \`${workersDir}/directive.json\` exists. If it does, read it.`
+      : `检查 \`${workersDir}/directive.json\` 是否存在。如果存在，读取其内容。`;
+    consumeBlock = lang === "en"
+      ? `Rename \`${workersDir}/directive.json\` to \`${workersDir}/directive.consumed.json\``
+      : `将 \`${workersDir}/directive.json\` 重命名为 \`${workersDir}/directive.consumed.json\``;
+  }
 
   if (lang === "en") {
     return `\
