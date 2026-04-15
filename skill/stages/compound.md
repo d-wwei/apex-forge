@@ -133,11 +133,12 @@ Before `apex stage complete compound`, run the Stage Exit Gate (`gates/stage-exi
 
 | # | Check | Criterion | Verification |
 |---|-------|-----------|-------------|
-| S1 | Solution doc exists | `docs/solutions/{category}/{name}.md` exists | File read |
+| S1 | Solution doc exists (this iteration) | `docs/solutions/{category}/{name}.md` was **created or modified during the current pipeline cycle** (mtime after `apex stage set brainstorm` timestamp, or appears in `git diff --name-only` since cycle start). Historical docs from prior iterations do not satisfy this check. | File read + timestamp or git diff |
 | S2 | Root Cause section | Document contains "Root Cause" or "Problem" + cause analysis section | Section scan |
 | S3 | Prevention section | Document contains "Prevention" section | Section scan |
-| S4 | Roadmap snapshot | `docs/roadmaps/roadmap-{date}.md` exists for current date | File existence |
+| S4 | Roadmap snapshot (this iteration) | `docs/roadmaps/roadmap-*.md` was **created during the current pipeline cycle** (not a pre-existing file). Check mtime or `git status`/`git diff`. | File existence + timestamp |
 | S5 | Memory entry | At least 1 memory file written this session | Memory directory check |
+| S6 | Re-entry prompt issued | The 3-option AskUserQuestion (继续/新进程/结束) in the Completion section was **actually called** and user responded. Silently skipping or ending without this prompt is a gate violation. | Flow check: user response recorded |
 
 ### Substance Prompts (Tier 2+)
 
