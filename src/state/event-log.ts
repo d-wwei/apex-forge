@@ -374,7 +374,9 @@ export function materializePerSession(events: DomainEvent[]): SessionPipeline[] 
   for (const [sid, sessionEvents] of groups) {
     const state: StageState = {
       current_stage: "idle",
-      last_updated: new Date().toISOString(),
+      // Use first event's timestamp — NOT new Date() — to avoid making
+      // sessions with only unhandled event types appear as "just now".
+      last_updated: sessionEvents[0]?.ts ?? new Date().toISOString(),
       session_id: sid,
       artifacts: {},
       history: [],

@@ -2,6 +2,7 @@ import { existsSync, lstatSync, mkdirSync, symlinkSync, readdirSync, statSync, u
 import path from "path";
 import { writeJSON } from "../utils/json.js";
 import { isoTimestamp, sessionId } from "../utils/timestamp.js";
+import { register, autoPort } from "../registry.js";
 import type { StageState } from "../types/state.js";
 import type { TaskStore } from "../types/task.js";
 import type { MemoryStore } from "../types/memory.js";
@@ -115,6 +116,18 @@ export async function cmdInit(): Promise<void> {
       } catch { /* ignore */ }
     }
   } catch { /* ignore */ }
+
+  // Auto-register project so Dashboard Hub can discover it without
+  // requiring a separate `apex dashboard` invocation.
+  const projectDir = path.resolve(process.cwd());
+  const projectName = path.basename(projectDir);
+  register({
+    name: projectName,
+    path: projectDir,
+    port: autoPort(projectDir),
+    pid: 0,  // no dashboard server running — Hub uses .apex/ existence, not PID
+    startedAt: new Date().toISOString(),
+  });
 
   console.log(alreadyExists ? ".apex/ updated" : "Initialized .apex/ directory");
 }
