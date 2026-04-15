@@ -65,17 +65,24 @@
 
       <div class="home-search">
         <input type="text" class="home-search-input" id="home-search-input" data-i18n-placeholder="home.searchPlaceholder" placeholder="Search projects...">
-        <select class="home-filter-select" id="home-status-filter">
-          <option value="all" data-i18n="home.statusAll">All</option>
-          <option value="running" data-i18n="home.statusRunning">Running</option>
-          <option value="active" data-i18n="home.statusActive">Active</option>
-          <option value="archived" data-i18n="home.statusArchived">Archived</option>
-        </select>
-        <select class="home-filter-select" id="home-sort-select">
-          <option value="recent" data-i18n="home.sortRecent">Recent</option>
-          <option value="name" data-i18n="home.sortName">Name</option>
-          <option value="success" data-i18n="home.sortSuccess">Success</option>
-        </select>
+        <div class="home-dropdown" id="home-status-dropdown">
+          <button class="home-dropdown-btn" id="home-status-btn" data-i18n="home.statusAll">All</button>
+          <div class="home-dropdown-menu" id="home-status-menu">
+            <div class="home-dropdown-item active" data-value="all" data-i18n="home.statusAll">All</div>
+            <div class="home-dropdown-item" data-value="running" data-i18n="home.statusRunning">Running</div>
+            <div class="home-dropdown-item" data-value="active" data-i18n="home.statusActive">Active</div>
+            <div class="home-dropdown-item" data-value="archived" data-i18n="home.statusArchived">Archived</div>
+          </div>
+        </div>
+        <div class="home-dropdown" id="home-sort-dropdown">
+          <button class="home-dropdown-btn" id="home-sort-btn" data-i18n="home.sortLastActive">Last Active</button>
+          <div class="home-dropdown-menu" id="home-sort-menu">
+            <div class="home-dropdown-item active" data-value="lastActive" data-i18n="home.sortLastActive">Last Active</div>
+            <div class="home-dropdown-item" data-value="created" data-i18n="home.sortCreated">Last Created</div>
+            <div class="home-dropdown-item" data-value="name" data-i18n="home.sortName">Name</div>
+            <div class="home-dropdown-item" data-value="success" data-i18n="home.sortSuccess">Success</div>
+          </div>
+        </div>
       </div>
 
       <div class="home-grid" id="project-grid">

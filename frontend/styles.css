@@ -1620,7 +1620,8 @@ html, body {
 }
 .home-search-input::placeholder { color: rgba(255,255,255,0.3); }
 .home-search-input:focus { border-color: var(--accent-gold-light); }
-.home-filter-select {
+.home-dropdown { position: relative; }
+.home-dropdown-btn {
   padding: 10px 16px;
   background: #181c22;
   border: 1px solid rgba(223,226,235,0.08);
@@ -1629,12 +1630,34 @@ html, body {
   font-size: 13px;
   color: rgba(255,255,255,0.5);
   cursor: pointer;
-  outline: none;
-  appearance: none;
-  -webkit-appearance: none;
+  white-space: nowrap;
 }
-.home-filter-select:focus { border-color: var(--accent-gold-light); }
-.home-filter-select option { background: #181c22; color: rgba(255,255,255,0.7); }
+.home-dropdown-btn:hover { border-color: var(--accent-gold-light); color: rgba(255,255,255,0.7); }
+.home-dropdown-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 100%;
+  background: var(--bg-card);
+  border: 1px solid var(--border-main);
+  border-radius: 8px;
+  padding: 4px;
+  z-index: 100;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.home-dropdown-menu.visible { display: block; }
+.home-dropdown-item {
+  padding: 8px 12px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  color: rgba(255,255,255,0.5);
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.home-dropdown-item:hover { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.8); }
+.home-dropdown-item.active { color: var(--accent-gold-light); }
 
 .home-grid {
   display: grid;

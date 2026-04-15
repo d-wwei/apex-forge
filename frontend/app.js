@@ -43,7 +43,7 @@ let sessionExpanded = false;    // session pipeline expand/collapse
 // Home filter/sort state
 let searchQuery = '';
 let statusFilter = 'all';
-let sortMode = 'recent';
+let sortMode = 'lastActive';
 
 // ===== 2c. Hidden Projects =====
 
@@ -295,8 +295,10 @@ function applyProjectFilters() {
     filtered = filtered.slice().sort(function(a, b) { return a.name.localeCompare(b.name); });
   } else if (sortMode === 'success') {
     filtered = filtered.slice().sort(function(a, b) { return b.success - a.success; });
+  } else if (sortMode === 'created') {
+    filtered = filtered.slice().sort(function(a, b) { return (b.startedAt || '').localeCompare(a.startedAt || ''); });
   }
-  // 'recent' = default API order (already sorted by last_active)
+  // 'lastActive' = default API order (already sorted by last_active)
   renderProjectCards(filtered);
   renderSidebar(filtered);
 }
@@ -312,6 +314,7 @@ function loadProjectCards() {
       lastActive: p.last_active || 'unknown',
       port: p.port || null,
       path: p.path || '',
+      startedAt: p.startedAt || '',
       worktreeGroup: p.worktreeGroup || null,
     }));
     loadedProjects = projects.length ? projects : DEMO_PROJECTS;
@@ -1116,20 +1119,32 @@ document.addEventListener('DOMContentLoaded', () => {
       applyProjectFilters();
     });
   }
-  const statusSelect = document.getElementById('home-status-filter');
-  if (statusSelect) {
-    statusSelect.addEventListener('change', () => {
-      statusFilter = statusSelect.value;
-      applyProjectFilters();
+  // Custom dropdown wiring
+  function initDropdown(btnId, menuId, onChange) {
+    const btn = document.getElementById(btnId);
+    const menu = document.getElementById(menuId);
+    if (!btn || !menu) return;
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      document.querySelectorAll('.home-dropdown-menu.visible').forEach(m => { if (m !== menu) m.classList.remove('visible'); });
+      menu.classList.toggle('visible');
+    });
+    menu.querySelectorAll('.home-dropdown-item').forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menu.querySelectorAll('.home-dropdown-item').forEach(i => i.classList.remove('active'));
+        item.classList.add('active');
+        btn.textContent = item.textContent;
+        menu.classList.remove('visible');
+        onChange(item.dataset.value);
+      });
     });
   }
-  const sortSelect = document.getElementById('home-sort-select');
-  if (sortSelect) {
-    sortSelect.addEventListener('change', () => {
-      sortMode = sortSelect.value;
-      applyProjectFilters();
-    });
-  }
+  initDropdown('home-status-btn', 'home-status-menu', (val) => { statusFilter = val; applyProjectFilters(); });
+  initDropdown('home-sort-btn', 'home-sort-menu', (val) => { sortMode = val; applyProjectFilters(); });
+  document.addEventListener('click', () => {
+    document.querySelectorAll('.home-dropdown-menu.visible').forEach(m => m.classList.remove('visible'));
+  });
 
   // Guide popover toggle
   const guideBtn = document.getElementById('home-guide-btn');
