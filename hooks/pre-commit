@@ -1,29 +1,83 @@
 #!/usr/bin/env bash
 # Apex Protocol — pre-commit hook
-# Automatically curates memory from recent activity before each commit.
-# Approximates deer-flow's session-end auto-curation.
+# 1. Pipeline stage gate: blocks commit if session is not in Ship stage.
+# 2. Auto-curates memory from recent activity before each commit.
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-APEX_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 
-# Only run if apex binary exists
+# ── Pipeline Stage Gate (push-based enforcement) ──────────────────────
+# When APEX_SESSION_ID is set (i.e. running inside an AI agent session),
+# the commit is only allowed if the session's pipeline is in "ship" stage.
+# Manual commits (no APEX_SESSION_ID) are not blocked.
+
+if [ -n "${APEX_SESSION_ID:-}" ]; then
+  # Sanitize session ID (match src/state/event-log.ts sanitizeSessionId)
+  APEX_SESSION_ID=$(printf '%s' "$APEX_SESSION_ID" | tr -cd 'a-zA-Z0-9_-' | head -c 128)
+  APEX_DIR="${REPO_ROOT}/.apex"
+  SESSION_STATE="${APEX_DIR}/state.${APEX_SESSION_ID}.json"
+
+  if [ -d "$APEX_DIR" ]; then
+    if [ -f "$SESSION_STATE" ]; then
+      STAGE=$(python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        print(json.load(f).get('current_stage', 'unknown'))
+except Exception:
+    print('unknown')
+" "$SESSION_STATE" 2>/dev/null)
+
+      if [ -z "$STAGE" ]; then
+        echo "Warning: could not read session state (python3 missing?). Allowing commit."
+      elif [ "$STAGE" != "ship" ]; then
+        echo ""
+        echo "════════════════════════════════════════════════════════"
+        echo "  COMMIT BLOCKED — session stage is '${STAGE}', not 'ship'"
+        echo "════════════════════════════════════════════════════════"
+        echo ""
+        echo "  Code changes must go through the full pipeline:"
+        echo "  Execute → Review → Ship → Compound"
+        echo ""
+        echo "  If this is an ad-hoc fix from investigation/debugging,"
+        echo "  enter the pipeline first:"
+        echo "    apex stage set execute"
+        echo "    (verify) → apex stage complete execute"
+        echo "    (review) → apex stage set review → apex stage complete review"
+        echo "    (ship)   → apex stage set ship"
+        echo "    Then commit will succeed."
+        echo ""
+        exit 1
+      fi
+    else
+      # Session state file doesn't exist — no pipeline started in this session
+      echo ""
+      echo "════════════════════════════════════════════════════════"
+      echo "  COMMIT BLOCKED — no active pipeline in this session"
+      echo "════════════════════════════════════════════════════════"
+      echo ""
+      echo "  Start a pipeline (apex stage set execute) before committing."
+      echo ""
+      exit 1
+    fi
+  fi
+  # No .apex/ directory → not an apex project, allow commit
+fi
+
+# ── Memory Curation ──────────────────────────────────────────────────
 APEX_BIN=""
-if [ -x "$APEX_ROOT/dist/apex" ]; then
-  APEX_BIN="$APEX_ROOT/dist/apex"
+if [ -x "$REPO_ROOT/dist/apex" ]; then
+  APEX_BIN="$REPO_ROOT/dist/apex"
 elif command -v apex >/dev/null 2>&1; then
   APEX_BIN="apex"
 fi
 
 if [ -z "$APEX_BIN" ]; then
-  exit 0  # No binary, skip silently
+  exit 0
 fi
 
-# Run deterministic curation (fast, no API call)
 "$APEX_BIN" memory curate 2>/dev/null || true
-
-# Update telemetry
 "$APEX_BIN" telemetry end success 2>/dev/null || true
 
 exit 0

@@ -237,6 +237,19 @@ Sidecar characteristics:
 - Can be added/removed without touching backbone definition
 - Declared in `bindings.yaml`, not hardcoded in Phase Discipline
 
+#### Code Change Escalation Rule
+
+**Any task that produces code changes — regardless of entry point — must enter the pipeline.** Execute → Review → Ship (which performs the commit) → Compound (post-commit learning). This applies to investigation, debugging, ad-hoc fixes, and all other non-pipeline tasks equally.
+
+- Brainstorm/Plan can be replaced by analysis already done during investigation (don't redo work), but the agent must still fast-track through the stage tracking: `apex stage set brainstorm && apex stage complete brainstorm && apex stage set plan && apex stage complete plan` before entering Execute. This keeps Dashboard history consistent.
+- Execute (with verification), Review (quality gate), Ship (plain-language summary + commit), and Compound (learning extraction) are **never skippable**.
+- When an investigation or debug session discovers a fix and writes code, the agent must:
+  1. Fast-track Brainstorm/Plan: `apex stage set brainstorm && apex stage complete brainstorm && apex stage set plan && apex stage complete plan`
+  2. `apex stage set execute` — run verification (tests, integration checks)
+  3. `apex stage complete execute` → enter Review
+  4. Complete Review → Ship (commit happens here) → Compound as normal
+- **Enforcement:** The pre-commit hook checks `APEX_SESSION_ID` + session state. If the session's pipeline stage is not `ship`, `git commit` is rejected by git itself. This is a push-based hard gate — the agent cannot bypass it.
+
 #### Phase Violations
 
 | Violation | Example | Correction |
@@ -246,6 +259,7 @@ Sidecar characteristics:
 | Skipping Plan | Going from "what" directly to code | Stop. Produce a plan. Even a brief one. |
 | Ship without Review | Execute done → git commit | Stop. Enter Review stage. Code cannot be committed without review. |
 | Git ops outside Ship | git commit/push while stage != ship | Stop. Git operations only execute inside Ship stage. |
+| Ad-hoc commit without pipeline | Investigation found a fix → direct commit | Enter Execute → Review → Ship → Compound, or revert. |
 | Skip Compound prompt | Ship done → end session without asking | Must call AskUserQuestion for Compound. User may decline, but must be asked. |
 
 #### Stage Gates: Exit + Entry Verification
@@ -321,7 +335,7 @@ DONE (all E3+) | DONE_WITH_CONCERNS (flagged issues) | BLOCKED (tried, need X) |
 
 ### 8. Anti-Patterns (Hard Stops)
 
-"Done" without proof → run gate. Micro-tweaks → escalation ladder. Advice not action → execute it. Waiting for user → take initiative. Premature surrender → try 3 approaches. Phase leaking → return to correct phase. Scope creep → check plan. Ship without review → enter Review stage first. Git ops outside Ship → only inside Ship stage. **Skipping stages via low Tier → INVALID. All tiers walk the full six-stage pipeline. Tier only controls Execute strategy. Self-classifying as Tier 1 to skip Brainstorm/Plan/Review/Compound is a protocol violation.** Explicit stage commands (`/apex-forge ship`, etc.) bypass the Complexity Router but still execute the full stage protocol.
+"Done" without proof → run gate. Micro-tweaks → escalation ladder. Advice not action → execute it. Waiting for user → take initiative. Premature surrender → try 3 approaches. Phase leaking → return to correct phase. Scope creep → check plan. Ship without review → enter Review stage first. Git ops outside Ship → only inside Ship stage. **Skipping stages via low Tier → INVALID. All tiers walk the full six-stage pipeline. Tier only controls Execute strategy. Self-classifying as Tier 1 to skip Brainstorm/Plan/Review/Compound is a protocol violation.** Explicit stage commands (`/apex-forge ship`, etc.) bypass the Complexity Router but still execute the full stage protocol. **Ad-hoc code changes without pipeline → INVALID. Investigation/debug/ad-hoc tasks that produce code changes must enter Execute → Review → Ship → Compound before committing. The pre-commit hook enforces this as a hard gate.**
 
 ---
 

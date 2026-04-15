@@ -72,14 +72,21 @@ export async function cmdInit(): Promise<void> {
       const hookDst = path.join(hooksDir, hook.name);
       const hookSrc = path.join(process.cwd(), "hooks", hook.name);
 
-      const hookDstExists = (() => {
+      const linkExists = (() => {
         try { lstatSync(hookDst); return true; } catch { return false; }
       })();
+      const targetValid = linkExists && existsSync(hookDst);
 
-      if (existsSync(hookSrc) && !hookDstExists) {
+      // Broken symlink: delete and recreate
+      if (linkExists && !targetValid) {
+        unlinkSync(hookDst);
+        console.log(`Removed broken ${hook.name} hook symlink`);
+      }
+
+      if (existsSync(hookSrc) && (!linkExists || !targetValid)) {
         symlinkSync(path.resolve(hookSrc), hookDst);
         console.log(`Installed ${hook.name} hook (${hook.desc})`);
-      } else if (hookDstExists) {
+      } else if (targetValid) {
         console.log(`${hook.name} hook already exists (not overwriting)`);
       }
     }
