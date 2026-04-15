@@ -539,6 +539,9 @@ async function main() {
           if (!name) { console.error("Usage: apex stage set <name>"); process.exit(1); }
           const st = await setStage(name);
           console.log(`Stage set to: ${st.current_stage}`);
+          if (st.current_stage !== "idle") {
+            console.log(`⚠ MANDATORY: Read stages/${st.current_stage}.md before proceeding — contains required steps and exit gates.`);
+          }
         } else if (sub === "complete") {
           const name = rest[1];
           if (!name) { console.error("Usage: apex stage complete <name>"); process.exit(1); }
@@ -683,8 +686,13 @@ async function main() {
         break;
       }
       case "orchestrate":
-        const { runOrchestrator } = await import("./orchestrator.js");
-        await runOrchestrator(rest);
+        if (rest[0] === "event") {
+          const { cmdOrchestrateEvent } = await import("./commands/orchestrate-event.js");
+          await cmdOrchestrateEvent(rest.slice(1));
+        } else {
+          const { runOrchestrator } = await import("./orchestrator.js");
+          await runOrchestrator(rest);
+        }
         break;
       case "version":
       case "--version":

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.2 (2026-04-15)
+
+### Stage-Skip Protection
+
+- **cli.ts**: `apex stage set <stage>` now prints `⚠ MANDATORY: Read stages/{stage}.md` for all non-idle stages — push-based reminder so agents cannot miss stage file reading
+- **SKILL.md**: Added "Stage File Reading Rule (HARD GATE)" to Phase Discipline — explicit hard rule requiring `Read stages/{stage}.md` before executing any stage
+- **Tests**: 2 new CLI tests verifying MANDATORY reminder for all 6 stages + idle exemption
+
+### Root Cause
+
+Agents relied on SKILL.md's brief stage descriptions instead of reading detailed stage files. The "MUST Read" rule existed only in the "Explicit Stage Commands" section (line 155), not in Phase Discipline that applies to all pipeline transitions. CLI provided no reminder.
+
 ## 0.1.1 (2026-04-14)
 
 ### Pipeline Re-entry Fix

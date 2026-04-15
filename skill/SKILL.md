@@ -196,6 +196,20 @@ Hard-gated. No leaking between phases. **Track every transition:**
 - **Ship (DELIVER)** — Package and deliver. Review passes → then commit/push/PR. All git ops happen here.
 - **Compound (LEARN)** — Knowledge extraction. Ship completes → prompt user for reflection. User may decline, but must be asked.
 
+#### Stage File Reading Rule (HARD GATE)
+
+**Before executing ANY stage, the agent MUST `Read stages/{stage}.md`.** The CLI (`apex stage set`) prints a `⚠ MANDATORY` reminder with the file path — that reminder is not decoration.
+
+- The bullet-point descriptions above are **summaries**, not complete instructions.
+- Each stage file contains **required steps, checklists, and exit gates** that are NOT in this file.
+- Skipping the Read → skipping steps → protocol violation.
+- This applies to ALL tiers (Tier 1, 2, 3) and ALL entry paths (Router, explicit command, resume).
+
+**Invalid rationalizations:**
+- "I know what Ship means" — NO. Ship has pre-flight checks, multi-step sequences, and exit gates you haven't seen.
+- "Tier 1 is lightweight, I don't need the file" — NO. Tier controls Execute strategy, not stage reading.
+- "I already did this stage before" — NO. Read it every time. Stage files may have been updated.
+
 #### Tier-Based Execute Strategies
 
 All tiers walk the same six-stage pipeline. The Complexity Router (Section 1) determines the Execute strategy:
