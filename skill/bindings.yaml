@@ -95,10 +95,8 @@ review:
     priority: 3
     concurrent: true
     layers:
-      - gate: design-baseline
+      - gate: design-baseline        # Phase 1 (objective) + Phase 2 (multi-persona sub-agents)
         verdict_on_fail: REJECTED
-      - skill: tasteful-frontend
-        verdict_on_fail: APPROVED_WITH_FIXES
 
   - trigger: "product experience or UX evaluation"
     skill: product-review
