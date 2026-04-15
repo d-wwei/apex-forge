@@ -2344,3 +2344,11 @@ html, body {
   border-radius: 3px;
   margin-left: 8px;
 }
+
+/* Orchestration session — Plan Agent uses purple tones */
+.wt-mini-circle.orch { border-color: rgba(139, 92, 246, 0.3); }
+.wt-mini-circle.orch.active { background: #8b5cf6; border-color: #8b5cf6; box-shadow: 0 0 6px rgba(139, 92, 246, 0.4); }
+.wt-mini-circle.orch.completed { background: #6d28d9; border-color: #6d28d9; }
+.orch-session { border-left: 2px solid rgba(139, 92, 246, 0.3); padding-left: 8px; }
+.orch-timeline { display: flex; gap: 4px; margin-top: 4px; padding: 2px 0; }
+.orch-event { font-size: 11px; opacity: 0.7; cursor: default; }

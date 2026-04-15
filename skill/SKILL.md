@@ -247,6 +247,7 @@ Sidecar characteristics:
 | Ship without Review | Execute done → git commit | Stop. Enter Review stage. Code cannot be committed without review. |
 | Git ops outside Ship | git commit/push while stage != ship | Stop. Git operations only execute inside Ship stage. |
 | Skip Compound prompt | Ship done → end session without asking | Must call AskUserQuestion for Compound. User may decline, but must be asked. |
+| Re-entry before Compound | Ship done → ask "继续下一个迭代?" | Stop. Enter Compound first. Re-entry questions belong to Compound's Completion section. |
 
 #### Stage Gates: Exit + Entry Verification
 

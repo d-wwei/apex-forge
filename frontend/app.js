@@ -5,6 +5,8 @@
 // ===== 1. Constants =====
 
 const STAGES = ['brainstorm', 'plan', 'execute', 'review', 'ship', 'compound'];
+const ORCH_STAGES = ['orchestrate:brainstorm', 'orchestrate:plan', 'orchestrate:split', 'orchestrate:kickoff', 'orchestrate:monitoring', 'orchestrate:closure'];
+const ORCH_STAGE_LABELS = { 'orchestrate:brainstorm': 'Brainstorm', 'orchestrate:plan': 'Plan', 'orchestrate:split': 'Split', 'orchestrate:kickoff': 'Kickoff', 'orchestrate:monitoring': 'M&C', 'orchestrate:closure': 'Closure' };
 
 const STAGE_ICONS = {
   brainstorm: '<svg viewBox="0 0 14 14"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
@@ -737,8 +739,11 @@ function renderSessionExpandedRows(sessions) {
     var spHistory = spFH.slice(spCS)
       .filter(function(h) { return h.completed; })
       .map(function(h) { return h.stage; });
-    var circles = STAGES.map(function(s) {
+    var isOrchSession = spCurrent.startsWith('orchestrate:') || spHistory.some(function(h) { return h.startsWith('orchestrate:'); });
+    var stageList = isOrchSession ? ORCH_STAGES : STAGES;
+    var circles = stageList.map(function(s) {
       var cls = 'wt-mini-circle';
+      if (isOrchSession) cls += ' orch';
       if (s === spCurrent) cls += ' active';
       else if (spHistory.includes(s)) cls += ' completed';
       return '<div class="' + cls + '"></div>';
@@ -761,12 +766,26 @@ function renderSessionExpandedRows(sessions) {
       t('session.stage') + ': ' + esc(sp.current_stage || 'idle') + '<br>' +
       t('session.lastActive') + ': ' + esc(sp.last_updated) +
       '</div>';
-    return '<div class="wt-row" data-session-id="' + esc(sp.session_id) + '">' +
+    var timelineHtml = '';
+    if (isOrchSession && sp.orchestration_events && sp.orchestration_events.length > 0) {
+      var events = sp.orchestration_events.slice(-8);
+      timelineHtml = '<div class="orch-timeline">' + events.map(function(evt) {
+        var icon = evt.action === 'worker_spawned' ? '\u25b6' :
+                   evt.action === 'merge_completed' ? '\u2714' :
+                   evt.action === 'worker_failed' ? '\u2718' :
+                   evt.action === 'worker_crashed' ? '\u26a0' :
+                   evt.action === 'escalation_received' ? '\u2753' : '\u2022';
+        var evtLabel = (evt.task || '') + ' ' + evt.action.replace(/_/g, ' ');
+        return '<span class="orch-event" title="' + esc(evtLabel) + '">' + icon + '</span>';
+      }).join('') + '</div>';
+    }
+    return '<div class="wt-row' + (isOrchSession ? ' orch-session' : '') + '" data-session-id="' + esc(sp.session_id) + '">' +
       '<div class="session-label-group">' +
         '<span class="session-label">' + esc(label) + '</span>' +
         '<span class="session-info-icon">\u24d8' + tooltipHtml + '</span>' +
       '</div>' +
       '<div class="wt-row-stages">' + circles + '</div>' +
+      timelineHtml +
     '</div>';
   }).join('');
 }
