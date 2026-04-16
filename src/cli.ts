@@ -697,6 +697,11 @@ async function main() {
         await cmdDoctor(rest);
         break;
       }
+      case "audit": {
+        const { cmdAudit } = await import("./commands/audit.js");
+        await cmdAudit(rest);
+        break;
+      }
       case "recover": {
         // Handle --rebuild flag for event log cache rebuild
         if (rest.includes("--rebuild")) {
@@ -794,6 +799,7 @@ Commands:
   stage get                     Show current stage state as JSON
   ship checkpoint NAME          Record a ship-stage checkpoint (iteration-summary, push-prompt, compound-transition)
   compound checkpoint NAME      Record a compound-stage checkpoint (re-entry-prompt)
+  audit [--session ID] [--json] [--no-test] [--all]  Audit pipeline execution quality
   doctor [--json]               Audit all enforcement layers (hooks, gates, bindings, state)
   worktree create TASK_ID       Create git worktree for task
   worktree list                 List worktrees
