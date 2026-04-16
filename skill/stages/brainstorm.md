@@ -20,25 +20,13 @@ Run `apex status` to check current stage before starting.
 ```
 ================================================================
   THIS STAGE ENFORCES A HARD GATE.
-
-  While Brainstorm is active:
-    - NO code files may be created or modified.
-    - NO implementation work of any kind.
-    - NO "let me just quickly scaffold" or "starter code."
-    - NO pull requests, branches, or worktrees.
-
-  The ONLY outputs are:
-    - Conversation with the user.
-    - A requirements document in docs/brainstorms/.
-
-  Implementation begins at Execute stage, after the
-  requirements pass through Plan.
+  NO code, files, branches, worktrees, or PRs may be created.
+  The ONLY outputs are: conversation + a requirements doc in docs/brainstorms/.
+  Implementation begins at Execute stage, after requirements pass through Plan.
 ================================================================
 ```
 
-Violation of this gate is a pipeline integrity failure. If the agent
-catches itself about to write implementation code during Brainstorm,
-it must stop, log the violation attempt, and return to the checklist.
+Violation is a pipeline integrity failure. Stop, log the attempt, return to checklist.
 
 ---
 
@@ -46,122 +34,45 @@ it must stop, log the violation attempt, and return to the checklist.
 
 ```
 ================================================================
-  THIS STAGE ENFORCES EVIDENTIARY DISCIPLINE.
-
-  While Brainstorm is active, all factual claims must be tagged:
-
-    [已验证] — Based on actual investigation (read code, ran
-               commands, checked docs, verified behavior).
-    [假设]   — Unverified speculation. Must be explicitly marked.
-
-  Violations:
-    ✗ Untagged assertions presented as fact.
-    ✗ "已给出解决方案" when the actual solution is deferred.
-    ✗ Quantitative claims without data ("N will cause X").
-    ✗ Designing against an API/system without reading its docs.
-
-  When about to make an unverified claim:
-    → STOP. Either investigate now, or tag [假设] and state
-      why verification is deferred.
-
-  This is a hard constraint, same severity as "no code."
+  Tag ALL factual claims: [已验证] (investigated) or [假设] (unverified).
+  Untagged assertions, deferred solutions labeled "solved", and API claims
+  without docs are violations — same severity as "no code."
 ================================================================
 ```
 
 ---
 
-## On Entry: Resume Check + Roadmap Context
+## On Entry: Resume Check
 
-Before starting a new brainstorm:
+1. Check `docs/brainstorms/` for existing artifacts matching the current task.
+2. `status: draft` + modified within 7 days → offer to resume.
+3. `status: approved` → offer to revise or proceed to Plan.
 
-1. Check `docs/brainstorms/` for recent artifacts.
-2. If a requirements doc has `status: draft` and was modified within
-   the last 7 days, offer to resume from where it left off.
-3. If a requirements doc has `status: approved`, offer to revise or
-   proceed to planning.
-4. If no matching artifacts exist, begin a fresh brainstorm.
-
-### Roadmap Awareness
-
-5. Check for roadmap sources in this order:
-   a. `docs/roadmaps/` directory exists and contains `roadmap-*.md` files → use **snapshot mode**
-      (If the directory exists but contains no `roadmap-*.md` files, treat as if it does not exist — fall through to 5b.)
-   b. `docs/iteration-roadmap.md` exists → **legacy mode**, read as single file (treat as before)
-   c. Neither exists → skip roadmap awareness
-
-6. **Snapshot mode reading algorithm**:
-   a. List all `roadmap-*.md` files in `docs/roadmaps/`, sort by filename (lexicographic = chronological).
-   b. Read the **latest** snapshot fully — this is the baseline.
-   c. Read its `based_on` frontmatter field to get the set of already-incorporated snapshots.
-   d. Identify **unmerged** snapshots: files NOT in `based_on` AND NOT the baseline itself.
-      Compare by **bare filename** (e.g., `roadmap-20260412T1100.md`), not full path.
-   e. If no unmerged snapshots exist → use baseline only (**fast path**, most common case).
-   f. If unmerged snapshots exist → scan each one, extract planning items NOT present in baseline.
-
-7. **Completion check** (for planning items in scope):
-   - For each item with a **验证** (verification) field: run the listed glob/grep checks against code
-     exactly as written in the hint. Mark as completed if all criteria pass, pending otherwise.
-   - For items **without** verification hints: leave as pending. Do NOT attempt a full codebase scan.
-   - If a verification hint errors out (malformed pattern, path no longer valid): leave as pending
-     and note the broken hint for the next iteration-reflector to fix.
-
-8. Synthesize and present:
-   - Read the **当前状态速览** and **建议的下一个迭代** sections from the baseline.
-   - If unmerged items were found, mention them:
-     > "I found {N} additional planning items from parallel iterations that aren't in the latest roadmap."
-   - If the user's request aligns with a Roadmap item, mention it:
-     > "This aligns with a Roadmap item from a previous iteration: {item}. I'll use that context."
-   - If the user starts a fresh brainstorm without a specific request, surface
-     the top 3 Roadmap items as suggestions (combining baseline + unmerged items):
-     > "The Roadmap from previous iterations suggests these priorities: ..."
-
-9. Do NOT auto-select a Roadmap item. The user decides what to work on next.
+→ See `details/brainstorm-checklist.md` for the full Roadmap Context reading algorithm (snapshot mode, steps 5–9).
 
 ---
 
 ## Intent Routing
 
-Before classifying scope, determine the user's intent:
-
 ```
 What is the user asking for?
 
 → Product decision / new product / "要不要做XX" / "写个 PRD" / market analysis
-  → Route to /product-prd (companion skill)
+  → Route to /product-prd companion skill
   → Output: PRD document or validation summary
-  → After PRD approved → proceed to Plan stage
 
-→ Specific development task / "做一个XX功能" / bug fix / refactor
-  → Continue with the 9-step checklist below
+→ Specific development task / feature / bug fix / refactor
+  → Continue with 9-step checklist below
   → Output: requirements confirmation document
-  → After requirements approved → proceed to Plan stage
 ```
 
-**Signal phrases for PRD path**: "写 PRD", "做需求文档", "要不要做", "新功能规划",
-"产品决策", "市场分析", "这个产品方向", "写个产品需求文档"
+If ambiguous, ask: "PRD, or define development requirements directly?"
 
-**Signal phrases for development path**: "帮我做一个", "加一个功能", "修这个 bug",
-"重构", "优化性能", "添加 API", specific technical tasks
-
-If ambiguous, ask: "This sounds like it could be a product-level decision or a
-development task. Should I help with a PRD, or should we define the development
-requirements directly?"
-
-### Skill Dispatch (PRD Path)
-
-When routing to PRD path, invoke the product-prd companion skill:
-
-```bash
-# Record invocation after completion
-apex trace-skill brainstorm product-prd 2.0.0 <output_status> <af_mapping>
-```
+When routing to PRD path: `apex trace-skill brainstorm product-prd 2.0.0 <output_status> <af_mapping>`
 
 ---
 
 ## Scope Classification (Development Path)
-
-Classify the request before running the checklist. Scope determines
-checklist depth and downstream pipeline behavior.
 
 | Scope | Criteria | Checklist | Typical Duration |
 |-------|----------|-----------|-----------------|
@@ -169,201 +80,40 @@ checklist depth and downstream pipeline behavior.
 | **Standard** | Multi-file feature, API addition, moderate refactor, 30 min - 4 hr effort | Full 9-step | 15-30 min |
 | **Deep** | Architecture change, new subsystem, multi-service coordination, 4+ hr effort | Full 9-step + architecture diagram + risk matrix | 30-60 min |
 
-### Scope Challenge
-
-If the user claims something is Lightweight but the agent detects signals
-of higher complexity (multiple files, unclear requirements, cross-cutting
-concerns), escalate and suggest treating it as Standard.
-
----
-
-## Multi-Issue Discussion Protocol
-
-When Brainstorm identifies N > 5 issues to resolve (e.g., gap analysis,
-risk enumeration, open questions), this protocol replaces linear one-by-one
-discussion.
-
-### Step A: Panoramic View
-
-List ALL issues with one-line summary + severity (Critical / High / Medium).
-Do NOT expand any solutions yet.
-
-### Step B: User Triage
-
-Ask the user to mark which issues need deep discussion:
-
-> "以上 {N} 个问题，哪些需要逐个深入讨论？
->  其余的我会给出一句话方案，你批量确认。"
-
-### Step C: Group by Dependency
-
-Group issues that share premises or depend on each other. Discuss
-each group as a unit, not as separate items. Example: if two issues
-both depend on "does the platform support hooks?", discuss them together.
-
-### Step D: Batch the Rest
-
-Issues NOT marked for deep discussion: present all solutions in one
-message. User confirms, modifies, or flags individual items for
-deeper discussion.
-
-### Prohibited Patterns
-
-| Pattern | Why It Fails | Correct Response |
-|---------|-------------|-----------------|
-| Linear one-by-one expansion of all items | Wastes time on low-priority issues | Use Step B triage |
-| Full solution for every item before asking user | Over-designs low-priority items | Batch simple items (Step D) |
-| Discussing related issues separately | Misses shared premises, causes redundant discussion | Group by dependency (Step C) |
-| Asking "展开全部还是只展开 Critical" | Locks user into all-or-nothing choice | Step B lets user pick individual items |
+If user claims Lightweight but signals indicate higher complexity, escalate to Standard.
 
 ---
 
 ## The 9-Step Checklist
 
-**Note**: If any step below surfaces more than 5 open issues, switch to
-the Multi-Issue Discussion Protocol before continuing.
+→ See `details/brainstorm-checklist.md` for full step descriptions, output requirements, and the Multi-Issue Discussion Protocol.
 
-### Step 1: Clarify the Actual Problem
-- What is broken, missing, or suboptimal?
-- Who is affected and how?
-- What is the current behavior vs. desired behavior?
-- Restate the problem in one sentence to confirm alignment.
+If any step surfaces > 5 open issues, switch to the Multi-Issue Discussion Protocol before continuing.
 
-**Output**: Problem statement (2-3 sentences max).
+1. Clarify the Actual Problem
+2. Identify Constraints and Boundaries
+3. Enumerate Approaches (Minimum 2)
+4. Evaluate Trade-offs
+5. Define Acceptance Criteria
+6. Identify Risks and Mitigations
+7. Specify Dependencies
+8. Draft the Solution Shape
+9. User Approval Checkpoint
 
-### Step 2: Identify Constraints and Boundaries
-- What MUST NOT change? (existing contracts, public APIs, data formats)
-- What are the performance, security, or compatibility requirements?
-- What is explicitly out of scope?
-
-**Output**: Constraints list.
-
-### Step 3: Enumerate Approaches (Minimum 2)
-- Generate at least 2 distinct approaches (3 for Deep scope).
-- Each approach described in 2-4 sentences.
-- Include the "do nothing" option if relevant.
-
-**Output**: Numbered approach list with brief descriptions.
-
-### Step 4: Evaluate Trade-offs
-- For each approach: Pros, Cons, Risks.
-- Use a comparison table for Standard and Deep scope.
-
-**Output**: Trade-off analysis.
-
-### Step 5: Define Acceptance Criteria
-- What must be true for the work to be considered done?
-- Each criterion must be testable. Minimum 3 for Standard, 5 for Deep.
-- Use "Given / When / Then" format where applicable.
-
-**Output**: Numbered acceptance criteria list.
-
-### Step 6: Identify Risks and Mitigations
-- What could go wrong during implementation or after deployment?
-- For each risk: probability, impact, mitigation strategy.
-- Skip for Lightweight scope unless a risk is obvious.
-
-**Output**: Risk table with mitigation column.
-
-### Step 7: Specify Dependencies
-- What existing code, services, or libraries does this depend on?
-- What must be built first? Any blocking unknowns?
-
-**Output**: Dependency list with status (available / needs-work / unknown).
-
-### Step 8: Draft the Solution Shape
-- Describe the chosen approach at a high level.
-- Identify key components, responsibilities, and interactions.
-- NO implementation code. Directional descriptions only.
-- **Complexity check**: Does the solution have more stages, layers, or
-  abstractions than the problem warrants? If the plan requires 4+ phases,
-  multiple new abstraction layers, or introduces requirements the user
-  didn't mention — present the simplest viable version first, then ask
-  if the user wants more.
-
-**Output**: Solution shape description.
-
-### Step 9: User Approval Checkpoint
-- Present the complete requirements summary.
-- Ask explicitly for approval.
-- Do NOT auto-approve. Do NOT interpret silence as approval.
-
-**Output**: User's decision (approved / revise / reject).
-
----
-
-## Anti-Rationalization Table
-
-| Rationalization | Why It Fails | Correct Response |
-|----------------|-------------|-----------------|
-| "This is too simple for brainstorming" | Simple tasks have hidden complexity. | Use Lightweight scope. Steps 1, 3, 5, 8, 9 take under 5 minutes. |
-| "I already know exactly what to do" | Confirmation bias. | "Great, then the brainstorm will be quick. Let me confirm the criteria." |
-| "We're wasting time, just start coding" | Premature coding wastes more time. | "10 minutes now saves hours later." |
-| "Let me just prototype first" | Prototypes become production code. | "What do you want to learn? Let me capture that as acceptance criteria." |
-| "The requirements are obvious" | Unstated requirements cause scope creep. | "Let me write them down so we agree. Takes 3 minutes." |
-| "We already brainstormed this" | If no approved doc exists, it was not captured. | Check for existing docs. If none, start fresh. |
-| "This is just a bug fix" | Bug fixes still need root cause + verification criteria. | Lightweight scope covers this. |
-| "The user is waiting" | Shipping the wrong thing is slower. | "5-minute Lightweight brainstorm." |
-| "This needs a full migration plan" | Solution complexity may far exceed problem scale. | Ask: "What's the simplest way?" If user says "just switch it," adopt. |
-| "We should design a general architecture" | Phase 1 doesn't need generality. | Solve the current problem only. Don't add generality the user didn't ask for. |
-
----
-
-## Running Decisions Log
-
-When a Brainstorm discussion exceeds **3 interaction rounds**, maintain
-a decisions log to prevent earlier decisions from being buried by later
-conversation.
-
-**File**: `docs/brainstorms/{name}-decisions.md`
-
-**Format**:
-
-```markdown
-| # | Decision | Basis | Status |
-|---|----------|-------|--------|
-| D1 | Kernel includes baseline guarantees | User choice | Confirmed |
-| D2 | Hooks use abstract event layer | User requires cross-platform | Confirmed |
-| D3 | Budget default = 5 fields | [假设] No experimental data | Needs verification |
-```
-
-**Rules**:
-- Append each decision as it is made. Do NOT wait until the end.
-- The `Basis` column must distinguish [已验证] from [假设] sources
-  (as defined in the Evidentiary Discipline section above).
-- The `Status` column tracks: `Confirmed` / `Needs verification` / `Superseded`.
-- When a later decision invalidates an earlier one, mark the earlier one
-  `Superseded by D{N}`.
-
-**Purpose**:
-- Quick reference during long discussions (no need to scroll back).
-- The final requirements document's "Confirmed Decisions" section is
-  generated from this log.
-- `Needs verification` items surface what still requires investigation.
-
-The decisions log is a process tool. The final deliverable remains
-the requirements document.
+→ See `details/brainstorm-anti-patterns.md` for the Anti-Rationalization Table.
 
 ---
 
 ## Artifact Output
 
-When the user approves (Step 9 = approved), write to
-`docs/brainstorms/{name}-requirements.md` with frontmatter including
-title, scope, status, dates, and approval info. The document captures
-all 9 checklist outputs.
+On Step 9 approval, write to `docs/brainstorms/{name}-requirements.md` (frontmatter: title, scope, status, dates, approval). Include "Confirmed Decisions" section if a decisions log was maintained.
 
-If a decisions log was maintained (`{name}-decisions.md`), include a
-**Confirmed Decisions** section in the requirements document, generated
-from all entries with Status = `Confirmed`.
+→ See `details/brainstorm-decisions-log.md` for decisions log format and rules.
 
-After writing, register with: `apex task create --stage brainstorm --artifact docs/brainstorms/{name}-requirements.md`
+Register: `apex task create --stage brainstorm --artifact docs/brainstorms/{name}-requirements.md`
 
-### Revisions
-Keep `status: draft`, apply changes, return to the relevant step, re-present for approval.
-
-### Rejection
-Update `status: rejected`. Offer to start over or shelve.
+**Revisions**: Keep `status: draft`, apply changes, return to relevant step, re-present.
+**Rejection**: Update `status: rejected`. Offer to restart or shelve.
 
 ---
 

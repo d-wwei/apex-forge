@@ -5,120 +5,36 @@ description: Package, commit, and deliver -- tests, version bump, changelog, com
 
 # Ship Stage
 
-The delivery gate. Tests pass, diff reviewed, version bumped,
-changelog updated, committed, pushed, PR created.
-
----
+The delivery gate. Tests pass, diff reviewed, version bumped, changelog updated, committed, pushed, PR created.
 
 **On entry:** `apex stage set ship`
 **On completion:** `apex stage complete ship`
 
+---
+
 ## Entry Conditions
 
-1. **Required upstream**: A review with status `DONE` or `DONE_WITH_CONCERNS`.
-2. If no review found, tell the user to run the Review stage first.
-   Do NOT ship unreviewed code.
-3. If review status is `BLOCKED` or `NEEDS_CONTEXT`, resolve issues first.
-
-### Upstream Entry Verification
-
-Before starting Ship work, verify Review artifact completeness:
-
-1. `docs/reviews/{name}-review.md` must exist.
-2. Status must be DONE or DONE_WITH_CONCERNS.
-3. No finding with severity P0 may have unresolved status.
-4. If status is BLOCKED or NEEDS_CONTEXT: instruct user to resolve Review issues first.
+1. `docs/reviews/{name}-review.md` must exist with status DONE or DONE_WITH_CONCERNS.
+2. No finding with severity P0 may have unresolved status.
+3. If status is BLOCKED or NEEDS_CONTEXT: resolve Review issues first. Do NOT ship.
+4. If no review found: instruct user to run the Review stage first.
 5. If any check fails: report which check failed. Do NOT ship unreviewed code.
 
 ---
 
-## Pre-Flight Checks
+## Pre-Flight Checks — ALL must pass before any shipping actions
 
-Run these checks before any shipping actions. ALL must pass.
-
-### Check 1: Tests Pass
-Run the full test suite. ALL tests must pass. If any fail: STOP.
-
-### Check 2: No Unexpected Changes
-Every changed file should be traceable to the plan. Flag any file
-changes NOT in the plan's file manifest. If unexpected files are found,
-ask whether they are intentional.
-
-### Check 3: Branch Hygiene
-- Confirm NOT on main/master. If so, create a feature branch first.
-- Confirm all changes are staged or committed.
-
-### Check 4: Review Status Confirmed
-Re-read the review artifact. Confirm status is DONE or DONE_WITH_CONCERNS.
-
-### Check 5: Skill Invocation Trace & Binding Versions
-
-**5a. Invocation trace completeness**
-
-Run:
-```bash
-apex status --json | jq '.skill_invocations'
-```
-
-Or read `.apex/state.json` → `skill_invocations[]`. Verify that all required skills
-from `bindings.yaml` (those with `concurrent: false`) were invoked during this
-pipeline run. Missing invocations block ship.
-
-After each external skill completes, the agent MUST record the trace:
-```bash
-apex trace-skill <stage> <skill> <version> <output_status> <af_mapping>
-```
-
-Example:
-```bash
-apex trace-skill review thorough-code-review 1.0.0 APPROVED af_review:pass
-apex trace-skill review security-audit 1.2.0 PASS af_review:pass
-```
-
-Required checks:
-- Execute stage: Was `systematic-debugging` invoked if bugs were encountered?
-- Review stage: Was `thorough-code-review` (outgoing) invoked?
-- Review stage: Was `security-audit` invoked if changes touch auth/data/network/deps?
-- Review stage: Was `design-baseline` gate run if frontend files changed?
-
-If any required skill invocation is missing, report which skill was skipped and
-instruct the agent to return to the appropriate stage.
-
-**5b. Binding version compliance**
-
-Run:
-```bash
-apex check-bindings
-```
-
-This reads `bindings.yaml`, checks each skill's installed VERSION file against
-the declared version constraint (e.g. `>=1.0.0`), and reports pass/fail.
-Any version mismatch blocks ship.
-
-### Check 6: Opensource Preflight Scan
-
-Invoke the `opensource-preflight` companion skill in **quick + diff mode**:
-
-```
-/opensource-preflight --mode quick --scope diff
-```
-
-This scans staged and modified files for secrets, PII, internal references, and local paths.
-
-**Verdict mapping:**
-- `✗ 未就绪` (any CRITICAL) → **STOP**. Do NOT proceed to Ship Sequence.
-- `⚠ 需审查` (HIGH, no CRITICAL) → Report findings. Ask user whether to proceed or fix first.
-- `✓ 就绪` → Proceed.
-
-Fix all CRITICAL/HIGH issues, re-stage, then re-run scan. Only proceed when verdict is `✓` or user explicitly accepts `⚠`.
+**Check 1: Tests Pass** — Run the full test suite. ALL tests must pass. If any fail: STOP.
+**Check 2: No Unexpected Changes** — Every changed file must be traceable to the plan. Flag files NOT in the manifest; ask if intentional.
+**Check 3: Branch Hygiene** — Confirm NOT on main/master. Confirm all changes are staged or committed.
+**Check 4: Review Status Confirmed** — Re-read review artifact. Status must be DONE or DONE_WITH_CONCERNS.
+**Checks 5–6** → `details/ship-sequence.md` (Check 5: Skill Invocation Trace & Binding Versions; Check 6: Opensource Preflight Scan).
 
 ---
 
-## Ship Sequence
+## Ship Sequence — execute in this exact order
 
-Execute in this exact order:
-
-### Step 1: Version Bump
+**Step 1: Version Bump**
 
 | Scope | Bump | Example |
 |-------|------|---------|
@@ -128,85 +44,10 @@ Execute in this exact order:
 
 Update `VERSION` file or `package.json` version field if they exist.
 
-### Step 2: Changelog Update
-
-Append an entry to `CHANGELOG.md` (create if needed) with version,
-date, change summary, and links to pipeline artifacts.
-
-### Step 3: README & Repository Presentation
-
-Detect repository status:
-
-```bash
-# Check if remote repo exists
-gh repo view 2>/dev/null && echo "EXISTING" || echo "NEW_OR_NO_REMOTE"
-```
-
-**Path A — New repository** (no remote, or user is about to `gh repo create`):
-
-**A0. Repository Naming (mandatory, cannot be skipped)**
-
-Analyze the project (directory name, package.json name, README title, code purpose) and
-generate 3-4 candidate repository names. Call `AskUserQuestion`:
-- question: "新仓库叫什么名字？"
-- header: "Repo Name"
-- options (generate based on project analysis):
-  1. label: "{kebab-case-name}", description: "基于项目目录名/包名"
-  2. label: "{descriptive-name}", description: "基于项目功能描述"
-  3. label: "{short-brand-name}", description: "简短品牌化命名"
-
-User can also type a custom name via "Other".
-
-**Naming conventions to follow when generating candidates:**
-- kebab-case (lowercase, hyphens)
-- Concise (1-3 words preferred, max 4)
-- Descriptive but not generic (avoid `my-project`, `app`, `tool`)
-- Check availability: `gh repo view {owner}/{name} 2>/dev/null` — if taken, don't suggest it
-
-Record the chosen name in `.apex/ship-metadata.json` as `"repo_name": "..."`.
-This name will be used in Step 6 (`gh repo create`) and Step 8 (metadata).
-
-**A1. README Generation (mandatory, cannot be skipped)**
-
-Invoke the `great-writer` skill in **GitHub README mode**. This step is mandatory for ALL new
-repositories — no exceptions. "SKILL.md is the docs" or "README not requested" are not valid
-reasons to skip. Every public repo must have a proper README.
-
-Output:
-   - `README.md` (English) — project overview, features, quickstart, architecture, usage
-   - `README_CN.md` or `README.zh-CN.md` (Chinese) — same content, native Chinese (not a translation)
-**A2.** Prepare repository metadata for Step 8:
-   - **Tags/topics**: 5-10 relevant topics (e.g., `cli`, `typescript`, `ai-agent`)
-   - **Description**: one-line repo description (under 350 chars)
-   - Write to `.apex/ship-metadata.json`:
-     ```json
-     { "topics": [...], "description": "...", "homepage": "..." }
-     ```
-
-**Path B — Existing repository** (remote exists, has commit history):
-
-Evaluate by calling `AskUserQuestion`:
-- question: "仓库已存在。是否需要更新展示信息？"
-- header: "Repo Info"
-- options:
-  1. label: "重写 README (Recommended)", description: "用 GreatWriter 重写中英文 README，更新标签和描述"
-  2. label: "仅更新标签和描述", description: "README 不动，只更新 GitHub 仓库标签和描述"
-  3. label: "评估 Release", description: "评估是否需要发布新 Release（含 README 更新评估）"
-  4. label: "跳过", description: "不修改任何展示信息"
-
-Execute the user's choice:
-- **重写 README**: invoke `great-writer` in GitHub README mode, same as Path A step 1.
-- **仅更新标签和描述**: prepare metadata in `.apex/ship-metadata.json`.
-- **评估 Release**: check `git log` since last tag, evaluate if changes warrant a release. If yes, prepare release notes and write to `.apex/ship-release.json`. Also evaluate README freshness.
-- **跳过**: proceed to Step 4.
-
-### Step 4: Stage All Changes
-Stage source files, test files, version/changelog updates,
-README changes (if any), and documentation artifacts.
-
-### Step 5: Commit
-
-Create a structured commit following conventional commits:
+**Step 2: Changelog Update** — Append entry to `CHANGELOG.md` (create if needed): version, date, summary, artifact links.
+**Step 3: README & Repository Presentation** → `details/ship-sequence.md` (Path A: new repo — naming + README + metadata; Path B: existing repo — update options).
+**Step 4: Stage All Changes** — Source, tests, version/changelog, README, docs artifacts.
+**Step 5: Commit**
 
 ```
 {type}({scope}): {short description}
@@ -218,177 +59,15 @@ Plan: docs/plans/{name}-plan.md
 Review: docs/reviews/{name}-review.md
 ```
 
-Type mapping: feat (new feature), fix (bug fix), refactor, chore (config/build).
+Type mapping: feat / fix / refactor / chore.
 
-### Step 6: Push (requires user confirmation)
-
-**6a. Iteration Summary (mandatory, before Push prompt)**
-
-Before asking about push, output a plain-language summary for the user. Write it like you're telling a colleague what happened — no jargon, no filler, concrete.
-
-Four sections, each 2-5 sentences:
-
-```
-## 这轮做了什么
-[具体说：加了什么功能、修了什么 bug、改了什么结构。用动词开头，一件事一句话。
- 不要写"优化了系统架构"——说"把 X 从 A 改成了 B，因为 C"]
-
-## 现在能干什么
-[改完之后用户能做什么、系统行为有什么不同。从用户视角说，不从代码视角说。
- 不要写"提升了可维护性"——说"下次改 X 的时候不用同时改 Y 了"]
-
-## 怎么试
-[具体的命令、操作步骤、或测试方法。能复制粘贴直接跑的。
- 如果有测试套件，给出运行命令和预期结果]
-
-## 注意事项
-[破坏性变更、已知限制、需要手动操作的事。没有就写"无"，不要凑字数]
-```
-
-**Style rules** (from ljg-plain):
-- 口语检验：读出声来，你会这样跟朋友说话吗？
-- 零术语：聪明的 12 岁孩子能复述
-- 一句一事：每句只推进一步
-- 具体：名词看得见，动词有力气
-- 不填充：每句都在干活，删开场白和拐杖词
-
-**After outputting the summary**, record the checkpoint:
-```bash
-apex ship checkpoint iteration-summary
-```
-This is a hard gate — `apex stage complete ship` will BLOCK if this checkpoint is missing (S8).
-
-**6b. Push prompt**
-
-After the summary, call `AskUserQuestion` with:
-- question: "是否推送到远程仓库？"
-- header: "Push"
-- options:
-  1. label: "推送 (Recommended)", description: "git push 到 remote，准备创建 PR"
-  2. label: "暂不推送", description: "仅保留本地提交，稍后手动推送"
-
-If user selects "推送": push the feature branch to remote.
-If user selects "暂不推送": skip push, Steps 7-9. Record in ship result.
-Skip entirely if no remote is configured.
-
-**After the user responds** (regardless of choice), record the checkpoint:
-```bash
-apex ship checkpoint push-prompt
-```
-This is a hard gate — `apex stage complete ship` will BLOCK if this checkpoint is missing (S7).
-
-**New repository creation**: if no remote exists and user wants to push,
-create the repo first via `gh repo create` (public/private per user choice),
-then push.
-
-### Step 7: CI Status Check (HARD GATE)
-
-Only runs if push succeeded (Step 6 completed). **ALL CI workflows must complete and pass.** This is a hard gate — Ship cannot proceed until CI is green.
-
-**Detection:**
-
-```bash
-# Check for CI configuration (zsh-safe: no glob expansion)
-find .github/workflows \( -name '*.yml' -o -name '*.yaml' \) 2>/dev/null; test -f .gitlab-ci.yml && echo .gitlab-ci.yml; test -f Jenkinsfile && echo Jenkinsfile; test -f .circleci/config.yml && echo .circleci/config.yml
-```
-
-If no CI config found → skip this step.
-
-**If CI is configured:**
-
-```bash
-# Wait for checks to register (GitHub needs a few seconds after push)
-sleep 10
-# List ALL workflow runs triggered by this push — not just the latest one
-gh run list --branch $(git branch --show-current) --limit 10 --json status,conclusion,name,databaseId,event,createdAt
-```
-
-**Wait for ALL runs to complete.** For each run in the list:
-
-```bash
-# Watch each run until it completes (blocks until done or fails)
-gh run watch <run_id> --exit-status 2>&1
-```
-
-If `gh run watch` is not available, poll manually every 30 seconds:
-```bash
-gh run view <run_id> --json status,conclusion
-```
-
-**Poll constraints:**
-- Check ALL runs, not just the first one. A push can trigger multiple workflows.
-- Max wait: 15 minutes. If any run is still `in_progress` after 15 minutes, report status and ask user.
-- Do NOT proceed while any run has `status: in_progress` or `status: queued`.
-
-**Verdict mapping:**
-
-| CI Result | Action |
-|-----------|--------|
-| ALL runs pass (every conclusion = "success") | Proceed to Step 8 |
-| ANY run fails | **STOP**. Do not proceed. Report ALL failed runs. |
-| Timeout (15 min) | Report which runs are still pending. Ask user to wait or abort. |
-
-**When any run fails**, report each failed run with:
-```bash
-gh run view <run_id> --log-failed 2>&1 | tail -50
-```
-
-Then call `AskUserQuestion`:
-- question: "CI 未通过。{N} 个 workflow 失败。如何处理？"
-- header: "CI"
-- options:
-  1. label: "查看失败日志并修复 (Recommended)", description: "查看日志，修复后重新推送，再次等 CI"
-  2. label: "中止 Ship", description: "回到 Execute 阶段修复问题"
-
-**No bypass option. No "proceed anyway". No "create PR with failing CI".** CI must be all-green before Ship can continue. This is non-negotiable.
-
-- **查看失败日志并修复**: diagnose with `gh run view <id> --log-failed`, fix the code, commit, push, then **re-run Step 7 from the beginning** (wait for new CI runs).
-- **中止 Ship**: `apex stage set execute`, return to Execute stage to fix the issue properly.
-
-**GitLab 适配**: if `.gitlab-ci.yml` exists instead of GitHub Actions, use:
-```bash
-glab ci status
-glab ci view
-```
-
-### Step 8: GitHub Repository Metadata
-
-Only runs if push succeeded (Step 6 completed). Read `.apex/ship-metadata.json` if it exists.
-
-**For new repositories** (just created in Step 6):
-
-```bash
-# Set description and homepage
-gh repo edit --description "{description}" --homepage "{homepage}"
-
-# Set topics (one command per topic, or comma-separated)
-gh repo edit --add-topic topic1 --add-topic topic2 ...
-```
-
-Both description and topics are **mandatory** for new repos. If `.apex/ship-metadata.json`
-was not prepared in Step 3, prepare it now before proceeding.
-
-**For existing repositories**:
-
-If `.apex/ship-metadata.json` exists (user chose to update in Step 3):
-```bash
-gh repo edit --description "{description}"
-gh repo edit --add-topic ...
-```
-
-If `.apex/ship-release.json` exists (user chose Release evaluation in Step 3):
-```bash
-# Create release with auto-generated notes or prepared notes
-gh release create v{version} --title "v{version}" --notes-file .apex/ship-release-notes.md
-```
-
-**Cleanup**: delete `.apex/ship-metadata.json` and `.apex/ship-release.json` after use.
-
-### Step 9: Pull Request
-Create a PR with summary, review status, artifact links, and test results.
-Use `gh pr create` if available; otherwise instruct the user.
-
-CI must pass before reaching this step. If CI failed, Ship is blocked at Step 7.
+**Step 6: Push (requires user confirmation)** — Output mandatory iteration summary (4 sections: 做了什么 / 能干什么 / 怎么试 / 注意事项), then call `AskUserQuestion` for push confirmation.
+→ `details/ship-sequence.md` (summary template, style rules, push prompt options, checkpoint command).
+**Step 7: CI Status Check** — Only runs if push succeeded. Detect CI config, poll up to 10 min. No bypass — CI must pass.
+→ `details/ship-sequence.md` (detection script, poll loop, verdict mapping, repair options, GitLab adaption).
+**Step 8: GitHub Repository Metadata** — Only runs if push succeeded. Apply description, topics, release from `.apex/ship-metadata.json` / `.apex/ship-release.json`. Cleanup after use.
+→ `details/ship-sequence.md` (bash commands for new vs existing repos, release creation).
+**Step 9: Pull Request** — Create PR with summary, review status, artifact links, test results. Use `gh pr create`; otherwise instruct user. CI must pass before this step.
 
 ---
 
@@ -407,36 +86,13 @@ Execute the chosen option. For options A, B, D: clean up worktree if one was use
 
 ---
 
-## Post-Ship Evaluation (optional, before Compound)
-
-After branch completion, check `bindings.yaml` → `post-ship:` for available evaluations.
-Present the user with a choice via `AskUserQuestion`:
-
-| Option | When to show | Action |
-|--------|-------------|--------|
-| **直接进入复盘（Compound）** | Always | Skip evaluation, proceed to Compound |
-| **产品用户体验评审（Product User Review）** | Only when the project has a web, mobile, or desktop app | Load and follow `aliases/product-user-review.md` |
-| **产品目标审计（Product Goal-Based Audit）** | Always | Load and follow `aliases/product-goal-based-audit.md` |
-
-- If user selects an evaluation: execute it, then return here and proceed to Compound Transition.
-- If user selects "直接进入复盘": proceed immediately.
-- Multiple evaluations may be run sequentially if the user requests.
-
----
-
 ## Compound Transition (mandatory, before Exit Gate)
 
-After branch completion (and optional post-ship evaluation), Compound is the next stage — not optional. Inform the user:
+After branch completion, Compound is the next stage — not optional. Inform the user:
 
 > 交付完成。进入复盘阶段（Compound）。
 
-**No skip option.** Every iteration walks all six stages. Compound may be brief (one sentence: "无特别经验"), but it cannot be skipped. This is enforced by the Exit Gate (S3).
-
-**After announcing the transition**, record the checkpoint:
-```bash
-apex ship checkpoint compound-transition
-```
-This is a hard gate — `apex stage complete ship` will BLOCK if this checkpoint is missing (S3).
+**No skip option.** Every iteration walks all six stages. Compound may be brief (one sentence: "无特别经验"), but it cannot be skipped. This is enforced by the Exit Gate (S3). Record that the transition was announced — this MUST happen before the Exit Gate runs.
 
 ---
 
@@ -448,8 +104,8 @@ Before `apex stage complete ship`, run the Stage Exit Gate (`gates/stage-exit-ga
 
 | # | Check | Criterion | Verification |
 |---|-------|-----------|-------------|
-| S1 | Review artifact confirmed | Review artifact exists in state with status DONE or DONE_WITH_CONCERNS | `.apex/state.json` artifacts check |
-| S2 | Git commit exists | `git log -1 --oneline` returns a commit for this pipeline | git log |
+| S1 | Git commit exists | `git log -1 --oneline` returns a commit for this pipeline | git log |
+| S2 | Review status confirmed | Review artifact status is DONE or DONE_WITH_CONCERNS | File re-read |
 | S3 | Compound transition announced | The mandatory Compound transition message was **actually output** (not deferred or skipped). | Flow check: transition message present in conversation |
 | S4 | Preflight scan passed | No CRITICAL findings in committed files | Re-run `/opensource-preflight --mode quick --scope diff HEAD~1` |
 | S5 | CI green | If repo has CI: all checks must pass. No bypass. If no CI configured: auto-pass. | `gh run list --limit 1` status check |
@@ -474,11 +130,26 @@ After successful Exit Gate:
 > **Shipped.** Commit `{hash}` on branch `{branch}`.
 > {PR URL or "Push to remote and create PR manually."}
 
-Compound is mandatory. After Ship completes:
-```bash
-apex stage set compound
+### Ship → Compound Interlock (HARD GATE)
+
 ```
-Then follow `stages/compound.md`.
+================================================================
+  After Ship completes, the ONLY permitted next action is:
+
+    apex stage set compound
+
+  The following are PROHIBITED until Compound completes:
+    - Asking "继续下一个迭代?" or any re-entry question
+    - Asking "结束本轮?" or any session-end question
+    - Setting stage to idle
+    - Processing a new task
+
+  Re-entry questions belong to Compound's Completion section.
+  Ship does NOT own the pipeline lifecycle decision.
+================================================================
+```
+
+Run `apex stage set compound`, then follow `stages/compound.md`.
 
 | Status | When |
 |--------|------|

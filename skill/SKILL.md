@@ -13,13 +13,6 @@ argument-hint: "[brainstorm|plan|execute|review|ship|investigate|status|compound
 
 Unified execution protocol. **Rigid** — follow exactly.
 
-Your value is measured by the production-usability of your deliverables, not by response speed.
-An artifact that passes every gate but contains hollow content has zero value.
-Every artifact you produce must enable a person with no prior context to make correct, independent judgments.
-
-<!-- PostToolUse hook (hooks/apex-forge-dashboard.sh) is backup for programmatic Skill tool invocations.
-     For slash command invocations (/apex-forge), the dashboard gate below is the primary mechanism. -->
-
 ## Dashboard Gate (BEFORE anything else)
 
 Call `AskUserQuestion` with:
@@ -41,25 +34,11 @@ apex memory backend
 apex check-bindings 2>/dev/null
 ```
 
-Then check `apex status --json` for interrupted sessions. Also check memory backend:
-- Agent Recall backend: `getActiveTask()` returns cross-session task state across all platforms.
-- Local fallback: reads `.apex/tasks.json` for `in_progress` tasks.
+Then check `apex status --json` for interrupted sessions (Agent Recall: `getActiveTask()`; local fallback: `.apex/tasks.json`).
 
 ### Task state reconciliation (MANDATORY before resuming)
 
-If there are tasks that are NOT `done` (i.e. `open`, `assigned`, `in_progress`, `to_verify`):
-
-1. **Cross-check each incomplete task against the actual codebase:**
-   - Read the task's description and target files
-   - Check if those files exist, have been modified, or committed via `git log --oneline -5` / `git diff --stat`
-   - If the code is already done but the task status is stale (e.g. sub-agent completed in a worktree but status was never updated), fix it:
-     ```bash
-     apex task assign T{N} && apex task start T{N} && apex task submit T{N} "evidence: code verified in repo" && apex task verify T{N} pass
-     ```
-
-2. **After reconciliation**, report the corrected state to the user.
-
-This handles: sub-agent work merged but not reflected in dashboard, user commits outside AF, stale status from crashes.
+→ See details/session-resume.md for cross-check procedure, stale-status fix commands, and reconciliation report format.
 
 If stage is not `idle` or tasks are `in_progress`/`to_verify` (after reconciliation):
 > 上次中断在 {stage} 阶段。{N} 个任务未完成（{task IDs}）。要继续还是重新开始？
@@ -74,54 +53,24 @@ Compound is mandatory — no skip option. `apex stage set compound`, then follow
 
 ### Pipeline re-entry (CRITICAL)
 
-**The protocol does NOT "turn off" after one pipeline cycle.** After Compound completes,
-the agent MUST ask the user for next step (3 options defined in `stages/compound.md`):
+**One pipeline per task. One task at a time. Pipeline resets between tasks. Protocol does NOT turn off after Compound.**
 
-- User chooses "继续下一个迭代" → `apex stage set idle` → next task enters Complexity Router fresh.
-- User chooses "在新进程中继续 roadmap" → generate self-contained continuation prompt → user pastes into new session → `apex stage set idle`.
-- User chooses "结束本轮" → stage stays at `compound` → user sees completed state when they return.
+After Compound, ask user for next step (3 options in `stages/compound.md`):
+- "继续下一个迭代" → `apex stage set idle` → Complexity Router fresh.
+- "在新进程中继续 roadmap" → generate continuation prompt → new session → `apex stage set idle`.
+- "结束本轮" → stage stays `compound`.
 
-If stage is `idle` and user gives a new task: run the Complexity Router (Section 1).
-If stage is `compound` and user gives a new task (without being asked): ask first, then route.
-If stage is stuck at any non-idle value with no active work: ask user whether to reset, then re-enter.
-
-**One pipeline per task. One task at a time. Pipeline resets between tasks.**
-
-**Idle re-entry enforcement:** When this skill is invoked with stage `idle` and no interrupted work,
-the user's task argument (from `args`) MUST enter the Complexity Router (Section 1) immediately.
-Do NOT skip routing because "the task looks simple" — the Router makes that determination.
-This is the fix for the post-Compound re-entry gap: Compound chains into this invocation via
-`Skill('apex-forge', args=...)`, and the Router takes over from here.
+- `idle` + new task → Complexity Router (Section 1) immediately. No skip — Router decides, not the agent.
+- `compound` + new task (unsolicited) → ask first, then route.
+- Stuck non-idle with no active work → ask user to reset, then re-enter.
 
 ### Background update check
 
-After init, unconditionally spawn a **background Agent** (fire-and-forget) with this prompt:
-
-> Check `.apex/update-check.json` (written by session-start hook).
-> If the file does not exist or `updates_available` is empty, exit silently.
-> If updates are available, run `bash {PLUGIN_ROOT}/skill/install.sh update`.
-> After each skill updates successfully, read its README.md (or SKILL.md) and write a brief
-> upgrade note to `.apex/upgrade-notes/{skill-name}.md` covering: what changed,
-> new outputs/assets, and how to use them. Keep each note under 200 words.
-> Delete `.apex/update-check.json` when done.
-
-**The main agent MUST NOT read the JSON, check conditions, or do any update logic itself.**
-All update-related work is isolated in the sub-agent. If the sub-agent fails, the main agent is unaffected.
-
-**Stage-aware update adoption:**
-
-- **Current stage already using that skill** → Do NOT interrupt. Finish the current stage with the loaded version.
-- **Skill not yet used / will be used in a later stage** → No action now. The upgrade notes at
-  `.apex/upgrade-notes/` will be checked automatically when that skill is invoked (per "Upgrade notes" below).
-  This gives the user better results without disruption.
-- **Sub-agent completion notifications** → Ignore them. All information flows through `.apex/upgrade-notes/`,
-  not through notification events. Never interrupt the user's flow to announce updates.
+→ See details/session-resume.md for sub-agent prompt, stage-aware adoption rules, and isolation contract.
 
 ### Upgrade notes
 
-Before invoking any external skill from `bindings.yaml`, check if `.apex/upgrade-notes/{skill-name}.md` exists.
-If it does, read it and surface the content as context before the skill runs.
-After surfacing, rename to `.apex/upgrade-notes/{skill-name}.surfaced.md` to avoid repeating.
+→ See details/session-resume.md for check/surface/rename procedure before invoking external skills.
 
 ---
 
@@ -142,14 +91,10 @@ After surfacing, rename to `.apex/upgrade-notes/{skill-name}.surfaced.md` to avo
 | `apex-forge worktree` | Isolated git worktree | `roles/worktree.md` |
 | `apex-forge scope-lock` | Lock edits to a directory | `roles/scope-lock.md` |
 | `apex-forge skill-author` | Create new skills | `roles/skill-author.md` |
-| `apex-forge product-user-review` | Product UX experience review | `aliases/product-user-review.md` |
-| `apex-forge product-goal-based-audit` | System health audit against design goals | `aliases/product-goal-based-audit.md` |
 | `apex-forge status` | Show project state | Run: `apex status` |
 | `apex-master` | Multi-worker team manager | `roles/master.md` |
 
-External skills (via `bindings.yaml`): `/systematic-debugging`, `/thorough-code-review`, `/browser-qa-testing`, `/security-audit`, `/tasteful-frontend`, `/design-to-code-runner`, `/product-review`, `/product-goal-based-audit`, `/great-writer`, `/product-prd`, `/iteration-reflector`.
-
-Builtin review skills: `design-review` → `aliases/design-review.md`, `codex-consult` → `aliases/codex-consult.md`.
+External skills (via `bindings.yaml`): `/systematic-debugging`, `/thorough-code-review`, `/browser-qa-testing`, `/security-audit`, `/tasteful-frontend`, `/design-to-code-runner`, `/product-review`.
 
 Internal gate: `design-baseline` → `gates/design-baseline.md`.
 
@@ -157,21 +102,9 @@ When a sub-skill is listed, read and follow that file relative to this SKILL.md'
 
 ### Explicit Stage Commands Bypass the Complexity Router
 
-When the user invokes a **named stage command** (`apex-forge ship`, `apex-forge review`, etc.),
-the Complexity Router is **skipped entirely**. The agent MUST:
+Named stage commands (`apex-forge ship`, `apex-forge review`, etc.) skip the Router entirely. Read the stage file, execute every step top to bottom, do NOT self-classify as Tier 1 to skip steps.
 
-1. Read the corresponding stage file (`stages/{stage}.md`)
-2. Execute **every step** in that file, top to bottom
-3. NOT self-classify as Tier 1 to skip steps
-
-The Complexity Router only applies to the **generic** `apex-forge` command (no stage argument),
-where the system must determine the path. Explicit stage commands are direct orders — the user
-already decided what stage to run.
-
-**This is a hard rule.** The following rationalizations are invalid:
-- "This is just a push, so Tier 1" — NO. `/apex-forge ship` means run full Ship protocol.
-- "The code is already committed, so I can skip Pre-Flight" — NO. Pre-Flight checks run regardless.
-- "Only 2 commits to push, so lightweight" — NO. Step count does not determine protocol scope.
+**This is a hard rule.** → See details/stage-bypass-rules.md for the three invalid rationalizations and why each fails.
 
 ---
 
@@ -181,17 +114,9 @@ already decided what stage to run.
 
 Every task enters the router first. No exceptions — **unless an explicit stage command was used** (see above).
 
-```
-Single verified pass possible? → YES → Tier 1 (Single Pass)
-                                  NO → Multiple sessions needed? → YES → Tier 3 (Wave-Based)
-                                                                    NO → Tier 2 (Round-Based)
-```
+Single verified pass? → Tier 1. Multiple sessions needed? → Tier 3. Otherwise → Tier 2.
 
-All tiers walk the full six-stage pipeline (Brainstorm → Plan → Execute → Review → Ship → Compound). Tier only determines the **Execute strategy**:
-
-- **Tier 1**: Single pass — one action, one verification within Execute.
-- **Tier 2**: PDCA rounds (clarify → explore → hypothesis → planning → execution → verification → hardening). Max 5 rounds within Execute.
-- **Tier 3**: Waves of 3-5 rounds within Execute. Each wave reads/writes state.
+All tiers walk the full six-stage pipeline. Tier only determines **Execute strategy**: Tier 1 = single pass, Tier 2 = PDCA rounds (max 5), Tier 3 = waves of 3-5 rounds.
 
 ### 2. Phase Discipline
 
@@ -204,160 +129,54 @@ Hard-gated. No leaking between phases. **Track every transition:**
 - **Ship (DELIVER)** — Package and deliver. Review passes → then commit/push/PR. All git ops happen here.
 - **Compound (LEARN)** — Knowledge extraction. Ship completes → prompt user for reflection. User may decline, but must be asked.
 
-#### Stage File Reading Rule (HARD GATE)
-
-**Before executing ANY stage, the agent MUST `Read stages/{stage}.md`.** The CLI (`apex stage set`) prints a `⚠ MANDATORY` reminder with the file path — that reminder is not decoration.
-
-- The bullet-point descriptions above are **summaries**, not complete instructions.
-- Each stage file contains **required steps, checklists, and exit gates** that are NOT in this file.
-- Skipping the Read → skipping steps → protocol violation.
-- This applies to ALL tiers (Tier 1, 2, 3) and ALL entry paths (Router, explicit command, resume).
-
-**Invalid rationalizations:**
-- "I know what Ship means" — NO. Ship has pre-flight checks, multi-step sequences, and exit gates you haven't seen.
-- "Tier 1 is lightweight, I don't need the file" — NO. Tier controls Execute strategy, not stage reading.
-- "I already did this stage before" — NO. Read it every time. Stage files may have been updated.
-
-#### Tier-Based Execute Strategies
-
-All tiers walk the same six-stage pipeline. The Complexity Router (Section 1) determines the Execute strategy:
-
-```
-All Tiers:  Brainstorm → Plan → Execute → Review → Ship → Compound
-                                   │
-                                   ├── Tier 1: Single pass (one action, one verification)
-                                   ├── Tier 2: PDCA rounds (max 5)
-                                   └── Tier 3: Waves of 3-5 rounds
-```
-
-Every task uses `apex stage set/complete` for all stages. Brainstorm and Plan may be brief for Tier 1 (one sentence each is fine), but they are not skipped. Review may be lightweight for Tier 1 (self-review + diff check, no multi-persona), but it is not skipped. Compound may be one line ("no notable lessons"), but the user must be asked.
-
 #### Git Operations Interlock
 
-When a pipeline is active (stage != `idle`), git operations are locked to the Ship stage:
-
+git operations locked to Ship stage while pipeline active (stage != `idle`). No tier exemptions.
 - `git commit`, `git push`, `gh pr create` → **ONLY inside Ship stage**.
-- User says "提交" / "commit" / "push" / "ship it" → This is a request to **enter Ship stage**, NOT authorization to bypass Review.
-- If current stage is `execute` (Tier 2/3): respond "Execute 完成，需要先过 Review 再提交。"
-- If current stage is `review` and review is not DONE/DONE_WITH_CONCERNS: respond "Review 尚未通过，不能提交。"
-
-This is a push-based blocker: the forbidden action is blocked regardless of how the agent tries to reach it. **No tier exemptions** — all tiers use stage tracking and all tiers are subject to the Git Interlock.
+- User says "提交" / "commit" / "push" / "ship it" → request to **enter Ship stage**, NOT bypass Review.
+- Stage `execute` (Tier 2/3): "Execute 完成，需要先过 Review 再提交。"
+- Stage `review` not DONE/DONE_WITH_CONCERNS: "Review 尚未通过，不能提交。"
 
 #### Pipeline Architecture: Backbone + Sidecar
-
-**Backbone** (hard-gated, mandatory): Protects quality baselines that apply to ALL code changes.
-```
-Brainstorm → Plan → Execute → Review → Ship → [Compound: prompted]
-```
-
-**Sidecar** (conditional, mounted on backbone stages): Activated by task characteristics via `bindings.yaml`.
-- Execute sidecars: Design sub-flow, Browser QA, ...
-- Review sidecars: Design baseline gate, Security audit, SQL safety, ...
-
-Sidecar characteristics:
-- Trigger condition not met → sidecar does not run (not a hard gate)
-- Can be added/removed without touching backbone definition
-- Declared in `bindings.yaml`, not hardcoded in Phase Discipline
-
-#### Code Change Escalation Rule
-
-**Any task that produces code changes — regardless of entry point — must enter the pipeline.** Execute → Review → Ship (which performs the commit) → Compound (post-commit learning). This applies to investigation, debugging, ad-hoc fixes, and all other non-pipeline tasks equally.
-
-- Brainstorm/Plan can be replaced by analysis already done during investigation (don't redo work), but the agent must still fast-track through the stage tracking: `apex stage set brainstorm && apex stage complete brainstorm && apex stage set plan && apex stage complete plan` before entering Execute. This keeps Dashboard history consistent.
-- Execute (with verification), Review (quality gate), Ship (plain-language summary + commit), and Compound (learning extraction) are **never skippable**.
-- When an investigation or debug session discovers a fix and writes code, the agent must:
-  1. Fast-track Brainstorm/Plan: `apex stage set brainstorm && apex stage complete brainstorm && apex stage set plan && apex stage complete plan`
-  2. `apex stage set execute` — run verification (tests, integration checks)
-  3. `apex stage complete execute` → enter Review
-  4. Complete Review → Ship (commit happens here) → Compound as normal
-- **Enforcement:** The pre-commit hook checks `APEX_SESSION_ID` + session state. If the session's pipeline stage is not `ship`, `git commit` is rejected by git itself. This is a push-based hard gate — the agent cannot bypass it.
+→ See details/pipeline-architecture.md for backbone/sidecar structure and sidecar trigger rules.
 
 #### Phase Violations
-
-| Violation | Example | Correction |
-|-----------|---------|------------|
-| Code in Brainstorm | Writing a prototype during requirements | Delete the code. Finish requirements first. |
-| Design in Execute | "I think we should restructure this..." | Stop. Return to Plan phase. Document the decision. |
-| Skipping Plan | Going from "what" directly to code | Stop. Produce a plan. Even a brief one. |
-| Ship without Review | Execute done → git commit | Stop. Enter Review stage. Code cannot be committed without review. |
-| Git ops outside Ship | git commit/push while stage != ship | Stop. Git operations only execute inside Ship stage. |
-| Ad-hoc commit without pipeline | Investigation found a fix → direct commit | Enter Execute → Review → Ship → Compound, or revert. |
-| Skip Compound prompt | Ship done → end session without asking | Must call AskUserQuestion for Compound. User may decline, but must be asked. |
+→ See details/phase-violations.md for the full violations table.
 
 #### Stage Gates: Exit + Entry Verification
-
-Each stage has two automated quality checks run by SubAgents:
-
-**Exit Gate** (at `apex stage complete <stage>`):
-Dispatches SubAgents per `gates/stage-exit-gate.md` to validate output artifact quality.
-Two layers: structural (binary, 1 SubAgent) → substance (qualitative, N SubAgents parallel).
-
-| Tier / Scope | Structural | Substance | Evidence Grade |
-|-------------|-----------|-----------|----------------|
-| Tier 1 / Lightweight | 1 SubAgent | 1 SubAgent | E2 |
-| Tier 2 / Standard | 1 SubAgent | 2 SubAgents | E3 |
-| Tier 3 / Deep | 1 SubAgent | 3 SubAgents | E3+ |
-
-Substance confidence aggregation:
-- All agree + high confidence → PASS (DONE)
-- Majority agree + medium+ → PASS_WITH_NOTE (DONE_WITH_CONCERNS)
-- No majority or low confidence → ESCALATE (NEEDS_CONTEXT)
-- Any P0 + high confidence → BLOCK (BLOCKED)
-
-**Upstream Entry Verification** (BEFORE `apex stage set <stage>`):
-Inline check (no SubAgent). Verifies previous stage's artifact exists and is structurally complete.
-Run upstream check first. Only call `apex stage set` after all checks pass. This prevents Dashboard from showing a stage the agent hasn't actually entered.
-
-| Stage | Upstream Artifact Required |
-|-------|--------------------------|
-| Brainstorm | None (first stage) |
-| Plan | Brainstorm requirements with `status: approved` |
-| Execute | Plan with `status: approved` + tasks registered |
-| Review | All tasks `done` + execution log exists + tests pass |
-| Ship | Review artifact with status DONE or DONE_WITH_CONCERNS |
-| Compound | Git commit exists + review artifact confirmed |
-
-Gate procedure: `gates/stage-exit-gate.md`. Per-stage checklists: each stage file's "Exit Gate" section.
+→ See details/pipeline-architecture.md for SubAgent dispatch tables, confidence aggregation formulas, and upstream artifact requirements.
 
 **State tracking (mandatory — Dashboard reads from these):**
 - Entering a stage: `apex stage set <name>` (e.g., `apex stage set brainstorm`)
 - Completing a stage: `apex stage complete <name>`
 - Recording deliverables: `apex stage artifact <stage> <path>`
 
-**Task management: use `apex task` CLI, NOT Claude Code's TaskCreate/TaskUpdate.**
-Claude Code's built-in task tools write to an internal store invisible to the Dashboard.
-`apex task` writes to `.apex/tasks.json` which the Dashboard reads in real-time.
+**Task management: use `apex task` CLI, NOT Claude Code's TaskCreate/TaskUpdate** (Dashboard reads `.apex/tasks.json`, not Claude's internal store).
 - Create: `apex task create "title" "description" [DEP1 DEP2]`
 - Start: `apex task start T{N}`
 - Done: `apex task submit T{N} "evidence" && apex task verify T{N} pass`
 - List: `apex task list`
 
 ### 3. TDD Iron Law
-
 Write test → RED (fails correctly) → Write code → GREEN → Refactor. Exceptions: confirmed prototypes, tested generators only.
 
 ### 4. Evidence Grading
-
 E0 (guess) → E1 (indirect) → E2 (direct) → E3 (multi-source) → E4 (validated + reproduced).
 Thresholds: facts → E2, decisions → E2, verification → E3, closing DONE → E3.
 
 ### 5. Escalation Ladder
-
 L0 normal → L1 (2nd fail: different approach) → L2 (3rd: 3 hypotheses) → L3 (4th: 7-point checklist) → L4 (5th: escalate to human).
-
-L3 checklist: (1) restate goal (2) list all attempts (3) find common thread of failures (4) challenge the shared assumption (5) search prior art (6) propose fundamentally new approach (7) if still stuck, prepare BLOCKED report.
+→ See details/phase-violations.md for the L3 7-point checklist.
 
 ### 6. Verification Gate
-
 Before ANY success claim: (1) Identify proving command (2) Run it fresh (3) Read full output (4) Binary confirm (5) Only then claim. Skip any step = lying.
 
 ### 7. Completion Status
-
 DONE (all E3+) | DONE_WITH_CONCERNS (flagged issues) | BLOCKED (tried, need X) | NEEDS_CONTEXT (missing info).
 
 ### 8. Anti-Patterns (Hard Stops)
 
-"Done" without proof → run gate. Micro-tweaks → escalation ladder. Advice not action → execute it. Waiting for user → take initiative. Premature surrender → try 3 approaches. Phase leaking → return to correct phase. Scope creep → check plan. Ship without review → enter Review stage first. Git ops outside Ship → only inside Ship stage. **Skipping stages via low Tier → INVALID. All tiers walk the full six-stage pipeline. Tier only controls Execute strategy. Self-classifying as Tier 1 to skip Brainstorm/Plan/Review/Compound is a protocol violation.** Explicit stage commands (`/apex-forge ship`, etc.) bypass the Complexity Router but still execute the full stage protocol. **Ad-hoc code changes without pipeline → INVALID. Investigation/debug/ad-hoc tasks that produce code changes must enter Execute → Review → Ship → Compound before committing. The pre-commit hook enforces this as a hard gate.**
+"Done" without proof → run gate. Micro-tweaks → escalation ladder. Advice not action → execute it. Waiting for user → take initiative. Premature surrender → try 3 approaches. Phase leaking → return to correct phase. Scope creep → check plan. Ship without review → enter Review stage first. Git ops outside Ship → only inside Ship stage. **Skipping stages via low Tier → INVALID. All tiers walk the full six-stage pipeline. Tier only controls Execute strategy. Self-classifying as Tier 1 to skip Brainstorm/Plan/Review/Compound is a protocol violation.** Explicit stage commands (`/apex-forge ship`, etc.) bypass the Complexity Router but still execute the full stage protocol.
 
 ---
 

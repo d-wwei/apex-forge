@@ -16,39 +16,18 @@ No implementation code -- plans are decision artifacts.
 
 ## Entry Conditions
 
-1. **Required upstream**: An approved requirements document from Brainstorm
-   (`docs/brainstorms/{name}-requirements.md` with `status: approved`).
-2. Verify brainstorm requirements exist before proceeding.
-   If no approved requirements are found, tell the user to run the
-   Brainstorm stage first. Do NOT plan against unwritten requirements.
-3. If an in-progress plan exists (`status: draft`), offer to resume.
-   If an approved plan exists, offer to proceed to Execute.
-
-### Upstream Entry Verification
-
-Before starting Plan work, verify Brainstorm artifact completeness:
-
-1. Read `docs/brainstorms/{name}-requirements.md` — file must exist.
-2. Frontmatter `status` must be `approved`.
-3. Document must contain: Acceptance Criteria section, Constraints section, scope classification.
-4. If any check fails: report which check failed. Instruct user to complete Brainstorm first.
-
----
+1. `docs/brainstorms/{name}-requirements.md` must exist with `status: approved`.
+2. Document must contain: Acceptance Criteria, Constraints, scope classification.
+3. If any check fails: report which check failed; do not plan. Instruct user to complete Brainstorm first.
+4. If a `draft` plan exists, offer to resume. If an `approved` plan exists, offer to proceed to Execute.
 
 ## Process
 
 ### 1. Read Upstream Requirements
 
-Parse the requirements document and extract:
-- Problem statement (restate in 1-2 sentences)
-- Acceptance criteria (traceability targets)
-- Solution shape (architectural starting point)
-- Constraints (non-negotiable boundaries)
-- Dependencies (task ordering)
+Extract: problem statement, acceptance criteria, solution shape, constraints, dependencies.
 
 ### 2. Plan Quality Bar
-
-Every plan MUST include all of these. A plan missing any item is incomplete.
 
 | Required Element | Description |
 |-----------------|-------------|
@@ -61,23 +40,11 @@ Every plan MUST include all of these. A plan missing any item is incomplete.
 
 ### 3. Scope Rules
 
-Apply these rules to prevent over-engineering:
-
-**8-Files Rule**: If the plan touches more than 8 files, challenge each one:
-- Is this file change essential to meeting the acceptance criteria?
-- Can two file changes be consolidated?
-- If every file is justified, document why the scope is large.
-
-**2-Classes Rule**: If the plan introduces more than 2 new classes or modules:
-- Is this abstraction necessary NOW, or is it premature?
-- Can the same behavior be achieved with functions or extending existing classes?
-
-When either rule triggers, present the challenge to the user and ask
-whether to proceed or simplify.
+**8-Files Rule**: >8 files touched — challenge each: essential? consolidatable? Document if justified.
+**2-Classes Rule**: >2 new classes/modules — is the abstraction necessary now? Could functions suffice?
+When either triggers, present the challenge and ask whether to proceed or simplify.
 
 ### 4. Task Decomposition
-
-Break the plan into discrete, assignable tasks:
 
 | Field | Description |
 |-------|-------------|
@@ -91,55 +58,29 @@ Break the plan into discrete, assignable tasks:
 
 ### 5. NO Implementation Code
 
-Plans contain directional pseudo-code at most. Actual code belongs in Execute.
-
-- **Allowed**: "Function `validateInput` checks field types against schema
-  and returns a ValidationResult with errors array."
-- **Forbidden**: `function validateInput(data: unknown): ValidationResult { ... }`
-
----
+Directional pseudo-code at most. Actual code belongs in Execute.
+- **Allowed**: prose describing what a function does and what it returns.
+- **Forbidden**: actual function signatures or bodies.
 
 ## Artifact Output
 
-Write to `docs/plans/{name}-plan.md` with frontmatter including title, scope,
-status, dates, source requirements link, task count, and complexity estimate.
+Write to `docs/plans/{name}-plan.md`, then register: `apex stage artifact plan "docs/plans/{name}-plan.md"`
 
-The document includes:
-- Problem frame
-- Decision log (decision / rationale / alternatives rejected)
-- File manifest (create, modify, test files)
-- Task list with full decomposition
-- Test plan (acceptance criterion / scenario / test file)
-- Dependency graph
-
----
+→ See `skill/details/plan-template.md` for full document structure (frontmatter, problem frame, decision log, file manifest, task list, test plan, dependency graph).
 
 ## Plan Approval
 
 - **Standard and Deep scope**: Present the plan and wait for explicit user approval.
-- **Lightweight scope**: Auto-approve is permitted if the plan has 3 or fewer
-  tasks and all acceptance criteria are covered.
+- **Lightweight scope**: Auto-approve if ≤3 tasks and all acceptance criteria are covered.
 - Update `status: approved` on approval.
 
-After approval, register each task from the plan into the task board:
-
+After approval, register tasks and artifact — both mandatory:
 ```bash
-# Register every T{N} from the plan into .apex/tasks.json
-apex task create "T1: <title>" "<description>" [DEP1 DEP2...]
-apex task create "T2: <title>" "<description>" [DEP1 DEP2...]
-# ... one per task in the decomposition table
-
-# Record the plan document as an artifact
+apex task create "T1: <title>" "<description>" [DEP...]   # repeat for every T{N}
 apex stage artifact plan "docs/plans/{name}-plan.md"
 ```
 
-This is mandatory. Without `apex task create`, the Dashboard Kanban board stays empty.
-
----
-
 ## Exit Gate
-
-Before `apex stage complete plan`, run the Stage Exit Gate (`gates/stage-exit-gate.md`).
 
 ### Structural Checks
 
@@ -164,12 +105,7 @@ Before `apex stage complete plan`, run the Stage Exit Gate (`gates/stage-exit-ga
 
 ## Completion
 
-After writing and approving the plan:
-
-> **Plan locked in.** Written to `docs/plans/{name}-plan.md` with {N} tasks.
-> Next: proceed to the Execute stage to start implementation.
-
-Do NOT auto-advance to Execute. The user invokes the next stage explicitly.
+Report: **Plan locked in.** Written to `docs/plans/{name}-plan.md` with {N} tasks. Do NOT auto-advance to Execute.
 
 | Status | When |
 |--------|------|

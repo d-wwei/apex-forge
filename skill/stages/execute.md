@@ -15,209 +15,76 @@ verify each step. No design decisions here -- those belong in Plan.
 
 ## Entry Conditions
 
-1. **Required upstream**: An approved plan (`docs/plans/{name}-plan.md`
-   with `status: approved`).
-2. If no approved plan is found, tell the user to run the Plan stage first.
-   Do NOT implement against unwritten plans.
-3. If a prior execution log exists, check which tasks are done vs pending
-   and offer to resume.
-
-### Upstream Entry Verification
-
-Before starting Execute work, verify Plan artifact completeness:
-
-1. Read `docs/plans/{name}-plan.md` — file must exist.
-2. Frontmatter `status` must be `approved`.
-3. Document must contain: file manifest, test file paths, task decomposition.
-4. All tasks from plan must be registered in `apex task list`.
-5. If any check fails: report which check failed. Instruct user to complete Plan first.
+1. **Required upstream**: `docs/plans/{name}-plan.md` with `status: approved`. If missing, tell user to run Plan first.
+2. Verify plan contains: file manifest, test file paths, task decomposition, all tasks in `apex task list`.
+3. If prior execution log exists, offer to resume from incomplete tasks.
 
 ---
 
 ## Phase Rule
 
-**Execute is the DO phase. Design decisions do not happen here.**
-
-If during implementation you discover:
-- A requirement is ambiguous -> return to Brainstorm
-- The plan is wrong or incomplete -> return to Plan
-- A new task is needed not in the plan -> return to Plan
-
-Do NOT make ad-hoc design decisions during execution.
+**Execute is the DO phase. No design decisions here.**
+Ambiguous requirement → return to Brainstorm. Wrong/incomplete plan → return to Plan. New task needed → return to Plan.
 
 ---
 
 ## Input Triage
 
-Read the plan and classify the work:
-
 | Category | Criteria | Dispatch Strategy |
 |----------|----------|-------------------|
-| **Trivial** | 1-2 tasks, no inter-task dependencies, < 20 lines changed | Execute inline. Direct implementation. |
-| **Small** | 3-10 tasks, mostly independent, moderate complexity | Parallel dispatch. Each independent task in its own pass. |
-| **Large** | 10+ tasks, deep dependencies, or architectural changes | Hierarchical dispatch. Break into batches of 3-5 tasks, execute sequentially. |
+| **Trivial** | 1-2 tasks, no inter-task deps, < 20 lines | Execute inline. |
+| **Small** | 3-10 tasks, mostly independent | Parallel dispatch. |
+| **Large** | 10+ tasks, deep deps, or architectural | Hierarchical: batches of 3-5. |
 
-### Trivial Dispatch
-1. Read the task from the plan.
-2. `apex task start T{N}` — mark in_progress (updates Dashboard).
-3. Write the test (TDD Step 1).
-4. Run the test, confirm RED.
-5. Implement the minimum code to pass.
-6. Run the test, confirm GREEN.
-7. Verify via the 5-step gate.
-8. `apex task submit T{N} "evidence: tests pass"` — submit for verification.
-9. `apex task verify T{N} pass` — mark done (updates Dashboard).
-
-### Small Dispatch (Parallel)
-**BEFORE dispatching sub-agents**, update task status in the main project:
-```bash
-# Mark all tasks being dispatched as in_progress (updates Dashboard immediately)
-apex task assign T{N} && apex task start T{N}
-```
-
-For each independent task (no unfinished dependencies):
-1. `apex task assign T{N} && apex task start T{N}` — **mandatory, do this BEFORE dispatch**.
-2. Provide task ID, description, file paths, test paths, acceptance criteria.
-3. Enforce TDD: write test FIRST, see RED, then implement.
-4. Run two-stage review on each result (see below).
-5. Tasks with dependencies wait until upstream tasks are done.
-
-**AFTER each sub-agent completes**, update from the main agent:
-```bash
-apex task submit T{N} "evidence: <summary>" && apex task verify T{N} pass
-```
-
-### Large Dispatch (Hierarchical)
-1. Group tasks into batches of 3-5 based on dependency graph.
-2. **Before each batch**: `apex task assign T{N} && apex task start T{N}` for all tasks in the batch.
-3. Execute each batch as a Small dispatch.
-4. **After each batch**: `apex task submit T{N} "evidence"` + `apex task verify T{N} pass` for completed tasks.
-5. Between batches: verify outputs, check for integration issues.
-6. If a batch fails, do NOT proceed. Fix first.
+Full step-by-step sequences (Trivial/Small/Large) + TDD Rationalization Counters:
+→ `skill/details/execute-dispatch.md`
 
 ---
 
 ## TDD Enforcement
 
-The TDD Iron Law applies to every task. No exceptions except throwaway
-prototypes and generated code.
+Iron Law: test first, always. No exceptions except throwaway prototypes and generated code.
 
-### The Sequence (per task)
+1. WRITE THE TEST — from plan's test file path; tests acceptance criteria; specific and falsifiable.
+2. RUN THE TEST — CONFIRM RED — fails for the right reason, not syntax/import error.
+3. IMPLEMENT THE MINIMUM CODE — only enough to pass; no extras.
+4. RUN THE TEST — CONFIRM GREEN — passes; no regressions.
+5. REFACTOR (optional) — clean up; tests stay green.
 
-```
-1. WRITE THE TEST
-   - Test file path from the plan
-   - Test the behavior described in acceptance criteria
-   - Test must be specific and falsifiable
-
-2. RUN THE TEST -- CONFIRM RED
-   - The test MUST fail
-   - It must fail for the RIGHT reason (not syntax/import error)
-
-3. IMPLEMENT THE MINIMUM CODE
-   - Only enough to make the test pass
-   - No extra features, no "while I'm here" additions
-
-4. RUN THE TEST -- CONFIRM GREEN
-   - The test must now pass
-   - All other tests must still pass (no regressions)
-
-5. REFACTOR (optional)
-   - Clean up if needed
-   - Tests must stay green after refactoring
-```
-
-### TDD Rationalization Counters
-
-| Thought | Counter |
-|---------|---------|
-| "I'll write the test after the code" | No. Test first. That is the law. |
-| "This is too simple for a test" | Simple things break. Write the test. |
-| "Let me just get the code working first" | The test defines "working." Write it first. |
-| "I don't know how to test this" | Then you don't understand it well enough to build it. |
+TDD rationalization counters: → `skill/details/execute-dispatch.md`
 
 ---
 
 ## Two-Stage Review (Per Task)
 
-After each task is implemented, before marking it done:
+Both stages must PASS before marking a task `done`.
 
-### Stage A: Spec Compliance
-- Does the implementation match the task description from the plan?
-- Does it address the linked acceptance criteria?
-- Are the correct files created/modified?
-- Verdict: PASS / FAIL with specific citation
-
-### Stage B: Code Quality
-- Clean code: readable, no dead code, proper naming
-- Error handling: all error paths handled
-- No regressions: existing tests still pass
-- No scope creep: nothing implemented outside the plan
-- Verdict: PASS / FAIL with specific citation
-
-Both stages must PASS before a task is marked `done`.
+| Stage | Checks | Verdict |
+|-------|--------|---------|
+| **A: Spec Compliance** | Matches plan description; addresses acceptance criteria; correct files changed | PASS / FAIL + citation |
+| **B: Code Quality** | Readable, no dead code; all error paths handled; no regressions; no scope creep | PASS / FAIL + citation |
 
 ---
 
 ## Progress Tracking
 
-Track each task's state: `pending -> in_progress -> review -> done` (or `-> blocked`).
-
-Use `apex task update T{N} --status {status}` to record transitions.
-
-Maintain a progress table in the execution log:
-
-| Task | Status | Started | Completed | Notes |
-|------|--------|---------|-----------|-------|
-| T1   | done   | 14:00   | 14:22     | Tests green |
-| T2   | in_progress | 14:23 | -     | Working on test setup |
-
----
-
-## Artifact Output
-
-Write execution log to `docs/execution/{name}-log.md` with frontmatter
-including title, source plan link, status, dates, and task counts.
-
-The document includes:
-- Task progress table
-- Verification evidence per task
-- Issues encountered
-- Deviations from plan (with rationale)
-
-After all tasks are done, register with:
-`apex task create --stage execute --artifact docs/execution/{name}-log.md`
+States: `pending → in_progress → review → done` (or `→ blocked`). Use `apex task update T{N} --status {status}`. Maintain a task progress table in the execution log.
 
 ---
 
 ## Skill Dispatch
 
-When the current task matches a trigger in `bindings.yaml`, load and invoke the corresponding external skill.
+When the current task matches a trigger in `bindings.yaml`, load and invoke the corresponding external skill. Sort by `priority`, respect `concurrent` flag, validate output against `output_schema`, map result to AF state, record in `.apex/state.json → skill_invocations[]`.
+→ Full flow, schema mismatch handling, invocation trace: `skill/details/execute-skill-dispatch.md`
 
-**Flow:**
-1. Identify current task type (debugging, frontend, QA, design-to-code, etc.)
-2. Read `bindings.yaml` → find matching entries under `execute:`
-3. Sort by `priority` (lower number = higher priority)
-4. For `concurrent: false` skills: execute sequentially, wait for completion
-5. For `concurrent: true` skills: may run in parallel with other concurrent skills
-6. After skill completes: validate output against `output_schema`
-7. Map result to AF state using `mapping` rules (evidence grade, escalation action)
-8. Record invocation in `.apex/state.json` → `skill_invocations[]`
-9. Continue AF pipeline
+---
 
-**Schema mismatch handling:** If skill output does not match `output_schema`, log a warning and require the agent to manually confirm the mapping result.
+## Artifact Output
 
-**Invocation trace format:**
-```json
-{
-  "stage": "execute",
-  "skill": "<skill-name>",
-  "version": "<skill-version>",
-  "timestamp": "<ISO-8601>",
-  "output_status": "<skill output status>",
-  "af_mapping": "<mapped AF evidence grade or action>"
-}
-```
+Write execution log to `docs/execution/{name}-log.md`. Register after all tasks:
+`apex task create --stage execute --artifact docs/execution/{name}-log.md`
+
+Full document structure: → `skill/details/execute-skill-dispatch.md`
 
 ---
 
@@ -237,27 +104,16 @@ Before `apex stage complete execute`, run the Stage Exit Gate (`gates/stage-exit
 
 | # | Prompt | Cross-reference |
 |---|--------|----------------|
-| Q1 | Do the tests actually test the acceptance criteria? Read test files and cross-reference against brainstorm acceptance criteria. Flag any criterion only covered by a trivial assertion (e.g., `expect(fn).toBeDefined()`). | `docs/brainstorms/{name}-requirements.md`, test files |
-| Q2 | Are there untested edge cases from the plan's test scenarios? Read the plan's test scenarios and compare against actual test files. | `docs/plans/{name}-plan.md`, test files |
+| Q1 | Do the tests actually test the acceptance criteria? Cross-reference test files against brainstorm criteria. Flag trivial assertions (e.g., `expect(fn).toBeDefined()`). | `docs/brainstorms/{name}-requirements.md`, test files |
+| Q2 | Are there untested edge cases from the plan's test scenarios? Compare plan test scenarios against actual test files. | `docs/plans/{name}-plan.md`, test files |
 
 ---
 
 ## Completion
 
-After all tasks are done:
-
-> **Implementation complete.** {N}/{N} tasks done. All tests green.
-> Execution log at `docs/execution/{name}-log.md`.
-> Next: proceed to the Review stage for the quality gate.
-
-If any tasks are blocked:
-
-> **Execution partially complete.** {done}/{total} tasks done, {blocked} blocked.
-> Resolve blockers before proceeding to review.
-
 | Status | When |
 |--------|------|
-| **DONE** | All tasks completed, tests green, log written. |
+| **DONE** | All tasks done, tests green, log written. → Proceed to Review. |
 | **DONE_WITH_CONCERNS** | All tasks done but deviations documented. |
-| **BLOCKED** | Tasks cannot proceed due to missing dependencies or plan gaps. |
+| **BLOCKED** | Tasks cannot proceed — missing deps or plan gaps. |
 | **NEEDS_CONTEXT** | Plan is ambiguous; need clarification. |
