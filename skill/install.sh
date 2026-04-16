@@ -264,7 +264,66 @@ if [ $installed -eq 0 ]; then
   echo "    Manual install: symlink $SKILL_DIR to your agent's skills directory."
 fi
 
-# ─── 5. Install companion skills (hard dependencies) ─────────────
+# ─── 5. Register PreToolUse hook in Claude Code settings ─────────
+
+SETTINGS_FILE="$HOME/.claude/settings.json"
+GATE_HOOK="bash $SKILL_DIR/hooks/apex-forge-gate.sh"
+
+if [ -f "$SETTINGS_FILE" ]; then
+  # Check if PreToolUse hook already registered
+  HAS_GATE=$(python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        d = json.load(f)
+    hooks = d.get('hooks', {})
+    pre = hooks.get('PreToolUse', [])
+    for rule in pre:
+        for h in rule.get('hooks', []):
+            if 'apex-forge-gate' in h.get('command', ''):
+                print('yes')
+                sys.exit(0)
+    print('no')
+except Exception:
+    print('no')
+" "$SETTINGS_FILE" 2>/dev/null)
+
+  if [ "$HAS_GATE" != "yes" ]; then
+    python3 -c "
+import json, sys
+
+fp = sys.argv[1]
+cmd = sys.argv[2]
+
+with open(fp) as f:
+    d = json.load(f)
+
+hooks = d.setdefault('hooks', {})
+pre = hooks.setdefault('PreToolUse', [])
+
+# Add the gate hook matching Bash, Edit, Write
+pre.append({
+    'matcher': 'Bash|Edit|Write',
+    'hooks': [{
+        'type': 'command',
+        'command': cmd,
+        'timeout': 5
+    }]
+})
+
+with open(fp, 'w') as f:
+    json.dump(d, f, indent=2, ensure_ascii=False)
+
+print('[ok] PreToolUse hook registered in settings.json')
+" "$SETTINGS_FILE" "$GATE_HOOK"
+  else
+    echo "[ok] PreToolUse hook already registered"
+  fi
+else
+  echo "[warn] $SETTINGS_FILE not found — PreToolUse hook not registered"
+fi
+
+# ─── 6. Install companion skills (hard dependencies) ──────────────
 
 # Detect first available skills home
 SKILLS_HOME=""

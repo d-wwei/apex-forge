@@ -65,13 +65,21 @@ export async function cmdInit(): Promise<void> {
     mkdirSync(hooksDir, { recursive: true });
 
     const gitHooks = [
-      { name: "pre-commit", desc: "auto memory curation" },
+      { name: "pre-commit", desc: "pipeline stage gate + auto memory curation" },
       { name: "pre-push", desc: "preflight scan (secrets, PII, local paths)" },
     ];
 
+    // Look for hook sources in multiple locations (skill dir first, then CWD)
+    const skillHooksDir = path.join(process.env.HOME || "/tmp", ".claude", "skills", "apex-forge", "hooks");
+    const cwdHooksDir = path.join(process.cwd(), "hooks");
+
     for (const hook of gitHooks) {
       const hookDst = path.join(hooksDir, hook.name);
-      const hookSrc = path.join(process.cwd(), "hooks", hook.name);
+      // Prefer skill installation directory (works in ANY repo)
+      // Fall back to CWD/hooks/ (works in the apex-forge repo itself)
+      const hookSrc = existsSync(path.join(skillHooksDir, hook.name))
+        ? path.join(skillHooksDir, hook.name)
+        : path.join(cwdHooksDir, hook.name);
 
       const linkExists = (() => {
         try { lstatSync(hookDst); return true; } catch { return false; }

@@ -1,0 +1,170 @@
+#!/usr/bin/env bash
+# Apex Protocol — pre-push hook
+# Shell-level enforcement: scans staged diff for secrets, PII, local paths,
+# and internal references before allowing push. Agent cannot bypass this.
+#
+# Uses opensource-preflight patterns when the skill is available,
+# falls back to built-in grep patterns otherwise.
+
+set -euo pipefail
+
+# --- Config ---
+SCAN_PATTERNS=(
+  # Layer 1: Secrets & credentials
+  'AKIA[0-9A-Z]{16}'
+  '(ghp|gho|ghs|github_pat)_[A-Za-z0-9_]{36,}'
+  '(sk|pk)_live_[A-Za-z0-9]{24,}'
+  'xox[bpras]-[A-Za-z0-9\-]{10,}'
+  '-----BEGIN.*(RSA|EC|DSA|OPENSSH|PGP) PRIVATE KEY-----'
+  '(password|passwd|secret|token)\s*[=:]\s*['\''"][^'\''"]{8,}['\''"]'
+  # Layer 2: PII & local paths
+  '/Users/[^/[:space:]]+/'
+  '/home/[^/[:space:]]+/'
+  'C:\\Users\\[^\\]+'
+  # Layer 3: Internal references
+  '[a-zA-Z0-9-]+\.(internal|local|corp|intranet)\b'
+)
+
+# Patterns to exclude (false positives)
+EXCLUDE_PATTERNS=(
+  'hooks/pre-push'
+  'package-lock\.json'
+  'yarn\.lock'
+  'pnpm-lock\.yaml'
+  'Cargo\.lock'
+  'bun\.lockb'
+  '/tmp/'
+  '/var/folders/'
+  '/usr/local/'
+  '/usr/bin/'
+  '/etc/'
+  'changeme'
+  'your-.*-here'
+  'example\.com'
+  'test\.com'
+  'sk_test_'
+  'pk_test_'
+)
+
+# --- Helpers ---
+RED='\033[0;31m'
+YELLOW='\033[0;33m'
+GREEN='\033[0;32m'
+NC='\033[0m' # No Color
+BOLD='\033[1m'
+
+log_finding() {
+  local severity="$1" file="$2" line="$3" pattern="$4"
+  if [ "$severity" = "CRITICAL" ]; then
+    echo -e "  ${RED}${BOLD}[$severity]${NC} $file:$line — matched: $pattern"
+  else
+    echo -e "  ${YELLOW}[$severity]${NC} $file:$line — matched: $pattern"
+  fi
+}
+
+# --- Main ---
+
+# Determine what's being pushed (diff against remote)
+remote="$1"
+url="$2"
+
+# Read stdin for refs being pushed
+CRITICAL_COUNT=0
+HIGH_COUNT=0
+FINDINGS=""
+
+while read local_ref local_sha remote_ref remote_sha; do
+  # Skip delete pushes
+  if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
+    continue
+  fi
+
+  # Determine diff range
+  if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
+    # New branch — scan all files in the branch
+    DIFF_FILES=$(git diff --name-only --diff-filter=ACMR "$local_sha" -- 2>/dev/null || git ls-tree -r --name-only "$local_sha" 2>/dev/null)
+  else
+    DIFF_FILES=$(git diff --name-only --diff-filter=ACMR "$remote_sha" "$local_sha" 2>/dev/null || true)
+  fi
+
+  [ -z "$DIFF_FILES" ] && continue
+
+  # Build exclude regex
+  EXCLUDE_RE=""
+  for ep in "${EXCLUDE_PATTERNS[@]}"; do
+    if [ -z "$EXCLUDE_RE" ]; then
+      EXCLUDE_RE="$ep"
+    else
+      EXCLUDE_RE="$EXCLUDE_RE|$ep"
+    fi
+  done
+
+  # Scan each pattern
+  for pattern in "${SCAN_PATTERNS[@]}"; do
+    # Run grep on the diff content
+    MATCHES=$(echo "$DIFF_FILES" | while read -r file; do
+      [ -z "$file" ] && continue
+      # Skip binary files and excluded paths
+      echo "$file" | grep -qE "$EXCLUDE_RE" && continue
+      # Search in the actual file content at the pushed commit
+      git show "$local_sha:$file" 2>/dev/null | grep -nE "$pattern" 2>/dev/null | while read -r match; do
+        line_num=$(echo "$match" | cut -d: -f1)
+        # Filter out excluded content
+        echo "$match" | grep -qEi "$EXCLUDE_RE" && continue
+        echo "$file:$line_num:$pattern"
+      done
+    done || true)
+
+    if [ -n "$MATCHES" ]; then
+      while IFS= read -r finding; do
+        [ -z "$finding" ] && continue
+        f_file=$(echo "$finding" | cut -d: -f1)
+        f_line=$(echo "$finding" | cut -d: -f2)
+        f_pattern=$(echo "$finding" | cut -d: -f3-)
+
+        # Classify severity
+        case "$f_pattern" in
+          *PRIVATE\ KEY*|*AKIA*|*sk_live*|*pk_live*|*password*|*secret*|*token*)
+            CRITICAL_COUNT=$((CRITICAL_COUNT + 1))
+            log_finding "CRITICAL" "$f_file" "$f_line" "$f_pattern"
+            ;;
+          */Users/*|*/home/*|*C:\\\\Users*)
+            HIGH_COUNT=$((HIGH_COUNT + 1))
+            log_finding "HIGH" "$f_file" "$f_line" "$f_pattern"
+            ;;
+          *)
+            HIGH_COUNT=$((HIGH_COUNT + 1))
+            log_finding "HIGH" "$f_file" "$f_line" "$f_pattern"
+            ;;
+        esac
+      done <<< "$MATCHES"
+    fi
+  done
+done
+
+# --- Verdict ---
+if [ "$CRITICAL_COUNT" -gt 0 ]; then
+  echo ""
+  echo -e "${RED}${BOLD}════════════════════════════════════════════════${NC}"
+  echo -e "${RED}${BOLD}  PUSH BLOCKED — $CRITICAL_COUNT CRITICAL finding(s)${NC}"
+  echo -e "${RED}${BOLD}════════════════════════════════════════════════${NC}"
+  echo ""
+  echo "  Fix all CRITICAL issues before pushing."
+  echo "  Run: /opensource-preflight --mode quick --scope diff"
+  echo ""
+  exit 1
+fi
+
+if [ "$HIGH_COUNT" -gt 0 ]; then
+  echo ""
+  echo -e "${YELLOW}${BOLD}════════════════════════════════════════════════${NC}"
+  echo -e "${YELLOW}  WARNING — $HIGH_COUNT HIGH finding(s)${NC}"
+  echo -e "${YELLOW}${BOLD}════════════════════════════════════════════════${NC}"
+  echo ""
+  echo "  Review these findings. Push is allowed but"
+  echo "  consider running: /opensource-preflight --mode standard"
+  echo ""
+  # HIGH = warning, not blocking (user can --no-verify if truly intentional)
+fi
+
+exit 0
