@@ -664,6 +664,36 @@ async function main() {
             }
             await completeStage(name, true); // gate already checked above
             console.log(`\nStage completed: ${name}`);
+            // Compliance report on ship complete
+            if (name === "ship") {
+              try {
+                const st = await getState();
+                const stages = ["brainstorm", "plan", "execute", "review", "ship"];
+                const report: string[] = ["\n── Pipeline Compliance ──"];
+                let totalPass = 0;
+                let totalChecks = 0;
+                for (const s of stages) {
+                  const arts = (st.artifacts as Record<string, string[]>)?.[s] || [];
+                  const hasArtifact = arts.length > 0;
+                  if (s === name) {
+                    // Ship stage — use actual gate results
+                    const sPass = gate.items.filter((i: { pass: boolean }) => i.pass).length;
+                    report.push(`  ${s}: ${sPass}/${gate.items.length} ${sPass === gate.items.length ? "✓" : "⚠"}`);
+                    totalPass += sPass;
+                    totalChecks += gate.items.length;
+                  } else {
+                    // Other stages — check if artifact was registered
+                    report.push(`  ${s}: ${hasArtifact ? "✓" : "—"}`);
+                    totalPass += hasArtifact ? 1 : 0;
+                    totalChecks += 1;
+                  }
+                }
+                const pct = totalChecks > 0 ? Math.round((totalPass / totalChecks) * 100) : 0;
+                const grade = pct >= 90 ? "A" : pct >= 75 ? "B" : pct >= 60 ? "C" : "D";
+                report.push(`  Overall: ${grade} (${pct}%)`);
+                console.log(report.join("\n"));
+              } catch { /* non-critical — skip if state read fails */ }
+            }
           } catch (err: any) {
             console.error(err.message);
             process.exit(1);

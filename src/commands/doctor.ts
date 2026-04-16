@@ -502,6 +502,84 @@ function formatReport(checks: Check[], scores: CategoryScore[], grade: string): 
   return lines.join("\n");
 }
 
+// ─── Content Quality Checks ────────────────────────────────────────
+
+function checkContentQuality(): Check[] {
+  const checks: Check[] = [];
+  const stateFile = join(".apex", "state.json");
+  if (!existsSync(stateFile)) return checks;
+
+  let state: any;
+  try { state = JSON.parse(readFileSync(stateFile, "utf-8")); } catch { return checks; }
+  const artifacts = state.artifacts || {};
+
+  // CQ1: Brainstorm acceptance criteria count >= 3
+  const brainstormArts: string[] = artifacts.brainstorm || [];
+  const latestBrainstorm = brainstormArts.filter((a: string) => a.endsWith(".md")).pop();
+  if (latestBrainstorm && existsSync(latestBrainstorm)) {
+    const content = readFileSync(latestBrainstorm, "utf-8");
+    const acSection = content.match(/## Acceptance Criteria\n([\s\S]*?)(?=\n##|\n---|\Z)/);
+    const acItems = acSection ? (acSection[1].match(/^\s*\d+\./gm) || []).length : 0;
+    checks.push({
+      id: "CQ1",
+      category: "Content-Quality",
+      description: "Brainstorm has >= 3 acceptance criteria",
+      severity: "MEDIUM",
+      verdict: acItems >= 3 ? "PASS" : "WARN",
+      detail: `Found ${acItems} numbered acceptance criteria in ${latestBrainstorm}`,
+      fix: acItems < 3 ? "Add more specific, testable acceptance criteria to the brainstorm document" : undefined,
+    });
+  }
+
+  // CQ2: Plan file manifest paths exist on disk
+  const planArts: string[] = artifacts.plan || [];
+  const latestPlan = planArts.filter((a: string) => a.endsWith(".md")).pop();
+  if (latestPlan && existsSync(latestPlan)) {
+    const content = readFileSync(latestPlan, "utf-8");
+    const manifestSection = content.match(/## File Manifest\n([\s\S]*?)(?=\n##|\n---|\Z)/);
+    if (manifestSection) {
+      const pathMatches = manifestSection[1].match(/`([^`]+\.\w+)`/g) || [];
+      const paths = pathMatches.map((p: string) => p.replace(/`/g, ""));
+      const missing = paths.filter((p: string) => !existsSync(p) && !p.includes("{"));
+      checks.push({
+        id: "CQ2",
+        category: "Content-Quality",
+        description: "Plan file manifest paths exist on disk",
+        severity: "MEDIUM",
+        verdict: missing.length === 0 ? "PASS" : "WARN",
+        detail: missing.length === 0 ? `All ${paths.length} manifest paths verified` : `Missing: ${missing.join(", ")}`,
+        fix: missing.length > 0 ? "Update file manifest to match actual file paths" : undefined,
+      });
+    }
+  }
+
+  // CQ3: Review persona sections have substantive content (> 50 chars each)
+  const reviewArts: string[] = artifacts.review || [];
+  const latestReview = reviewArts.filter((a: string) => a.endsWith(".md")).pop();
+  if (latestReview && existsSync(latestReview)) {
+    const content = readFileSync(latestReview, "utf-8");
+    const personas = ["Security", "Correctness", "Spec Compliance", "Adversarial"];
+    const shallow: string[] = [];
+    for (const p of personas) {
+      const re = new RegExp(`## ${p}[\\s\\S]*?\\n([\\s\\S]*?)(?=\\n##|$)`);
+      const match = content.match(re);
+      const body = match ? match[1].trim() : "";
+      if (body.length < 50) shallow.push(p);
+    }
+    checks.push({
+      id: "CQ3",
+      category: "Content-Quality",
+      description: "Review persona sections have substantive content (> 50 chars)",
+      severity: "MEDIUM",
+      verdict: shallow.length === 0 ? "PASS" : "WARN",
+      detail: shallow.length === 0 ? "All persona sections have substantive content" : `Shallow sections: ${shallow.join(", ")}`,
+      fix: shallow.length > 0 ? "Add specific findings with file:line evidence to each persona section" : undefined,
+    });
+  }
+
+  return checks;
+}
+
 // ─── Main ───────────────────────────────────────────────────────────
 
 export async function cmdDoctor(args: string[]): Promise<void> {
@@ -513,6 +591,7 @@ export async function cmdDoctor(args: string[]): Promise<void> {
     ...checkCheckpointMechanism(),
     ...checkBindings(),
     ...checkProjectState(),
+    ...checkContentQuality(),
   ];
 
   const scores = scoreByCategory(checks);
