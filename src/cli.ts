@@ -689,6 +689,11 @@ async function main() {
         await runConverter(rest);
         break;
       }
+      case "doctor": {
+        const { cmdDoctor } = await import("./commands/doctor.js");
+        await cmdDoctor(rest);
+        break;
+      }
       case "recover": {
         // Handle --rebuild flag for event log cache rebuild
         if (rest.includes("--rebuild")) {
@@ -786,6 +791,7 @@ Commands:
   stage get                     Show current stage state as JSON
   ship checkpoint NAME          Record a ship-stage checkpoint (iteration-summary, push-prompt, compound-transition)
   compound checkpoint NAME      Record a compound-stage checkpoint (re-entry-prompt)
+  doctor [--json]               Audit all enforcement layers (hooks, gates, bindings, state)
   worktree create TASK_ID       Create git worktree for task
   worktree list                 List worktrees
   worktree cleanup TASK_ID      Remove worktree
