@@ -282,11 +282,12 @@ export function materializeState(events: DomainEvent[]): StageState {
         const newStage = p.stage as string;
         const oldStage = state.current_stage;
 
-        // Close previous stage
+        // Close previous stage (auto-close by transition, NOT gate-verified)
         if (oldStage !== "idle" && oldStage !== newStage) {
           for (let i = state.history.length - 1; i >= 0; i--) {
             if (state.history[i].stage === oldStage && !state.history[i].completed) {
               state.history[i].completed = evt.ts;
+              state.history[i].completed_via = "transition";
               break;
             }
           }
@@ -303,6 +304,7 @@ export function materializeState(events: DomainEvent[]): StageState {
         for (let i = state.history.length - 1; i >= 0; i--) {
           if (state.history[i].stage === stage && !state.history[i].completed) {
             state.history[i].completed = evt.ts;
+            state.history[i].completed_via = "gate";
             break;
           }
         }
@@ -413,6 +415,7 @@ export function materializePerSession(events: DomainEvent[]): SessionPipeline[] 
             for (let i = state.history.length - 1; i >= 0; i--) {
               if (state.history[i].stage === oldStage && !state.history[i].completed) {
                 state.history[i].completed = evt.ts;
+                state.history[i].completed_via = "transition";
                 break;
               }
             }
@@ -428,6 +431,7 @@ export function materializePerSession(events: DomainEvent[]): SessionPipeline[] 
           for (let i = state.history.length - 1; i >= 0; i--) {
             if (state.history[i].stage === stage && !state.history[i].completed) {
               state.history[i].completed = evt.ts;
+              state.history[i].completed_via = "gate";
               break;
             }
           }

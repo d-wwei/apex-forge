@@ -102,6 +102,24 @@ DENY
     ;;
 esac
 
+# ── Rule 0: Block --skip-gate usage ──────────────────────────────────
+if [ "$TOOL" = "Bash" ] && [ -n "$CMD" ]; then
+  case "$CMD" in
+    *--skip-gate*)
+      cat <<'DENY'
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "deny",
+    "permissionDecisionReason": "APEX GATE: --skip-gate is not permitted. Fix the gate check failures instead of bypassing them. Use 'apex task block T{N}' for stale tasks, or 'apex recover' for corrupt state."
+  }
+}
+DENY
+      exit 0
+      ;;
+  esac
+fi
+
 # ── Rule 1: Git operations only in Ship stage ────────────────────────
 if [ "$TOOL" = "Bash" ] && [ -n "$CMD" ]; then
   # C1 fix: detect actual git/gh command invocations, not substrings

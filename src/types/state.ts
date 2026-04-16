@@ -2,6 +2,8 @@ export interface StageHistory {
   stage: string;
   started: string;
   completed?: string;
+  /** How the stage was completed: "gate" (via apex stage complete) or "transition" (auto-closed by stage change) */
+  completed_via?: "gate" | "transition";
 }
 
 export interface SkillInvocation {

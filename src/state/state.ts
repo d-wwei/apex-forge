@@ -111,12 +111,42 @@ export async function getState(): Promise<StageState> {
 }
 
 /**
+ * Stage ordering: each stage requires its predecessor to be completed.
+ * idle and brainstorm are always allowed. orchestrate:* stages bypass ordering.
+ */
+const STAGE_ORDER: Record<string, string> = {
+  plan: "brainstorm",
+  execute: "plan",
+  review: "execute",
+  ship: "review",
+  compound: "ship",
+};
+
+/**
  * Set the current stage and record a new history entry.
- * If a previous stage was active (not idle, not the same stage),
- * its history entry is completed first.
+ * Enforces stage ordering — rejects if predecessor stage was not completed.
+ * idle, brainstorm, and orchestrate:* stages bypass ordering.
  */
 export async function setStage(stage: string): Promise<StageState> {
   const state = await loadState();
+
+  // Enforce stage ordering (skip for idle, brainstorm, orchestrate:*)
+  // Only enforce when there IS an active pipeline (history has entries).
+  // Fresh projects with no history can set any stage freely.
+  const predecessor = STAGE_ORDER[stage];
+  if (predecessor && !stage.startsWith("orchestrate:") && state.history.length > 0) {
+    // Accept: completed_via === "gate" (explicit gate pass) or undefined (legacy history pre-migration)
+    // Reject: completed_via === "transition" (auto-closed by stage change — idle-toggle bypass)
+    const wasGateCompleted = state.history.some(
+      (h) => h.stage === predecessor && h.completed && h.completed_via !== "transition"
+    );
+    if (!wasGateCompleted) {
+      throw new Error(
+        `Cannot enter '${stage}' — '${predecessor}' stage has not been completed. ` +
+        `Complete it first: apex stage complete ${predecessor}`
+      );
+    }
+  }
 
   appendEvent("state", "stage.set", {
     stage,

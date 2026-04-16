@@ -570,24 +570,27 @@ async function main() {
         if (sub === "set") {
           const name = rest[1];
           if (!name) { console.error("Usage: apex stage set <name>"); process.exit(1); }
-          const st = await setStage(name);
-          console.log(`Stage set to: ${st.current_stage}`);
-          if (st.current_stage !== "idle") {
-            console.log(`⚠ MANDATORY: Read stages/${st.current_stage}.md before proceeding — contains required steps and exit gates.`);
+          try {
+            const st = await setStage(name);
+            console.log(`Stage set to: ${st.current_stage}`);
+            if (st.current_stage !== "idle") {
+              console.log(`⚠ MANDATORY: Read stages/${st.current_stage}.md before proceeding — contains required steps and exit gates.`);
+            }
+          } catch (err: any) {
+            console.error(err.message);
+            process.exit(1);
           }
         } else if (sub === "complete") {
           const name = rest[1];
           if (!name) { console.error("Usage: apex stage complete <name>"); process.exit(1); }
-          const skipGate = rest.includes("--skip-gate");
           try {
             const gate = await runStructuralGate(name);
             for (const item of gate.items) {
               const icon = item.pass ? "✓" : "✗";
               console.log(`  ${icon} ${item.id}: ${item.reason}`);
             }
-            if (!gate.pass && !skipGate) {
+            if (!gate.pass) {
               console.error(`\nGate BLOCKED — fix the issues above, then retry.`);
-              console.error(`(Use --skip-gate to force completion)`);
               process.exit(1);
             }
             await completeStage(name, true); // gate already checked above
