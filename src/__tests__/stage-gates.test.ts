@@ -70,7 +70,7 @@ describe("Brainstorm Gate", () => {
 
   test("BLOCKS when artifact missing status: approved", () => {
     writeArtifact("docs/brainstorms/test-requirements.md",
-      "---\ntitle: Test\nscope: Lightweight\nstatus: draft\n---\n\n## Acceptance Criteria\n- AC1\n\n## Constraints\n- C1\n");
+      "---\ntitle: Test\nscope: Lightweight\nstatus: draft\n---\n\n## Acceptance Criteria\n1. AC1\n2. AC2\n3. AC3\n\n## Constraints\n- C1\n");
     run("stage", "artifact", "brainstorm", "docs/brainstorms/test-requirements.md");
     run("stage", "set", "brainstorm");
 
@@ -81,7 +81,7 @@ describe("Brainstorm Gate", () => {
 
   test("PASSES when all checks satisfied", () => {
     writeArtifact("docs/brainstorms/test-requirements.md",
-      "---\ntitle: Test\nscope: Lightweight\nstatus: approved\n---\n\n## Acceptance Criteria\n- AC1\n\n## Constraints\n- C1\n");
+      "---\ntitle: Test\nscope: Lightweight\nstatus: approved\n---\n\n## Acceptance Criteria\n1. First criterion\n2. Second criterion\n3. Third criterion\n\n## Constraints\n- C1\n");
     run("stage", "artifact", "brainstorm", "docs/brainstorms/test-requirements.md");
     run("stage", "set", "brainstorm");
 
@@ -89,6 +89,7 @@ describe("Brainstorm Gate", () => {
     expect(r.exitCode).toBe(0);
     expect(r.stdout).toContain("S1");
     expect(r.stdout).toContain("S6");
+    expect(r.stdout).toContain("CQ1");
   });
 
   test("checks acceptance criteria section", () => {
@@ -210,13 +211,19 @@ describe("Review Gate", () => {
   });
 
   test("PASSES with all persona sections and DONE status", () => {
+    // Brainstorm artifact with Lightweight scope so ADV2 is skipped
+    writeArtifact("docs/brainstorms/test-requirements.md",
+      "---\ntitle: Test\nscope: Lightweight\nstatus: approved\n---\n\n## Acceptance Criteria\n1. A\n2. B\n3. C\n\n## Constraints\n- C1\n");
+    run("stage", "artifact", "brainstorm", "docs/brainstorms/test-requirements.md");
+    // Review artifact with substantive persona content (> 50 chars each)
     writeArtifact("docs/reviews/test-review.md",
-      "---\nstatus: DONE\n---\n\n## Security\nNo issues.\n## Correctness\nAll good.\n## Spec Compliance\nMatches spec.\n## Adversarial\nNo edge cases found.\n");
+      "---\nstatus: DONE\n---\n\n## Security\nNo SQL injection, XSS, or SSRF vulnerabilities found in the changed files. Input validation is correct.\n## Correctness\nAll edge cases handled properly. Error paths return appropriate status codes and messages.\n## Spec Compliance\nAll acceptance criteria from the requirements document are met. File manifest matches plan.\n## Adversarial\nTested assumption violations and composition failures. No cascade risks identified in the current scope.\n");
     run("stage", "artifact", "review", "docs/reviews/test-review.md");
     run("stage", "set", "review");
 
     const r = run("stage", "complete", "review");
     expect(r.exitCode).toBe(0);
+    expect(r.stdout).toContain("CQ3");
   });
 });
 

@@ -11,6 +11,7 @@ import { isoTimestamp, sessionId } from "../utils/timestamp.js";
 import type { StageState } from "../types/state.js";
 import { appendEvent, rebuildAndCache, sessionStateCachePath } from "./event-log.js";
 import { existsSync, readFileSync } from "fs";
+import { join } from "path";
 import { readdir } from "fs/promises";
 import { execSync } from "child_process";
 
@@ -221,6 +222,36 @@ export async function runStructuralGate(stage: string): Promise<{ pass: boolean;
       } else {
         items.push({ id: "S7", pass: true, reason: "No decisions file — check skipped" });
       }
+
+      // CQ1: Acceptance criteria count >= 3 (content quality gate)
+      let bAcCount = 0;
+      if (bArtifact && existsSync(bArtifact)) {
+        try {
+          const bContent = readFileSync(bArtifact, "utf-8");
+          const acMatch = bContent.match(/##?\s+acceptance\s+criteria\s*\n([\s\S]*?)(?=\n##|\n---|$)/i);
+          if (acMatch) {
+            bAcCount = (acMatch[1].match(/^\s*\d+\./gm) || []).length;
+          }
+        } catch { /* ignore */ }
+      }
+      items.push({ id: "CQ1", pass: bAcCount >= 3, reason: bAcCount >= 3 ? `${bAcCount} acceptance criteria (>= 3)` : `Only ${bAcCount} acceptance criteria (need >= 3). Add specific, testable criteria.` });
+
+      // ADV1: Adversarial verification file (Tier 2+ only — skip for Lightweight scope)
+      const bIsLightweight = bFm.scope?.toLowerCase() === "lightweight";
+      if (bIsLightweight) {
+        items.push({ id: "ADV1", pass: true, reason: "Lightweight scope — adversarial verification skipped" });
+      } else {
+        const bAdvFile = join(".apex", "verifications", "brainstorm-adversarial.md");
+        const bAdvExists = existsSync(bAdvFile);
+        items.push({
+          id: "ADV1",
+          pass: bAdvExists,
+          reason: bAdvExists
+            ? "Adversarial verification file exists"
+            : `BLOCKED: Spawn a sub-agent to verify this brainstorm. Prompt: "Read ${bArtifact}. Challenge every assumption, find gaps in acceptance criteria, and identify unstated constraints. Write your findings to ${bAdvFile}."`,
+        });
+      }
+
       break;
     }
     case "plan": {
@@ -349,6 +380,48 @@ export async function runStructuralGate(stage: string): Promise<{ pass: boolean;
       // S9: No unresolved P2 (all must be resolved or converted to task)
       // This is a softer check — P2s should be addressed but won't block in programmatic gate.
       // Left to SubAgent substance check for nuanced evaluation.
+
+      // CQ3: Each persona section must have substantive content (> 50 chars)
+      const rPersonas = ["Security", "Correctness", "Spec Compliance", "Adversarial"];
+      const rShallow: string[] = [];
+      if (rArtifact && existsSync(rArtifact)) {
+        try {
+          const rContentCQ = readFileSync(rArtifact, "utf-8");
+          for (const p of rPersonas) {
+            const re = new RegExp(`##?\\s+${p}[\\s\\S]*?\\n([\\s\\S]*?)(?=\\n##|$)`, "i");
+            const m = rContentCQ.match(re);
+            const body = m ? m[1].trim() : "";
+            if (body.length < 50) rShallow.push(p);
+          }
+        } catch { /* ignore */ }
+      }
+      items.push({
+        id: "CQ3",
+        pass: rShallow.length === 0,
+        reason: rShallow.length === 0
+          ? "All persona sections have substantive content (> 50 chars)"
+          : `Shallow sections (< 50 chars): ${rShallow.join(", ")}. Add specific findings with file:line evidence.`,
+      });
+
+      // ADV2: Adversarial verification file (Tier 2+ only)
+      // Determine scope from the brainstorm artifact in this pipeline
+      const bArts = state.artifacts["brainstorm"] ?? [];
+      const latestB = bArts.filter((a: string) => a.endsWith(".md")).pop();
+      const bScope = latestB ? parseFrontmatter(latestB) : {};
+      const rIsLightweight = bScope.scope?.toLowerCase() === "lightweight";
+      if (rIsLightweight) {
+        items.push({ id: "ADV2", pass: true, reason: "Lightweight scope — adversarial verification skipped" });
+      } else {
+        const rAdvFile = join(".apex", "verifications", "review-adversarial.md");
+        const rAdvExists = existsSync(rAdvFile);
+        items.push({
+          id: "ADV2",
+          pass: rAdvExists,
+          reason: rAdvExists
+            ? "Adversarial verification file exists"
+            : `BLOCKED: Spawn a sub-agent to verify this review. Prompt: "Read ${rArtifact}. For each persona section, verify the findings are real (check file:line references). Identify any risks the review missed. Write findings to ${rAdvFile}."`,
+        });
+      }
 
       break;
     }

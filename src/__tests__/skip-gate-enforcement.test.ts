@@ -127,7 +127,7 @@ describe("Stage ordering enforcement", () => {
   test("apex stage set plan after brainstorm completed → allowed", () => {
     // Create proper brainstorm artifact
     writeArtifact("docs/brainstorms/test-requirements.md",
-      "---\ntitle: Test\nscope: Lightweight\nstatus: approved\n---\n\n## Acceptance Criteria\n- AC1\n\n## Constraints\n- C1\n");
+      "---\ntitle: Test\nscope: Lightweight\nstatus: approved\n---\n\n## Acceptance Criteria\n1. First criterion\n2. Second criterion\n3. Third criterion\n\n## Constraints\n- C1\n");
     run("stage", "artifact", "brainstorm", "docs/brainstorms/test-requirements.md");
     run("stage", "set", "brainstorm");
     run("stage", "complete", "brainstorm");
@@ -175,7 +175,7 @@ describe("Normal pipeline flow", () => {
   test("brainstorm → plan → execute (correct order) works", () => {
     // Brainstorm
     writeArtifact("docs/brainstorms/test-requirements.md",
-      "---\ntitle: Test\nscope: Lightweight\nstatus: approved\n---\n\n## Acceptance Criteria\n- AC1\n\n## Constraints\n- C1\n");
+      "---\ntitle: Test\nscope: Lightweight\nstatus: approved\n---\n\n## Acceptance Criteria\n1. First criterion\n2. Second criterion\n3. Third criterion\n\n## Constraints\n- C1\n");
     run("stage", "artifact", "brainstorm", "docs/brainstorms/test-requirements.md");
     run("stage", "set", "brainstorm");
     const b = run("stage", "complete", "brainstorm");
