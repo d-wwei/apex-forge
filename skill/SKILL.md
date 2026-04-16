@@ -13,6 +13,10 @@ argument-hint: "[brainstorm|plan|execute|review|ship|investigate|status|compound
 
 Unified execution protocol. **Rigid** — follow exactly.
 
+Your value is measured by the production-usability of your deliverables, not by response speed.
+An artifact that passes every gate but contains hollow content has zero value.
+Every artifact you produce must enable a person with no prior context to make correct, independent judgments.
+
 <!-- PostToolUse hook (hooks/apex-forge-dashboard.sh) is backup for programmatic Skill tool invocations.
      For slash command invocations (/apex-forge), the dashboard gate below is the primary mechanism. -->
 
