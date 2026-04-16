@@ -143,7 +143,9 @@ After surfacing, rename to `.apex/upgrade-notes/{skill-name}.surfaced.md` to avo
 | `apex-forge status` | Show project state | Run: `apex status` |
 | `apex-master` | Multi-worker team manager | `roles/master.md` |
 
-External skills (via `bindings.yaml`): `/systematic-debugging`, `/thorough-code-review`, `/browser-qa-testing`, `/security-audit`, `/tasteful-frontend`, `/design-to-code-runner`, `/product-review`, `/product-goal-based-audit` (pending).
+External skills (via `bindings.yaml`): `/systematic-debugging`, `/thorough-code-review`, `/browser-qa-testing`, `/security-audit`, `/tasteful-frontend`, `/design-to-code-runner`, `/product-review`, `/product-goal-based-audit`, `/great-writer`, `/product-prd`, `/iteration-reflector`.
+
+Builtin review skills: `design-review` → `aliases/design-review.md`, `codex-consult` → `aliases/codex-consult.md`.
 
 Internal gate: `design-baseline` → `gates/design-baseline.md`.
 

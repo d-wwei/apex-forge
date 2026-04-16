@@ -13,7 +13,8 @@ SKILL=$(echo "$INPUT" | jq -r '.tool_input.skill // .tool_input.skill_name // em
 [ -n "$SKILL" ] || exit 0
 
 # Companion skills from bindings.yaml (extracted statically to avoid parsing YAML in bash)
-COMPANIONS="product-prd systematic-debugging tasteful-frontend design-to-code-runner browser-qa-testing thorough-code-review security-audit design-review product-review codex-consult iteration-reflector"
+COMPANIONS="product-prd systematic-debugging tasteful-frontend design-to-code-runner browser-qa-testing thorough-code-review security-audit product-review iteration-reflector great-writer product-goal-based-audit"
+# NOTE: design-review and codex-consult are now builtin (aliases/), not companion skills
 
 # Check if this skill is a companion
 MATCH=0

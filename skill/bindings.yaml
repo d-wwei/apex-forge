@@ -91,7 +91,7 @@ review:
       FAIL:             { af_review: fail, af_action: return_to_execute }
 
   - trigger: "frontend visual quality review"
-    skill: design-review
+    builtin: aliases/design-review.md    # Two-phase: design-baseline gate + persona sub-agents
     priority: 3
     concurrent: true
     layers:
@@ -99,7 +99,7 @@ review:
         verdict_on_fail: REJECTED
 
   - trigger: "代码审查完成后，获取独立第二意见"
-    skill: codex-consult
+    builtin: aliases/codex-consult.md    # Dispatches to Codex/sub-agent for independent review
     mode: review
     priority: 5
     concurrent: true

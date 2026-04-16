@@ -6,7 +6,7 @@ Execution protocol for AI coding agents. Routes tasks through complexity tiers, 
 
 Apex Forge is a protocol orchestrator, not a framework. It provides execution discipline (complexity routing, phase gates, evidence grading) while delegating domain knowledge to independent companion skills. The pipeline runs: brainstorm, plan, execute, review, ship, compound.
 
-Seven companion skills handle specialized work:
+Twelve companion skills handle specialized work:
 - `systematic-debugging` — root-cause debugging with Iron Law discipline
 - `thorough-code-review` — pre-merge review + incoming feedback evaluation
 - `security-audit` — infrastructure-first CWE-tagged audit
@@ -14,13 +14,22 @@ Seven companion skills handle specialized work:
 - `tasteful-frontend` — opinionated frontend design guidance
 - `design-to-code-runner` — spec-first Figma/screenshot to code
 - `product-review` — product experience evaluation
+- `product-prd` — interview-first PRD with product validation
+- `iteration-reflector` — post-iteration reflection and roadmap generation
+- `great-writer` — GitHub README generation (Ship stage)
+- `product-goal-based-audit` — system health audit against design goals
+- `apex-manager` — multi-worker team orchestration
+
+Two builtin review skills (no external install needed):
+- `design-review` — two-phase frontend visual quality gate (`aliases/design-review.md`)
+- `codex-consult` — independent second-opinion dispatch (`aliases/codex-consult.md`)
 
 All companion skills install automatically. Each works standalone or orchestrated through the AF pipeline.
 
 ## Quick Start
 
 ```bash
-# Clone and install (installs AF + all 7 companion skills)
+# Clone and install (installs AF + all 12 companion skills)
 git clone https://github.com/d-wwei/apex-forge
 cd apex-forge
 bash skill/install.sh
