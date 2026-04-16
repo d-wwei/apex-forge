@@ -5,8 +5,21 @@
 
 INPUT=$(cat)
 
-# Only process Skill tool calls
+# Extract tool name
 TOOL=$(echo "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
+
+# Auto-checkpoint: detect AskUserQuestion during ship stage (push-prompt checkpoint)
+if [ "$TOOL" = "AskUserQuestion" ]; then
+  APEX_DIR=".apex"
+  [ -d "$APEX_DIR" ] || exit 0
+  STAGE=$(jq -r '.current_stage // "unknown"' "$APEX_DIR/state.json" 2>/dev/null || echo "unknown")
+  if [ "$STAGE" = "ship" ]; then
+    apex ship checkpoint push-prompt 2>/dev/null
+  fi
+  exit 0
+fi
+
+# Only process Skill tool calls beyond this point
 [ "$TOOL" = "Skill" ] || exit 0
 
 SKILL=$(echo "$INPUT" | jq -r '.tool_input.skill // .tool_input.skill_name // empty' 2>/dev/null)

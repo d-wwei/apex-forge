@@ -7,7 +7,7 @@ import { cmdMemory } from "./commands/memory.js";
 import { cmdTelemetry } from "./commands/telemetry.js";
 import { cmdWorktree } from "./commands/worktree.js";
 import { ApexError } from "./utils/errors.js";
-import { existsSync, readFileSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import {
   checkGhCli,
   listIssues,
@@ -575,6 +575,75 @@ async function main() {
             console.log(`Stage set to: ${st.current_stage}`);
             if (st.current_stage !== "idle") {
               console.log(`⚠ MANDATORY: Read stages/${st.current_stage}.md before proceeding — contains required steps and exit gates.`);
+              // T1: Print inline key requirements per stage
+              const stageReqs: Record<string, string[]> = {
+                brainstorm: [
+                  "NO code — only conversation + requirements document",
+                  "Tag all claims: [已验证] or [假设]",
+                  "Run 9-step checklist (→ details/brainstorm-checklist.md)",
+                  "Get explicit user approval before completing",
+                ],
+                plan: [
+                  "Every task traces to an acceptance criterion",
+                  "Exact file paths — no placeholders",
+                  "Test scenarios in Given/When/Then",
+                  "NO implementation code — directional only",
+                ],
+                execute: [
+                  "TDD: Write test → RED → Code → GREEN → Refactor",
+                  "No design decisions — follow the plan",
+                  "Submit evidence with apex task submit",
+                ],
+                review: [
+                  "Read each changed file fresh — not from memory",
+                  "Security + Correctness + Spec Compliance + Adversarial",
+                  "Every finding needs file:line evidence",
+                  "Fix all P0-P2 before completing",
+                ],
+                ship: [
+                  "Pre-flight: tests pass, no unexpected changes, review confirmed",
+                  "Commit format: type(scope): description",
+                  "Plain-language iteration summary before push",
+                  "Ask user before pushing to remote",
+                ],
+                compound: [
+                  "Write solution doc to docs/solutions/",
+                  "Memory Write HARD GATE — extract lessons to .apex/memory/",
+                  "Ask user: continue, new session, or end",
+                ],
+              };
+              const reqs = stageReqs[st.current_stage];
+              if (reqs) {
+                console.log("\n  Key requirements:");
+                for (const r of reqs) {
+                  console.log(`    • ${r}`);
+                }
+              }
+              // T2: Auto-create artifact template if none exists
+              const projectId = st.session_id?.replace(/^apex-/, "") || "project";
+              const templateMap: Record<string, { dir: string; file: string; content: string }> = {
+                brainstorm: {
+                  dir: "docs/brainstorms",
+                  file: `docs/brainstorms/${projectId}-requirements.md`,
+                  content: `---\ntitle: ${projectId} Requirements\nscope: Standard\nstatus: draft\ncreated: ${new Date().toISOString().split("T")[0]}\n---\n\n## Problem Statement\n\n## Constraints\n\n## Approaches\n\n## Acceptance Criteria\n\n## Solution Shape\n`,
+                },
+                plan: {
+                  dir: "docs/plans",
+                  file: `docs/plans/${projectId}-plan.md`,
+                  content: `---\ntitle: ${projectId} Plan\nscope: Standard\nstatus: draft\ncreated: ${new Date().toISOString().split("T")[0]}\nsource: docs/brainstorms/${projectId}-requirements.md\ntasks: 0\ncomplexity: medium\n---\n\n## Problem Frame\n\n## Decision Log\n\n## File Manifest\n\n## Task Decomposition\n\n## Test Plan\n`,
+                },
+                review: {
+                  dir: "docs/reviews",
+                  file: `docs/reviews/${projectId}-review.md`,
+                  content: `---\ntitle: ${projectId} Review\nstatus: PENDING\nreviewer: self\ncreated: ${new Date().toISOString().split("T")[0]}\n---\n\n## Summary\n\n## Security Reviewer\n\n## Correctness Reviewer\n\n## Spec Compliance Reviewer\n\n## Adversarial Reviewer\n\n## Verdict\n`,
+                },
+              };
+              const tmpl = templateMap[st.current_stage];
+              if (tmpl && !existsSync(tmpl.file)) {
+                mkdirSync(tmpl.dir, { recursive: true });
+                writeFileSync(tmpl.file, tmpl.content);
+                console.log(`\n  📄 Template created: ${tmpl.file}`);
+              }
             }
           } catch (err: any) {
             console.error(err.message);
