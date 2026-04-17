@@ -377,8 +377,7 @@ export class RaftConsensus {
 
     // Check whether we can vote for this candidate.
     const canVote =
-      this.node.votedFor === null ||
-      this.node.votedFor === request.candidateId;
+      this.node.votedFor === null || this.node.votedFor === request.candidateId;
 
     // Log completeness check: candidate's log must be at least as up-to-date.
     const lastLogIndex = this.node.log.length - 1;
@@ -399,9 +398,7 @@ export class RaftConsensus {
   }
 
   /** Handle an incoming AppendEntries RPC (heartbeat or log replication). */
-  handleAppendEntries(
-    request: AppendEntriesRequest,
-  ): AppendEntriesResponse {
+  handleAppendEntries(request: AppendEntriesRequest): AppendEntriesResponse {
     // Step down if the request has a higher term.
     if (request.term > this.node.currentTerm) {
       this.stepDown(request.term);

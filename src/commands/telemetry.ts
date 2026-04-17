@@ -1,8 +1,8 @@
-import { existsSync, readFileSync, unlinkSync } from "fs";
+import { existsSync, readFileSync, unlinkSync } from "node:fs";
+import { sync as telemetrySync } from "../telemetry-sync.js";
 import { readJSON, writeJSON } from "../utils/json.js";
 import { appendJSONL } from "../utils/logger.js";
 import { isoTimestamp } from "../utils/timestamp.js";
-import { sync as telemetrySync } from "../telemetry-sync.js";
 
 const SESSION_FILE = ".apex/.telemetry-session";
 const ANALYTICS_FILE = ".apex/analytics/usage.jsonl";
@@ -47,9 +47,7 @@ export async function cmdTelemetry(args: string[]): Promise<void> {
         console.error("No telemetry session active");
         process.exit(1);
       }
-      const duration_s = Math.round(
-        (Date.now() - session.started_at) / 1000,
-      );
+      const duration_s = Math.round((Date.now() - session.started_at) / 1000);
       appendJSONL(ANALYTICS_FILE, {
         skill: session.skill,
         duration_s,
@@ -63,9 +61,7 @@ export async function cmdTelemetry(args: string[]): Promise<void> {
       } catch {
         // ignore
       }
-      console.log(
-        `Logged: ${session.skill} ${outcome} (${duration_s}s)`,
-      );
+      console.log(`Logged: ${session.skill} ${outcome} (${duration_s}s)`);
       break;
     }
 
@@ -79,9 +75,7 @@ export async function cmdTelemetry(args: string[]): Promise<void> {
         .trim()
         .split("\n")
         .filter(Boolean);
-      const events = lines.map(
-        (l) => JSON.parse(l) as UsageRecord,
-      );
+      const events = lines.map((l) => JSON.parse(l) as UsageRecord);
 
       if (events.length === 0) {
         console.log("No telemetry data yet");
@@ -121,25 +115,17 @@ export async function cmdTelemetry(args: string[]): Promise<void> {
         `Period: ${events[0]?.ts || "?"} to ${events[events.length - 1]?.ts || "?"}`,
       );
       console.log("");
-      console.log(
-        "Skill               Runs  Avg Time  Success Rate",
-      );
-      console.log(
-        "\u2500".repeat(49),
-      );
+      console.log("Skill               Runs  Avg Time  Success Rate");
+      console.log("\u2500".repeat(49));
 
       for (const [skill, data] of Object.entries(bySkill).sort(
         (a, b) => b[1].count - a[1].count,
       )) {
-        const avgTime = Math.round(
-          data.totalDuration / data.count,
-        );
+        const avgTime = Math.round(data.totalDuration / data.count);
         const successRate =
-          data.count > 0
-            ? Math.round((data.successes / data.count) * 100)
-            : 0;
+          data.count > 0 ? Math.round((data.successes / data.count) * 100) : 0;
         console.log(
-          `${skill.padEnd(20)} ${String(data.count).padEnd(6)} ${String(avgTime + "s").padEnd(10)} ${successRate}%`,
+          `${skill.padEnd(20)} ${String(data.count).padEnd(6)} ${String(`${avgTime}s`).padEnd(10)} ${successRate}%`,
         );
       }
       break;
@@ -151,9 +137,7 @@ export async function cmdTelemetry(args: string[]): Promise<void> {
     }
 
     default:
-      console.error(
-        `Unknown telemetry command: ${verb || "(none)"}`,
-      );
+      console.error(`Unknown telemetry command: ${verb || "(none)"}`);
       console.error("Usage: apex telemetry [start|end|report|sync]");
       process.exit(1);
   }

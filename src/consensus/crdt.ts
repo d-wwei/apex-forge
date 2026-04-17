@@ -15,7 +15,8 @@ export class GCounter {
   private counts: Map<string, number> = new Map();
 
   increment(nodeId: string, amount: number = 1): void {
-    if (amount < 0) throw new Error("GCounter only supports positive increments");
+    if (amount < 0)
+      throw new Error("GCounter only supports positive increments");
     this.counts.set(nodeId, (this.counts.get(nodeId) || 0) + amount);
   }
 
@@ -95,7 +96,7 @@ export class ORSet<T> {
   add(nodeId: string, value: T): void {
     const tag = `${nodeId}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     if (!this.adds.has(nodeId)) this.adds.set(nodeId, []);
-    this.adds.get(nodeId)!.push({ value, tag });
+    this.adds.get(nodeId)?.push({ value, tag });
   }
 
   remove(value: T): void {
@@ -141,9 +142,9 @@ export class ORSet<T> {
   merge(other: ORSet<T>): void {
     for (const [nodeId, entries] of other.adds) {
       if (!this.adds.has(nodeId)) this.adds.set(nodeId, []);
-      const existing = new Set(this.adds.get(nodeId)!.map((e) => e.tag));
+      const existing = new Set(this.adds.get(nodeId)?.map((e) => e.tag));
       for (const entry of entries) {
-        if (!existing.has(entry.tag)) this.adds.get(nodeId)!.push(entry);
+        if (!existing.has(entry.tag)) this.adds.get(nodeId)?.push(entry);
       }
     }
     for (const tag of other.removes) {
@@ -192,11 +193,18 @@ export function runCrdtTest() {
   };
 
   return {
-    gcounter: { ...counterResult, pass: counterResult.c1 === counterResult.expected },
-    lwwRegister: { ...registerResult, pass: registerResult.value === registerResult.expected },
+    gcounter: {
+      ...counterResult,
+      pass: counterResult.c1 === counterResult.expected,
+    },
+    lwwRegister: {
+      ...registerResult,
+      pass: registerResult.value === registerResult.expected,
+    },
     orSet: {
       ...setResult,
-      pass: JSON.stringify(setResult.values) === JSON.stringify(setResult.expected),
+      pass:
+        JSON.stringify(setResult.values) === JSON.stringify(setResult.expected),
     },
   };
 }

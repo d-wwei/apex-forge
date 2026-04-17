@@ -1,6 +1,6 @@
-import { existsSync, unlinkSync, readFileSync } from "fs";
-import { readJSON, writeJSON } from "../utils/json.js";
+import { existsSync, readFileSync, unlinkSync } from "node:fs";
 import type { TaskStore } from "../types/task.js";
+import { readJSON, writeJSON } from "../utils/json.js";
 
 const BROWSE_STATE = ".apex/browse.json";
 const TELEMETRY_SESSION = ".apex/.telemetry-session";
@@ -71,9 +71,7 @@ export async function recoverState(): Promise<string[]> {
       try {
         JSON.parse(readFileSync(file, "utf-8"));
       } catch {
-        issues.push(
-          `WARNING: ${file} is corrupted. Run 'apex init' to reset.`,
-        );
+        issues.push(`WARNING: ${file} is corrupted. Run 'apex init' to reset.`);
       }
     }
   }

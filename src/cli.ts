@@ -1,32 +1,41 @@
 #!/usr/bin/env bun
 
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { quickCheck } from "./adapters/update-adapter.js";
+import { cmdHeal } from "./commands/heal.js";
 import { cmdInit } from "./commands/init.js";
+import { cmdMemory } from "./commands/memory.js";
 import { cmdStatus } from "./commands/status.js";
 import { cmdTask } from "./commands/task.js";
-import { cmdMemory } from "./commands/memory.js";
 import { cmdTelemetry } from "./commands/telemetry.js";
+import { cmdUpdate } from "./commands/update.js";
 import { cmdWorktree } from "./commands/worktree.js";
-import { ApexError } from "./utils/errors.js";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import {
   checkGhCli,
-  listIssues,
   createTasksFromIssues,
-  syncIssueStatus,
   getIssue,
+  listIssues,
+  syncIssueStatus,
 } from "./integrations/github.js";
 import {
-  startSpan,
+  addArtifact,
+  addCompoundCheckpoint,
+  addShipCheckpoint,
+  addSkillInvocation,
+  completeStage,
+  getState,
+  runStructuralGate,
+  setStage,
+} from "./state/state.js";
+import {
   endSpan,
   getActiveSpans,
-  listTraceSummaries,
   getTraceSpans,
+  listTraceSummaries,
+  startSpan,
 } from "./tracing.js";
-import { addSkillInvocation, setStage, completeStage, addArtifact, getState, runStructuralGate, addShipCheckpoint, addCompoundCheckpoint } from "./state/state.js";
+import { ApexError } from "./utils/errors.js";
 import { satisfies } from "./utils/semver.js";
-import { cmdUpdate } from "./commands/update.js";
-import { cmdHeal } from "./commands/heal.js";
-import { quickCheck } from "./adapters/update-adapter.js";
 
 const VERSION = "0.1.0";
 
@@ -34,7 +43,9 @@ async function startupQuickCheck() {
   try {
     const result = await quickCheck();
     if (result.status === "update_available") {
-      console.error(`[apex-forge] Update available: v${result.currentVersion} → v${result.latestVersion}. Run: apex update apply`);
+      console.error(
+        `[apex-forge] Update available: v${result.currentVersion} → v${result.latestVersion}. Run: apex update apply`,
+      );
     }
   } catch {
     // silent — never block normal CLI usage
@@ -56,11 +67,15 @@ async function cmdConsensus(args: string[]) {
       process.exit(1);
     }
 
-    console.log(`\nLeader elected: ${result.leaderId} (term ${result.leaderTerm})\n`);
+    console.log(
+      `\nLeader elected: ${result.leaderId} (term ${result.leaderTerm})\n`,
+    );
     console.log("Node states:");
     for (const n of result.nodes) {
       const marker = n.id === result.leaderId ? " <-- leader" : "";
-      console.log(`  ${n.id}: state=${n.state}, term=${n.term}, log=${n.logLength}, committed=${n.commitIndex}${marker}`);
+      console.log(
+        `  ${n.id}: state=${n.state}, term=${n.term}, log=${n.logLength}, committed=${n.commitIndex}${marker}`,
+      );
     }
 
     const uniqueApplied = new Map<string, number>();
@@ -86,7 +101,9 @@ async function cmdConsensus(args: string[]) {
     console.log(`Max faulty tolerance: ${result.maxFaulty}`);
     console.log(`\nProposals:`);
     for (const p of result.proposals) {
-      console.log(`  ${JSON.stringify(p.data)} -> ${p.success ? "COMMITTED" : "FAILED"}`);
+      console.log(
+        `  ${JSON.stringify(p.data)} -> ${p.success ? "COMMITTED" : "FAILED"}`,
+      );
     }
     console.log(`\nCommitted entries: ${result.committed.length}`);
     console.log("BFT consensus test passed.");
@@ -95,7 +112,9 @@ async function cmdConsensus(args: string[]) {
     const nodeCount = parseInt(args[1], 10) || 5;
     const keyCount = parseInt(args[2], 10) || 3;
 
-    console.log(`Starting Gossip protocol test with ${nodeCount} nodes, ${keyCount} keys...`);
+    console.log(
+      `Starting Gossip protocol test with ${nodeCount} nodes, ${keyCount} keys...`,
+    );
     const result = runGossipTest(nodeCount, keyCount);
 
     console.log(`\nConverged: ${result.converged}`);
@@ -109,11 +128,18 @@ async function cmdConsensus(args: string[]) {
     console.log("Starting CRDT tests...\n");
     const result = runCrdtTest();
 
-    console.log(`GCounter:    value=${result.gcounter.c1}, expected=${result.gcounter.expected} -> ${result.gcounter.pass ? "PASS" : "FAIL"}`);
-    console.log(`LWWRegister: value=${result.lwwRegister.value}, expected=${result.lwwRegister.expected} -> ${result.lwwRegister.pass ? "PASS" : "FAIL"}`);
-    console.log(`ORSet:       values=[${result.orSet.values}], expected=[${result.orSet.expected}] -> ${result.orSet.pass ? "PASS" : "FAIL"}`);
+    console.log(
+      `GCounter:    value=${result.gcounter.c1}, expected=${result.gcounter.expected} -> ${result.gcounter.pass ? "PASS" : "FAIL"}`,
+    );
+    console.log(
+      `LWWRegister: value=${result.lwwRegister.value}, expected=${result.lwwRegister.expected} -> ${result.lwwRegister.pass ? "PASS" : "FAIL"}`,
+    );
+    console.log(
+      `ORSet:       values=[${result.orSet.values}], expected=[${result.orSet.expected}] -> ${result.orSet.pass ? "PASS" : "FAIL"}`,
+    );
 
-    const allPass = result.gcounter.pass && result.lwwRegister.pass && result.orSet.pass;
+    const allPass =
+      result.gcounter.pass && result.lwwRegister.pass && result.orSet.pass;
     console.log(`\nAll CRDT tests ${allPass ? "passed" : "FAILED"}.`);
     if (!allPass) process.exit(1);
   } else if (sub === "test-all") {
@@ -123,7 +149,9 @@ async function cmdConsensus(args: string[]) {
     console.log("--- Raft ---");
     const { runTestCluster } = await import("./consensus/raft.js");
     const raftResult = await runTestCluster(3, 3);
-    console.log(`  Leader: ${raftResult.leaderId || "NONE"}, applied: ${raftResult.appliedEntries.length}`);
+    console.log(
+      `  Leader: ${raftResult.leaderId || "NONE"}, applied: ${raftResult.appliedEntries.length}`,
+    );
     console.log(`  ${raftResult.leaderId ? "PASS" : "FAIL"}\n`);
 
     // BFT
@@ -131,25 +159,35 @@ async function cmdConsensus(args: string[]) {
     const { runBftTest } = await import("./consensus/bft.js");
     const bftResult = runBftTest(4, 3);
     const bftPass = bftResult.proposals.every((p) => p.success);
-    console.log(`  Primary: ${bftResult.primaryId}, committed: ${bftResult.committed.length}`);
+    console.log(
+      `  Primary: ${bftResult.primaryId}, committed: ${bftResult.committed.length}`,
+    );
     console.log(`  ${bftPass ? "PASS" : "FAIL"}\n`);
 
     // Gossip
     console.log("--- Gossip ---");
     const { runGossipTest } = await import("./consensus/gossip.js");
     const gossipResult = runGossipTest(5, 3);
-    console.log(`  Converged: ${gossipResult.converged} in ${gossipResult.rounds} rounds`);
+    console.log(
+      `  Converged: ${gossipResult.converged} in ${gossipResult.rounds} rounds`,
+    );
     console.log(`  ${gossipResult.converged ? "PASS" : "FAIL"}\n`);
 
     // CRDT
     console.log("--- CRDT ---");
     const { runCrdtTest } = await import("./consensus/crdt.js");
     const crdtResult = runCrdtTest();
-    const crdtPass = crdtResult.gcounter.pass && crdtResult.lwwRegister.pass && crdtResult.orSet.pass;
-    console.log(`  GCounter=${crdtResult.gcounter.pass ? "OK" : "FAIL"} LWW=${crdtResult.lwwRegister.pass ? "OK" : "FAIL"} ORSet=${crdtResult.orSet.pass ? "OK" : "FAIL"}`);
+    const crdtPass =
+      crdtResult.gcounter.pass &&
+      crdtResult.lwwRegister.pass &&
+      crdtResult.orSet.pass;
+    console.log(
+      `  GCounter=${crdtResult.gcounter.pass ? "OK" : "FAIL"} LWW=${crdtResult.lwwRegister.pass ? "OK" : "FAIL"} ORSet=${crdtResult.orSet.pass ? "OK" : "FAIL"}`,
+    );
     console.log(`  ${crdtPass ? "PASS" : "FAIL"}\n`);
 
-    const allPass = !!raftResult.leaderId && bftPass && gossipResult.converged && crdtPass;
+    const allPass =
+      !!raftResult.leaderId && bftPass && gossipResult.converged && crdtPass;
     console.log(`=== All consensus tests ${allPass ? "PASSED" : "FAILED"} ===`);
     if (!allPass) process.exit(1);
   } else {
@@ -167,7 +205,7 @@ Usage:
 }
 
 async function cmdDesign(args: string[]) {
-  const { execSync } = await import("child_process");
+  const { execSync } = await import("node:child_process");
   const sub = args[0];
 
   if (sub === "generate") {
@@ -191,12 +229,18 @@ async function cmdDesign(args: string[]) {
     for (const r of results) console.log(`  ${r.path}`);
     const html = await compareDesigns(results.map((r) => r.path));
     console.log(`Comparison: ${html}`);
-    try { execSync(`open "${html}"`); } catch { /* ignore if open fails */ }
+    try {
+      execSync(`open "${html}"`);
+    } catch {
+      /* ignore if open fails */
+    }
   } else if (sub === "list") {
     const { listDesigns } = await import("./design.js");
     const designs = listDesigns();
     if (designs.length === 0) {
-      console.log("No designs found. Use 'apex design generate <prompt>' to create one.");
+      console.log(
+        "No designs found. Use 'apex design generate <prompt>' to create one.",
+      );
     } else {
       console.log(`Found ${designs.length} design(s):`);
       for (const d of designs) console.log(`  ${d}`);
@@ -210,7 +254,11 @@ async function cmdDesign(args: string[]) {
     const { compareDesigns } = await import("./design.js");
     const html = await compareDesigns(paths);
     console.log(`Comparison: ${html}`);
-    try { execSync(`open "${html}"`); } catch { /* ignore */ }
+    try {
+      execSync(`open "${html}"`);
+    } catch {
+      /* ignore */
+    }
   } else {
     console.log(`
 apex design — AI-powered UI design generation (OpenAI GPT Image)
@@ -276,7 +324,10 @@ async function cmdIssues(args: string[]) {
 
   if (sub === "sync" || sub === "list") {
     const stateIdx = args.indexOf("--state");
-    const state = (stateIdx >= 0 ? args[stateIdx + 1] : "open") as "open" | "closed" | "all";
+    const state = (stateIdx >= 0 ? args[stateIdx + 1] : "open") as
+      | "open"
+      | "closed"
+      | "all";
     const labelIdx = args.indexOf("--label");
     const label = labelIdx >= 0 ? args[labelIdx + 1] : undefined;
 
@@ -317,7 +368,9 @@ async function cmdIssues(args: string[]) {
       process.exit(1);
     }
     const ok = syncIssueStatus(taskId, issueNum, status);
-    console.log(ok ? `Commented on #${issueNum}` : `Failed to comment on #${issueNum}`);
+    console.log(
+      ok ? `Commented on #${issueNum}` : `Failed to comment on #${issueNum}`,
+    );
   } else if (sub === "view") {
     const num = parseInt(args[1], 10);
     if (!num) {
@@ -385,10 +438,13 @@ async function cmdTrace(args: string[]) {
       console.log("No traces recorded yet.");
     } else {
       console.log(`Recent traces (${summaries.length}):`);
-      console.log("Trace ID                     Root Span           Spans  Duration   Errors");
+      console.log(
+        "Trace ID                     Root Span           Spans  Duration   Errors",
+      );
       console.log("\u2500".repeat(78));
       for (const t of summaries) {
-        const dur = t.total_duration_ms != null ? `${t.total_duration_ms}ms` : "-";
+        const dur =
+          t.total_duration_ms != null ? `${t.total_duration_ms}ms` : "-";
         const err = t.has_errors ? "YES" : "-";
         console.log(
           `${t.trace_id.padEnd(29)} ${t.root_span.slice(0, 20).padEnd(20)} ${String(t.span_count).padEnd(7)} ${dur.padEnd(10)} ${err}`,
@@ -410,7 +466,9 @@ async function cmdTrace(args: string[]) {
         const dur = s.duration_ms != null ? `${s.duration_ms}ms` : "running";
         const parent = s.parent_id ? ` (parent: ${s.parent_id})` : " (root)";
         const meta = s.metadata ? ` ${JSON.stringify(s.metadata)}` : "";
-        console.log(`  [${s.status.toUpperCase()}] ${s.name} - ${dur}${parent}${meta}`);
+        console.log(
+          `  [${s.status.toUpperCase()}] ${s.name} - ${dur}${parent}${meta}`,
+        );
       }
     }
   } else {
@@ -439,7 +497,10 @@ async function cmdCheckBindings(): Promise<void> {
   const skillsDir = `${home}/.claude/skills`;
 
   // Simple YAML extraction: find lines with "skill:" and "version:"
-  interface Binding { skill: string; version: string; }
+  interface Binding {
+    skill: string;
+    version: string;
+  }
   const bindings: Binding[] = [];
   let currentSkill = "";
 
@@ -480,7 +541,7 @@ async function cmdCheckBindings(): Promise<void> {
     if (!ok) failures++;
 
     console.log(
-      `${b.skill.padEnd(25)} ${b.version.padEnd(14)} ${installed.padEnd(13)} ${status}`
+      `${b.skill.padEnd(25)} ${b.version.padEnd(14)} ${installed.padEnd(13)} ${status}`,
     );
   }
 
@@ -531,7 +592,10 @@ async function main() {
         const sub = rest[0];
         if (sub === "checkpoint") {
           const name = rest[1];
-          if (!name) { console.error("Usage: apex ship checkpoint <name>"); process.exit(1); }
+          if (!name) {
+            console.error("Usage: apex ship checkpoint <name>");
+            process.exit(1);
+          }
           try {
             await addShipCheckpoint(name);
             console.log(`Ship checkpoint recorded: ${name}`);
@@ -550,7 +614,10 @@ async function main() {
         const sub = rest[0];
         if (sub === "checkpoint") {
           const name = rest[1];
-          if (!name) { console.error("Usage: apex compound checkpoint <name>"); process.exit(1); }
+          if (!name) {
+            console.error("Usage: apex compound checkpoint <name>");
+            process.exit(1);
+          }
           try {
             await addCompoundCheckpoint(name);
             console.log(`Compound checkpoint recorded: ${name}`);
@@ -569,12 +636,17 @@ async function main() {
         const sub = rest[0];
         if (sub === "set") {
           const name = rest[1];
-          if (!name) { console.error("Usage: apex stage set <name>"); process.exit(1); }
+          if (!name) {
+            console.error("Usage: apex stage set <name>");
+            process.exit(1);
+          }
           try {
             const st = await setStage(name);
             console.log(`Stage set to: ${st.current_stage}`);
             if (st.current_stage !== "idle") {
-              console.log(`⚠ MANDATORY: Read stages/${st.current_stage}.md before proceeding — contains required steps and exit gates.`);
+              console.log(
+                `⚠ MANDATORY: Read stages/${st.current_stage}.md before proceeding — contains required steps and exit gates.`,
+              );
               // T1: Print inline key requirements per stage
               const stageReqs: Record<string, string[]> = {
                 brainstorm: [
@@ -620,8 +692,12 @@ async function main() {
                 }
               }
               // T2: Auto-create artifact template if none exists
-              const projectId = st.session_id?.replace(/^apex-/, "") || "project";
-              const templateMap: Record<string, { dir: string; file: string; content: string }> = {
+              const projectId =
+                st.session_id?.replace(/^apex-/, "") || "project";
+              const templateMap: Record<
+                string,
+                { dir: string; file: string; content: string }
+              > = {
                 brainstorm: {
                   dir: "docs/brainstorms",
                   file: `docs/brainstorms/${projectId}-requirements.md`,
@@ -651,7 +727,10 @@ async function main() {
           }
         } else if (sub === "complete") {
           const name = rest[1];
-          if (!name) { console.error("Usage: apex stage complete <name>"); process.exit(1); }
+          if (!name) {
+            console.error("Usage: apex stage complete <name>");
+            process.exit(1);
+          }
           try {
             const gate = await runStructuralGate(name);
             for (const item of gate.items) {
@@ -659,7 +738,9 @@ async function main() {
               console.log(`  ${icon} ${item.id}: ${item.reason}`);
             }
             if (!gate.pass) {
-              console.error(`\nGate BLOCKED — fix the issues above, then retry.`);
+              console.error(
+                `\nGate BLOCKED — fix the issues above, then retry.`,
+              );
               process.exit(1);
             }
             await completeStage(name, true); // gate already checked above
@@ -668,17 +749,28 @@ async function main() {
             if (name === "ship") {
               try {
                 const st = await getState();
-                const stages = ["brainstorm", "plan", "execute", "review", "ship"];
+                const stages = [
+                  "brainstorm",
+                  "plan",
+                  "execute",
+                  "review",
+                  "ship",
+                ];
                 const report: string[] = ["\n── Pipeline Compliance ──"];
                 let totalPass = 0;
                 let totalChecks = 0;
                 for (const s of stages) {
-                  const arts = (st.artifacts as Record<string, string[]>)?.[s] || [];
+                  const arts =
+                    (st.artifacts as Record<string, string[]>)?.[s] || [];
                   const hasArtifact = arts.length > 0;
                   if (s === name) {
                     // Ship stage — use actual gate results
-                    const sPass = gate.items.filter((i: { pass: boolean }) => i.pass).length;
-                    report.push(`  ${s}: ${sPass}/${gate.items.length} ${sPass === gate.items.length ? "✓" : "⚠"}`);
+                    const sPass = gate.items.filter(
+                      (i: { pass: boolean }) => i.pass,
+                    ).length;
+                    report.push(
+                      `  ${s}: ${sPass}/${gate.items.length} ${sPass === gate.items.length ? "✓" : "⚠"}`,
+                    );
                     totalPass += sPass;
                     totalChecks += gate.items.length;
                   } else {
@@ -688,11 +780,17 @@ async function main() {
                     totalChecks += 1;
                   }
                 }
-                const pct = totalChecks > 0 ? Math.round((totalPass / totalChecks) * 100) : 0;
-                const grade = pct >= 90 ? "A" : pct >= 75 ? "B" : pct >= 60 ? "C" : "D";
+                const pct =
+                  totalChecks > 0
+                    ? Math.round((totalPass / totalChecks) * 100)
+                    : 0;
+                const grade =
+                  pct >= 90 ? "A" : pct >= 75 ? "B" : pct >= 60 ? "C" : "D";
                 report.push(`  Overall: ${grade} (${pct}%)`);
                 console.log(report.join("\n"));
-              } catch { /* non-critical — skip if state read fails */ }
+              } catch {
+                /* non-critical — skip if state read fails */
+              }
             }
           } catch (err: any) {
             console.error(err.message);
@@ -701,7 +799,10 @@ async function main() {
         } else if (sub === "artifact") {
           const [stage, ...pathParts] = rest.slice(1);
           const path = pathParts.join(" ");
-          if (!stage || !path) { console.error("Usage: apex stage artifact <stage> <path>"); process.exit(1); }
+          if (!stage || !path) {
+            console.error("Usage: apex stage artifact <stage> <path>");
+            process.exit(1);
+          }
           await addArtifact(stage, path);
           console.log(`Artifact added to ${stage}: ${path}`);
         } else if (sub === "get" || !sub) {
@@ -717,19 +818,29 @@ async function main() {
       case "session": {
         const sub = rest[0];
         if (sub === "summary") {
-          const en = rest.find((_: string, i: number) => rest[i - 1] === "--en") || "";
-          const zh = rest.find((_: string, i: number) => rest[i - 1] === "--zh") || "";
+          const en =
+            rest.find((_: string, i: number) => rest[i - 1] === "--en") || "";
+          const zh =
+            rest.find((_: string, i: number) => rest[i - 1] === "--zh") || "";
           if (!en && !zh) {
-            console.error("Usage: apex session summary --en \"English summary\" --zh \"中文摘要\"");
+            console.error(
+              'Usage: apex session summary --en "English summary" --zh "中文摘要"',
+            );
             process.exit(1);
           }
-          const { appendEvent, rebuildAndCache } = await import("./state/event-log.js");
+          const { appendEvent, rebuildAndCache } = await import(
+            "./state/event-log.js"
+          );
           const payload: Record<string, unknown> = {};
           if (en) payload.en = en;
           if (zh) payload.zh = zh;
           appendEvent("state", "session.summary", payload);
           await rebuildAndCache("state");
-          console.log("Session summary set" + (en ? ` [en] ${en}` : "") + (zh ? ` [zh] ${zh}` : ""));
+          console.log(
+            "Session summary set" +
+              (en ? ` [en] ${en}` : "") +
+              (zh ? ` [zh] ${zh}` : ""),
+          );
         } else {
           console.error("Usage: apex session [summary]");
           process.exit(1);
@@ -754,11 +865,21 @@ async function main() {
       case "trace-skill": {
         const [stage, skill, version, outputStatus, afMapping] = rest;
         if (!stage || !skill || !version || !outputStatus || !afMapping) {
-          console.error("Usage: apex trace-skill <stage> <skill> <version> <output_status> <af_mapping>");
+          console.error(
+            "Usage: apex trace-skill <stage> <skill> <version> <output_status> <af_mapping>",
+          );
           process.exit(1);
         }
-        const st = await addSkillInvocation(stage, skill, version, outputStatus, afMapping);
-        console.log(`Traced: ${skill}@${version} in ${stage} → ${outputStatus} (${afMapping})`);
+        const st = await addSkillInvocation(
+          stage,
+          skill,
+          version,
+          outputStatus,
+          afMapping,
+        );
+        console.log(
+          `Traced: ${skill}@${version} in ${stage} → ${outputStatus} (${afMapping})`,
+        );
         console.log(`Total invocations: ${st.skill_invocations?.length ?? 0}`);
         break;
       }
@@ -771,7 +892,8 @@ async function main() {
           await startHub();
         } else {
           const portIdx = rest.indexOf("--port");
-          const port = portIdx >= 0 ? parseInt(rest[portIdx + 1], 10) : undefined;
+          const port =
+            portIdx >= 0 ? parseInt(rest[portIdx + 1], 10) : undefined;
           const daemon = rest.includes("--daemon");
           const projIdx = rest.indexOf("--project");
           const projectPath = projIdx >= 0 ? rest[projIdx + 1] : undefined;
@@ -804,8 +926,12 @@ async function main() {
       case "recover": {
         // Handle --rebuild flag for event log cache rebuild
         if (rest.includes("--rebuild")) {
-          const { rebuildAndCache, rebuildAllCaches } = await import("./state/event-log.js");
-          const domain = rest.find((r) => ["task", "state", "memory"].includes(r));
+          const { rebuildAndCache, rebuildAllCaches } = await import(
+            "./state/event-log.js"
+          );
+          const domain = rest.find((r) =>
+            ["task", "state", "memory"].includes(r),
+          );
           if (domain) {
             await rebuildAndCache(domain as "task" | "state" | "memory");
             console.log(`Rebuilt ${domain} cache from event log.`);
@@ -827,7 +953,9 @@ async function main() {
       }
       case "orchestrate":
         if (rest[0] === "event") {
-          const { cmdOrchestrateEvent } = await import("./commands/orchestrate-event.js");
+          const { cmdOrchestrateEvent } = await import(
+            "./commands/orchestrate-event.js"
+          );
           await cmdOrchestrateEvent(rest.slice(1));
         } else {
           const { runOrchestrator } = await import("./orchestrator.js");

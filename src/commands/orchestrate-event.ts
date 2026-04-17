@@ -10,7 +10,9 @@ import { appendEvent } from "../state/event-log.js";
 export async function cmdOrchestrateEvent(args: string[]): Promise<void> {
   const action = args[0]?.startsWith("--") ? undefined : args[0];
   if (!action) {
-    console.error("Usage: apex orchestrate event <action> [--task <id>] [--detail <json>]");
+    console.error(
+      "Usage: apex orchestrate event <action> [--task <id>] [--detail <json>]",
+    );
     process.exit(1);
   }
 
@@ -34,5 +36,7 @@ export async function cmdOrchestrateEvent(args: string[]): Promise<void> {
   if (task) payload.task = task;
 
   appendEvent("state", "orchestration.event", payload);
-  console.log(`Recorded orchestration event: ${action}${task ? ` (task: ${task})` : ""}`);
+  console.log(
+    `Recorded orchestration event: ${action}${task ? ` (task: ${task})` : ""}`,
+  );
 }

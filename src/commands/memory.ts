@@ -1,6 +1,10 @@
 import { detectMemoryBackend } from "../memory/index.js";
 import { curateFacts } from "../state/curate.js";
-import { memoryAddGlobal, memoryListMerged, memoryGetGlobal } from "../state/memory.js";
+import {
+  memoryAddGlobal,
+  memoryGetGlobal,
+  memoryListMerged,
+} from "../state/memory.js";
 
 export async function cmdMemory(args: string[]): Promise<void> {
   const verb = args[0];
@@ -27,7 +31,7 @@ export async function cmdMemory(args: string[]): Promise<void> {
         process.exit(1);
       }
       const confidence = parseFloat(filtered[2] ?? "0.5");
-      if (isNaN(confidence)) {
+      if (Number.isNaN(confidence)) {
         console.error("Confidence must be a number between 0 and 1");
         process.exit(1);
       }
@@ -41,9 +45,14 @@ export async function cmdMemory(args: string[]): Promise<void> {
         // One-way sync to Agent Recall if available
         try {
           if (backend.name === "agent-recall") {
-            await backend.addFact(`[global] ${content}`, confidence, [...tags, "global"]);
+            await backend.addFact(`[global] ${content}`, confidence, [
+              ...tags,
+              "global",
+            ]);
           }
-        } catch { /* best-effort */ }
+        } catch {
+          /* best-effort */
+        }
       } else {
         const factId = await backend.addFact(content, confidence, tags);
         console.log(
@@ -55,8 +64,7 @@ export async function cmdMemory(args: string[]): Promise<void> {
 
     case "list": {
       const minIdx = args.indexOf("--min");
-      const minConf =
-        minIdx !== -1 ? parseFloat(args[minIdx + 1]) : undefined;
+      const minConf = minIdx !== -1 ? parseFloat(args[minIdx + 1]) : undefined;
       const onlyGlobal = args.includes("--global");
       const onlyProject = args.includes("--project");
 
@@ -65,31 +73,48 @@ export async function cmdMemory(args: string[]): Promise<void> {
         const facts = globalStore.facts
           .filter((f) => f.confidence >= (minConf ?? 0))
           .sort((a, b) => b.confidence - a.confidence);
-        if (facts.length === 0) { console.log("No global facts"); return; }
+        if (facts.length === 0) {
+          console.log("No global facts");
+          return;
+        }
         for (const f of facts) {
           const tags = f.tags.length > 0 ? ` [${f.tags.join(", ")}]` : "";
-          console.log(`  ${f.id.padEnd(8)} ${f.confidence.toFixed(2)}  ${f.content}${tags}`);
+          console.log(
+            `  ${f.id.padEnd(8)} ${f.confidence.toFixed(2)}  ${f.content}${tags}`,
+          );
         }
         console.log(`  (${facts.length} global facts)`);
       } else if (onlyProject) {
         const facts = await backend.listFacts(minConf);
-        if (facts.length === 0) { console.log("No project facts"); return; }
+        if (facts.length === 0) {
+          console.log("No project facts");
+          return;
+        }
         for (const f of facts) {
           const tags = f.tags.length > 0 ? ` [${f.tags.join(", ")}]` : "";
-          console.log(`  ${f.id.padEnd(8)} ${f.confidence.toFixed(2)}  ${f.content}${tags}`);
+          console.log(
+            `  ${f.id.padEnd(8)} ${f.confidence.toFixed(2)}  ${f.content}${tags}`,
+          );
         }
         console.log(`  (${facts.length} project facts via ${backend.name})`);
       } else {
         const merged = await memoryListMerged(minConf);
-        if (merged.length === 0) { console.log("No facts in memory"); return; }
+        if (merged.length === 0) {
+          console.log("No facts in memory");
+          return;
+        }
         for (const f of merged) {
           const tags = f.tags.length > 0 ? ` [${f.tags.join(", ")}]` : "";
           const badge = f.layer === "global" ? "🌐" : "📁";
-          console.log(`  ${badge} ${f.id.padEnd(8)} ${f.confidence.toFixed(2)}  ${f.content}${tags}`);
+          console.log(
+            `  ${badge} ${f.id.padEnd(8)} ${f.confidence.toFixed(2)}  ${f.content}${tags}`,
+          );
         }
         const gCount = merged.filter((f) => f.layer === "global").length;
         const pCount = merged.filter((f) => f.layer === "project").length;
-        console.log(`  (${gCount} global + ${pCount} project = ${merged.length} total)`);
+        console.log(
+          `  (${gCount} global + ${pCount} project = ${merged.length} total)`,
+        );
       }
       break;
     }
@@ -106,8 +131,7 @@ export async function cmdMemory(args: string[]): Promise<void> {
         return;
       }
       for (const f of results) {
-        const tags =
-          f.tags.length > 0 ? ` [${f.tags.join(", ")}]` : "";
+        const tags = f.tags.length > 0 ? ` [${f.tags.join(", ")}]` : "";
         console.log(
           `  ${f.id.padEnd(8)} ${f.confidence.toFixed(2)}  ${f.content}${tags}`,
         );
@@ -155,7 +179,9 @@ export async function cmdMemory(args: string[]): Promise<void> {
         for (const f of facts) {
           await backend.addFact(f.content, f.confidence, f.tags);
         }
-        console.log(`Curated ${facts.length} fact(s) from recent activity [${backend.name}]`);
+        console.log(
+          `Curated ${facts.length} fact(s) from recent activity [${backend.name}]`,
+        );
       }
       break;
     }
@@ -190,7 +216,9 @@ export async function cmdMemory(args: string[]): Promise<void> {
         for (const f of llmFacts) {
           await backend.addFact(f.content, f.confidence, f.tags);
         }
-        console.log(`Extracted ${llmFacts.length} fact(s) via LLM [${backend.name}]:`);
+        console.log(
+          `Extracted ${llmFacts.length} fact(s) via LLM [${backend.name}]:`,
+        );
         for (const f of llmFacts) {
           console.log(
             `  [${f.confidence.toFixed(2)}] ${f.content} [${f.tags.join(", ")}]`,

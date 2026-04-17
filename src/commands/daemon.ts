@@ -5,12 +5,22 @@
  * Uses launchd LaunchAgents on macOS, prints nohup hint on Linux.
  */
 
-import { existsSync, mkdirSync, writeFileSync, unlinkSync, readdirSync } from "fs";
-import { join } from "path";
-import { execSync } from "child_process";
+import { execSync } from "node:child_process";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { join } from "node:path";
 import { autoPort, hubPort } from "../registry.js";
 
-const LAUNCH_AGENTS_DIR = join(process.env.HOME || "/tmp", "Library", "LaunchAgents");
+const LAUNCH_AGENTS_DIR = join(
+  process.env.HOME || "/tmp",
+  "Library",
+  "LaunchAgents",
+);
 const LOGS_DIR = join(process.env.HOME || "/tmp", ".apex-forge", "logs");
 const LABEL_PREFIX = "com.apexforge.dashboard";
 
@@ -34,13 +44,20 @@ function findBinary(): string {
   if (existsSync(distBin)) return distBin;
 
   // 2. ~/.apex-forge/bin/apex-forge
-  const homeBin = join(process.env.HOME || "/tmp", ".apex-forge", "bin", "apex-forge");
+  const homeBin = join(
+    process.env.HOME || "/tmp",
+    ".apex-forge",
+    "bin",
+    "apex-forge",
+  );
   if (existsSync(homeBin)) return homeBin;
 
   // 3. which apex-forge
   try {
     return execSync("which apex-forge", { encoding: "utf-8" }).trim();
-  } catch { /* not found */ }
+  } catch {
+    /* not found */
+  }
 
   throw new Error("Cannot find apex-forge binary. Build with: bun run build");
 }
@@ -91,7 +108,9 @@ ${args}
 async function install(args: string[]) {
   if (process.platform !== "darwin") {
     console.log("Daemon install is macOS-only (launchd).");
-    console.log("On Linux, use: nohup apex-forge dashboard --daemon > /dev/null 2>&1 &");
+    console.log(
+      "On Linux, use: nohup apex-forge dashboard --daemon > /dev/null 2>&1 &",
+    );
     return;
   }
 
@@ -109,7 +128,11 @@ async function install(args: string[]) {
 
   // Unload existing if present
   if (existsSync(plist)) {
-    try { execSync(`launchctl unload "${plist}" 2>/dev/null`); } catch { /* ok */ }
+    try {
+      execSync(`launchctl unload "${plist}" 2>/dev/null`);
+    } catch {
+      /* ok */
+    }
   }
 
   // Write plist
@@ -146,7 +169,11 @@ async function uninstall(args: string[]) {
     return;
   }
 
-  try { execSync(`launchctl unload "${plist}"`); } catch { /* ok */ }
+  try {
+    execSync(`launchctl unload "${plist}"`);
+  } catch {
+    /* ok */
+  }
   unlinkSync(plist);
 
   console.log(`Daemon uninstalled.`);
@@ -179,7 +206,9 @@ async function status() {
     const label = f.replace(".plist", "");
     let running = false;
     try {
-      const out = execSync(`launchctl list "${label}" 2>/dev/null`, { encoding: "utf-8" });
+      const out = execSync(`launchctl list "${label}" 2>/dev/null`, {
+        encoding: "utf-8",
+      });
       running = !out.includes("Could not find");
     } catch {
       running = false;
@@ -203,6 +232,8 @@ export async function cmdDaemon(args: string[]) {
       await status();
       break;
     default:
-      console.log("Usage: apex daemon <install|uninstall|status> [--hub] [--project PATH]");
+      console.log(
+        "Usage: apex daemon <install|uninstall|status> [--hub] [--project PATH]",
+      );
   }
 }

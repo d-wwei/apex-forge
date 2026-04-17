@@ -8,9 +8,9 @@
  * Usage: apex doctor [--fix]
  */
 
-import { existsSync, readFileSync, lstatSync } from "fs";
-import { join, resolve } from "path";
-import { execSync } from "child_process";
+import { execSync } from "node:child_process";
+import { existsSync, lstatSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { runStructuralGate } from "../state/state.js";
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -51,7 +51,11 @@ const WEIGHT: Record<Severity, number> = {
 
 function checkPreToolUseHook(): Check[] {
   const checks: Check[] = [];
-  const settingsPath = join(process.env.HOME || "/tmp", ".claude", "settings.json");
+  const settingsPath = join(
+    process.env.HOME || "/tmp",
+    ".claude",
+    "settings.json",
+  );
 
   // D1: settings.json exists
   const settingsExists = existsSync(settingsPath);
@@ -78,7 +82,9 @@ function checkPreToolUseHook(): Check[] {
         }
       }
     }
-  } catch { /* parse error */ }
+  } catch {
+    /* parse error */
+  }
 
   checks.push({
     id: "D2",
@@ -86,19 +92,30 @@ function checkPreToolUseHook(): Check[] {
     description: "PreToolUse hook registered for Bash|Edit|Write",
     severity: "CRITICAL",
     verdict: hasGateHook ? "PASS" : "FAIL",
-    detail: hasGateHook ? "apex-forge-gate.sh registered" : "Not found in settings.json",
+    detail: hasGateHook
+      ? "apex-forge-gate.sh registered"
+      : "Not found in settings.json",
     fix: 'Run: python3 -c "... register hook ..." or bash install.sh',
   });
 
   // D3: Hook script exists and is executable
-  const hookPath = join(process.env.HOME || "/tmp", ".claude", "skills", "apex-forge", "hooks", "apex-forge-gate.sh");
+  const hookPath = join(
+    process.env.HOME || "/tmp",
+    ".claude",
+    "skills",
+    "apex-forge",
+    "hooks",
+    "apex-forge-gate.sh",
+  );
   const hookExists = existsSync(hookPath);
   let hookExecutable = false;
   if (hookExists) {
     try {
       const stat = lstatSync(hookPath);
       hookExecutable = (stat.mode & 0o111) !== 0;
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   checks.push({
@@ -107,7 +124,11 @@ function checkPreToolUseHook(): Check[] {
     description: "Gate hook script exists and is executable",
     severity: "CRITICAL",
     verdict: hookExists && hookExecutable ? "PASS" : "FAIL",
-    detail: hookExists ? (hookExecutable ? hookPath : "Exists but not executable") : "File not found",
+    detail: hookExists
+      ? hookExecutable
+        ? hookPath
+        : "Exists but not executable"
+      : "File not found",
     fix: `chmod +x ${hookPath}`,
   });
 
@@ -116,7 +137,9 @@ function checkPreToolUseHook(): Check[] {
   try {
     execSync("python3 --version", { stdio: "pipe" });
     hasPython = true;
-  } catch { /* missing */ }
+  } catch {
+    /* missing */
+  }
 
   checks.push({
     id: "D4",
@@ -166,8 +189,11 @@ function checkPreCommitHook(): Check[] {
     let hasStageCheck = false;
     try {
       const content = readFileSync(hookPath, "utf-8");
-      hasStageCheck = content.includes("current_stage") || content.includes("COMMIT BLOCKED");
-    } catch { /* unreadable */ }
+      hasStageCheck =
+        content.includes("current_stage") || content.includes("COMMIT BLOCKED");
+    } catch {
+      /* unreadable */
+    }
 
     checks.push({
       id: "D6",
@@ -175,7 +201,9 @@ function checkPreCommitHook(): Check[] {
       description: "Pre-commit hook checks pipeline stage",
       severity: "HIGH",
       verdict: hasStageCheck ? "PASS" : "WARN",
-      detail: hasStageCheck ? "Stage gate logic present" : "Hook exists but may be outdated (no stage check)",
+      detail: hasStageCheck
+        ? "Stage gate logic present"
+        : "Hook exists but may be outdated (no stage check)",
       fix: "Re-run: apex init (or copy updated hook from skill/hooks/pre-commit)",
     });
   }
@@ -188,12 +216,23 @@ async function checkCLIGates(): Promise<Check[]> {
 
   // Expected check counts per stage (from stage .md files)
   // S4/S5 in ship are intentionally omitted (external tool deps) — not counted as missing
-  const expectations: Record<string, { defined: number; ids: string[]; omitted?: string[] }> = {
+  const expectations: Record<
+    string,
+    { defined: number; ids: string[]; omitted?: string[] }
+  > = {
     brainstorm: { defined: 7, ids: ["S1", "S2", "S3", "S4", "S5", "S6", "S7"] },
     plan: { defined: 7, ids: ["S1", "S2", "S3", "S4", "S5", "S6", "S7"] },
     execute: { defined: 3, ids: ["S1", "S2", "S3"] },
-    review: { defined: 9, ids: ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8"], omitted: ["S9"] },
-    ship: { defined: 8, ids: ["S1", "S2", "S3", "S6", "S7", "S8"], omitted: ["S4", "S5"] },
+    review: {
+      defined: 9,
+      ids: ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8"],
+      omitted: ["S9"],
+    },
+    ship: {
+      defined: 8,
+      ids: ["S1", "S2", "S3", "S6", "S7", "S8"],
+      omitted: ["S4", "S5"],
+    },
     compound: { defined: 6, ids: ["S1", "S2", "S3", "S4", "S5", "S6"] },
   };
 
@@ -205,11 +244,15 @@ async function checkCLIGates(): Promise<Check[]> {
       const implemented = checkIds.length;
       const expectedCount = spec.ids.length; // excluding intentionally omitted
 
-      const coverage = expectedCount > 0 ? Math.round((implemented / expectedCount) * 100) : 0;
-      const verdict: Verdict = coverage >= 90 ? "PASS" : coverage >= 50 ? "WARN" : "FAIL";
+      const coverage =
+        expectedCount > 0 ? Math.round((implemented / expectedCount) * 100) : 0;
+      const verdict: Verdict =
+        coverage >= 90 ? "PASS" : coverage >= 50 ? "WARN" : "FAIL";
 
       const missing = spec.ids.filter((id) => !checkIds.includes(id));
-      const omittedNote = spec.omitted ? ` (${spec.omitted.join(",")} intentionally omitted)` : "";
+      const omittedNote = spec.omitted
+        ? ` (${spec.omitted.join(",")} intentionally omitted)`
+        : "";
 
       checks.push({
         id: `G-${stage}`,
@@ -217,8 +260,14 @@ async function checkCLIGates(): Promise<Check[]> {
         description: `${stage} gate: ${implemented}/${expectedCount} checks${omittedNote}`,
         severity: stage === "ship" || stage === "review" ? "CRITICAL" : "HIGH",
         verdict,
-        detail: missing.length > 0 ? `Missing: ${missing.join(", ")}` : `All ${implemented} checks implemented`,
-        fix: missing.length > 0 ? `Implement ${missing.join(", ")} in runStructuralGate("${stage}")` : undefined,
+        detail:
+          missing.length > 0
+            ? `Missing: ${missing.join(", ")}`
+            : `All ${implemented} checks implemented`,
+        fix:
+          missing.length > 0
+            ? `Implement ${missing.join(", ")} in runStructuralGate("${stage}")`
+            : undefined,
       });
     } catch {
       checks.push({
@@ -262,7 +311,9 @@ function checkProjectState(): Check[] {
       try {
         JSON.parse(readFileSync(fp, "utf-8"));
         valid = true;
-      } catch { /* corrupt */ }
+      } catch {
+        /* corrupt */
+      }
     }
     checks.push({
       id: `P2-${file}`,
@@ -286,7 +337,9 @@ function checkProjectState(): Check[] {
       description: ".apex/ in .gitignore",
       severity: "MEDIUM",
       verdict: hasApex ? "PASS" : "WARN",
-      detail: hasApex ? "Present" : ".apex/ not in .gitignore — state may be committed",
+      detail: hasApex
+        ? "Present"
+        : ".apex/ not in .gitignore — state may be committed",
       fix: 'echo ".apex/" >> .gitignore',
     });
   }
@@ -358,7 +411,9 @@ function checkCheckpointMechanism(): Check[] {
     description: "apex ship checkpoint command functional",
     severity: "HIGH",
     verdict: shipCpWorks ? "PASS" : "FAIL",
-    detail: shipCpWorks ? "Validates checkpoint names correctly" : "Command not working",
+    detail: shipCpWorks
+      ? "Validates checkpoint names correctly"
+      : "Command not working",
     fix: "Rebuild: cd apex-forge && bun run build",
   });
 
@@ -381,7 +436,9 @@ function checkCheckpointMechanism(): Check[] {
     description: "apex compound checkpoint command functional",
     severity: "HIGH",
     verdict: compoundCpWorks ? "PASS" : "FAIL",
-    detail: compoundCpWorks ? "Validates checkpoint names correctly" : "Command not working",
+    detail: compoundCpWorks
+      ? "Validates checkpoint names correctly"
+      : "Command not working",
     fix: "Rebuild: cd apex-forge && bun run build",
   });
 
@@ -401,7 +458,10 @@ function scoreByCategory(checks: Check[]): CategoryScore[] {
   const scores: CategoryScore[] = [];
   for (const [category, items] of categories) {
     const scorable = items.filter((c) => c.verdict !== "SKIP");
-    const totalWeight = scorable.reduce((sum, c) => sum + WEIGHT[c.severity], 0);
+    const totalWeight = scorable.reduce(
+      (sum, c) => sum + WEIGHT[c.severity],
+      0,
+    );
     const passWeight = scorable
       .filter((c) => c.verdict === "PASS")
       .reduce((sum, c) => sum + WEIGHT[c.severity], 0);
@@ -416,15 +476,21 @@ function scoreByCategory(checks: Check[]): CategoryScore[] {
       warn: items.filter((c) => c.verdict === "WARN").length,
       fail: items.filter((c) => c.verdict === "FAIL").length,
       skip: items.filter((c) => c.verdict === "SKIP").length,
-      score: totalWeight > 0 ? Math.round(((passWeight + warnWeight) / totalWeight) * 100) : 100,
+      score:
+        totalWeight > 0
+          ? Math.round(((passWeight + warnWeight) / totalWeight) * 100)
+          : 100,
     });
   }
   return scores;
 }
 
 function overallGrade(checks: Check[], scores: CategoryScore[]): string {
-  const avgScore = scores.reduce((sum, s) => sum + s.score, 0) / Math.max(scores.length, 1);
-  const hasCriticalFail = checks.some((c) => c.severity === "CRITICAL" && c.verdict === "FAIL");
+  const avgScore =
+    scores.reduce((sum, s) => sum + s.score, 0) / Math.max(scores.length, 1);
+  const hasCriticalFail = checks.some(
+    (c) => c.severity === "CRITICAL" && c.verdict === "FAIL",
+  );
 
   let grade: string;
   if (avgScore >= 90) grade = "A";
@@ -449,7 +515,11 @@ const ICONS: Record<Verdict, string> = {
   SKIP: "─",
 };
 
-function formatReport(checks: Check[], scores: CategoryScore[], grade: string): string {
+function formatReport(
+  checks: Check[],
+  scores: CategoryScore[],
+  grade: string,
+): string {
   const lines: string[] = [];
 
   lines.push("");
@@ -463,7 +533,9 @@ function formatReport(checks: Check[], scores: CategoryScore[], grade: string): 
   for (const check of checks) {
     if (check.category !== currentCategory) {
       currentCategory = check.category;
-      lines.push(`── ${currentCategory} ${"─".repeat(Math.max(0, 45 - currentCategory.length))}`);
+      lines.push(
+        `── ${currentCategory} ${"─".repeat(Math.max(0, 45 - currentCategory.length))}`,
+      );
     }
     const icon = ICONS[check.verdict];
     const sev = check.severity.padEnd(8);
@@ -477,14 +549,20 @@ function formatReport(checks: Check[], scores: CategoryScore[], grade: string): 
   lines.push("");
   lines.push("── Scores ─────────────────────────────────────────");
   for (const s of scores) {
-    const bar = "█".repeat(Math.round(s.score / 5)) + "░".repeat(20 - Math.round(s.score / 5));
-    lines.push(`  ${s.category.padEnd(14)} ${bar} ${s.score}%  (${s.pass}✓ ${s.warn}⚠ ${s.fail}✗ ${s.skip}─)`);
+    const bar =
+      "█".repeat(Math.round(s.score / 5)) +
+      "░".repeat(20 - Math.round(s.score / 5));
+    lines.push(
+      `  ${s.category.padEnd(14)} ${bar} ${s.score}%  (${s.pass}✓ ${s.warn}⚠ ${s.fail}✗ ${s.skip}─)`,
+    );
   }
 
   lines.push("");
   const totalPass = checks.filter((c) => c.verdict === "PASS").length;
   const totalFail = checks.filter((c) => c.verdict === "FAIL").length;
-  lines.push(`  Overall: Grade ${grade}  (${totalPass}/${checks.length} pass, ${totalFail} fail)`);
+  lines.push(
+    `  Overall: Grade ${grade}  (${totalPass}/${checks.length} pass, ${totalFail} fail)`,
+  );
 
   if (totalFail > 0) {
     lines.push("");
@@ -510,16 +588,26 @@ function checkContentQuality(): Check[] {
   if (!existsSync(stateFile)) return checks;
 
   let state: any;
-  try { state = JSON.parse(readFileSync(stateFile, "utf-8")); } catch { return checks; }
+  try {
+    state = JSON.parse(readFileSync(stateFile, "utf-8"));
+  } catch {
+    return checks;
+  }
   const artifacts = state.artifacts || {};
 
   // CQ1: Brainstorm acceptance criteria count >= 3
   const brainstormArts: string[] = artifacts.brainstorm || [];
-  const latestBrainstorm = brainstormArts.filter((a: string) => a.endsWith(".md")).pop();
+  const latestBrainstorm = brainstormArts
+    .filter((a: string) => a.endsWith(".md"))
+    .pop();
   if (latestBrainstorm && existsSync(latestBrainstorm)) {
     const content = readFileSync(latestBrainstorm, "utf-8");
-    const acSection = content.match(/## Acceptance Criteria\n([\s\S]*?)(?=\n##|\n---|\Z)/);
-    const acItems = acSection ? (acSection[1].match(/^\s*\d+\./gm) || []).length : 0;
+    const acSection = content.match(
+      /## Acceptance Criteria\n([\s\S]*?)(?=\n##|\n---|Z)/,
+    );
+    const acItems = acSection
+      ? (acSection[1].match(/^\s*\d+\./gm) || []).length
+      : 0;
     checks.push({
       id: "CQ1",
       category: "Content-Quality",
@@ -527,7 +615,10 @@ function checkContentQuality(): Check[] {
       severity: "MEDIUM",
       verdict: acItems >= 3 ? "PASS" : "WARN",
       detail: `Found ${acItems} numbered acceptance criteria in ${latestBrainstorm}`,
-      fix: acItems < 3 ? "Add more specific, testable acceptance criteria to the brainstorm document" : undefined,
+      fix:
+        acItems < 3
+          ? "Add more specific, testable acceptance criteria to the brainstorm document"
+          : undefined,
     });
   }
 
@@ -536,29 +627,46 @@ function checkContentQuality(): Check[] {
   const latestPlan = planArts.filter((a: string) => a.endsWith(".md")).pop();
   if (latestPlan && existsSync(latestPlan)) {
     const content = readFileSync(latestPlan, "utf-8");
-    const manifestSection = content.match(/## File Manifest\n([\s\S]*?)(?=\n##|\n---|\Z)/);
+    const manifestSection = content.match(
+      /## File Manifest\n([\s\S]*?)(?=\n##|\n---|Z)/,
+    );
     if (manifestSection) {
       const pathMatches = manifestSection[1].match(/`([^`]+\.\w+)`/g) || [];
       const paths = pathMatches.map((p: string) => p.replace(/`/g, ""));
-      const missing = paths.filter((p: string) => !existsSync(p) && !p.includes("{"));
+      const missing = paths.filter(
+        (p: string) => !existsSync(p) && !p.includes("{"),
+      );
       checks.push({
         id: "CQ2",
         category: "Content-Quality",
         description: "Plan file manifest paths exist on disk",
         severity: "MEDIUM",
         verdict: missing.length === 0 ? "PASS" : "WARN",
-        detail: missing.length === 0 ? `All ${paths.length} manifest paths verified` : `Missing: ${missing.join(", ")}`,
-        fix: missing.length > 0 ? "Update file manifest to match actual file paths" : undefined,
+        detail:
+          missing.length === 0
+            ? `All ${paths.length} manifest paths verified`
+            : `Missing: ${missing.join(", ")}`,
+        fix:
+          missing.length > 0
+            ? "Update file manifest to match actual file paths"
+            : undefined,
       });
     }
   }
 
   // CQ3: Review persona sections have substantive content (> 50 chars each)
   const reviewArts: string[] = artifacts.review || [];
-  const latestReview = reviewArts.filter((a: string) => a.endsWith(".md")).pop();
+  const latestReview = reviewArts
+    .filter((a: string) => a.endsWith(".md"))
+    .pop();
   if (latestReview && existsSync(latestReview)) {
     const content = readFileSync(latestReview, "utf-8");
-    const personas = ["Security", "Correctness", "Spec Compliance", "Adversarial"];
+    const personas = [
+      "Security",
+      "Correctness",
+      "Spec Compliance",
+      "Adversarial",
+    ];
     const shallow: string[] = [];
     for (const p of personas) {
       const re = new RegExp(`## ${p}[\\s\\S]*?\\n([\\s\\S]*?)(?=\\n##|$)`);
@@ -569,11 +677,18 @@ function checkContentQuality(): Check[] {
     checks.push({
       id: "CQ3",
       category: "Content-Quality",
-      description: "Review persona sections have substantive content (> 50 chars)",
+      description:
+        "Review persona sections have substantive content (> 50 chars)",
       severity: "MEDIUM",
       verdict: shallow.length === 0 ? "PASS" : "WARN",
-      detail: shallow.length === 0 ? "All persona sections have substantive content" : `Shallow sections: ${shallow.join(", ")}`,
-      fix: shallow.length > 0 ? "Add specific findings with file:line evidence to each persona section" : undefined,
+      detail:
+        shallow.length === 0
+          ? "All persona sections have substantive content"
+          : `Shallow sections: ${shallow.join(", ")}`,
+      fix:
+        shallow.length > 0
+          ? "Add specific findings with file:line evidence to each persona section"
+          : undefined,
     });
   }
 

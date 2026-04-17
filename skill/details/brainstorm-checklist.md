@@ -1,6 +1,6 @@
 # Brainstorm Checklist — Full Detail
 
-## The 9-Step Checklist
+## The Brainstorm Checklist
 
 **Note**: If any step below surfaces more than 5 open issues, switch to
 the Multi-Issue Discussion Protocol before continuing.
@@ -10,6 +10,7 @@ the Multi-Issue Discussion Protocol before continuing.
 - Who is affected and how?
 - What is the current behavior vs. desired behavior?
 - Restate the problem in one sentence to confirm alignment.
+- **Evidence of Need**: What evidence supports this problem exists? Cite at least one source (GitHub issue, CLI telemetry, user feedback, error log). Pure assumptions without evidence must be tagged [假设] and validated before proceeding.
 
 **Output**: Problem statement (2-3 sentences max).
 
@@ -19,6 +20,14 @@ the Multi-Issue Discussion Protocol before continuing.
 - What is explicitly out of scope?
 
 **Output**: Constraints list.
+
+### Step 2.5: Capability Audit
+- List existing mechanisms (code, CLI commands, hooks, config) that already address part of the problem.
+- For each mechanism: what it covers, what gap remains.
+- If existing mechanisms cover >80% of the need, you MUST explain why a new feature is still required rather than extending what exists.
+- This step prevents building what already exists under a different name.
+
+**Output**: Capability audit table (mechanism / coverage / gap). Or explicit statement: "No existing mechanism found — verified by [search method]."
 
 ### Step 3: Enumerate Approaches (Minimum 2)
 - Generate at least 2 distinct approaches (3 for Deep scope).
@@ -44,6 +53,7 @@ the Multi-Issue Discussion Protocol before continuing.
 - What could go wrong during implementation or after deployment?
 - For each risk: probability, impact, mitigation strategy.
 - Skip for Lightweight scope unless a risk is obvious.
+- **Anti-Double-Counting**: If the feature involves counting, quotas, rate limits, or notifications, explicitly annotate: (a) which layer performs the count, (b) whether multiple layers could trigger the same count, (c) what deduplication mechanism prevents double-counting. This is a common source of subtle bugs in multi-layer systems.
 
 **Output**: Risk table with mitigation column.
 

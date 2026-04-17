@@ -5,8 +5,8 @@
  * Detection is fast (2s timeout) and silent — no user interaction needed.
  */
 
-import type { MemoryBackend } from "./interface.js";
 import { AgentRecallBackend } from "./agent-recall-backend.js";
+import type { MemoryBackend } from "./interface.js";
 import { LocalBackend } from "./local-backend.js";
 
 const AGENT_RECALL_URL = "http://localhost:37777";
@@ -27,9 +27,12 @@ export async function detectMemoryBackend(): Promise<MemoryBackend> {
 
   // Priority 1: Agent Recall
   try {
-    const resp = await fetch(`${AGENT_RECALL_URL}/api/search?query=ping&project=_probe`, {
-      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
-    });
+    const resp = await fetch(
+      `${AGENT_RECALL_URL}/api/search?query=ping&project=_probe`,
+      {
+        signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+      },
+    );
     // Any HTTP response (even 4xx) means the server is running
     if (resp.ok || resp.status < 500) {
       cachedBackend = new AgentRecallBackend();

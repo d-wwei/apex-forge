@@ -10,19 +10,19 @@
  *   bun run src/test-mcp.ts
  */
 
-import { spawn } from "child_process";
+import { spawn } from "node:child_process";
 
 async function testMcp() {
   console.log("Testing MCP server...\n");
 
   const proc = spawn("bun", ["run", "src/mcp/server.ts", "--role", "admin"], {
     stdio: ["pipe", "pipe", "pipe"],
-    cwd: import.meta.dir + "/..",
+    cwd: `${import.meta.dir}/..`,
   });
 
   // Collect stderr for diagnostics on failure.
   let stderrBuf = "";
-  proc.stderr!.on("data", (d: Buffer) => {
+  proc.stderr?.on("data", (d: Buffer) => {
     stderrBuf += d.toString();
   });
 
@@ -34,7 +34,7 @@ async function testMcp() {
     reject: (e: Error) => void;
   }> = [];
 
-  proc.stdout!.on("data", (data: Buffer) => {
+  proc.stdout?.on("data", (data: Buffer) => {
     stdoutBuf += data.toString();
     // Try to parse complete lines.
     const lines = stdoutBuf.split("\n");
@@ -60,8 +60,7 @@ async function testMcp() {
     params: Record<string, unknown> = {},
   ): Promise<any> {
     return new Promise((resolve, reject) => {
-      const msg =
-        JSON.stringify({ jsonrpc: "2.0", id, method, params }) + "\n";
+      const msg = `${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`;
 
       const timer = setTimeout(() => {
         const idx = waiters.findIndex((w) => w.id === id);
@@ -86,13 +85,16 @@ async function testMcp() {
         },
       });
 
-      proc.stdin!.write(msg);
+      proc.stdin?.write(msg);
     });
   }
 
-  function sendNotification(method: string, params: Record<string, unknown> = {}) {
-    const msg = JSON.stringify({ jsonrpc: "2.0", method, params }) + "\n";
-    proc.stdin!.write(msg);
+  function sendNotification(
+    method: string,
+    params: Record<string, unknown> = {},
+  ) {
+    const msg = `${JSON.stringify({ jsonrpc: "2.0", method, params })}\n`;
+    proc.stdin?.write(msg);
   }
 
   let passed = 0;

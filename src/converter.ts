@@ -5,8 +5,14 @@
 // Cross-platform skill converter. Reads apex skill files and converts them
 // to formats compatible with other AI agent platforms.
 
-import { readdirSync, readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
-import { join, basename } from "path";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
+import { basename, join } from "node:path";
 
 interface SkillMeta {
   name: string;
@@ -43,7 +49,7 @@ const PLATFORMS: Record<string, PlatformConfig> = {
           })),
         },
         null,
-        2
+        2,
       ),
   },
 
@@ -66,8 +72,7 @@ const PLATFORMS: Record<string, PlatformConfig> = {
         "# Apex Forge Skills for Codex",
         "",
         ...skills.map(
-          (s) =>
-            `## ${s.name}\n- Path: ${s.path}\n- ${s.description}\n`
+          (s) => `## ${s.name}\n- Path: ${s.path}\n- ${s.description}\n`,
         ),
       ].join("\n");
     },
@@ -86,13 +91,11 @@ const PLATFORMS: Record<string, PlatformConfig> = {
         "freeze",
         "unfreeze",
       ];
-      const isSensitive = sensitivePatterns.some((s) =>
-        skill.name.includes(s)
-      );
+      const isSensitive = sensitivePatterns.some((s) => skill.name.includes(s));
       if (isSensitive) {
         content = content.replace(
           /^(---\n)/m,
-          `---\ndisable-model-invocation: true\n`
+          `---\ndisable-model-invocation: true\n`,
         );
       }
       // Tool name translation
@@ -116,9 +119,7 @@ const PLATFORMS: Record<string, PlatformConfig> = {
         "# Apex Forge Skills for Factory Droid",
         "",
         ...skills.map((s) => {
-          const isSensitive = sensitivePatterns.some((x) =>
-            s.name.includes(x)
-          );
+          const isSensitive = sensitivePatterns.some((x) => s.name.includes(x));
           return [
             `## ${s.name}`,
             `- Path: ${s.path}`,
@@ -151,9 +152,7 @@ const PLATFORMS: Record<string, PlatformConfig> = {
       return [
         "# Apex Forge Skills for Gemini CLI",
         "",
-        ...skills.map(
-          (s) => `- ${s.name}: ${s.path} — ${s.description}`
-        ),
+        ...skills.map((s) => `- ${s.name}: ${s.path} — ${s.description}`),
       ].join("\n");
     },
   },
@@ -196,9 +195,7 @@ const PLATFORMS: Record<string, PlatformConfig> = {
         "",
         "## Available Skills",
         "",
-        ...skills.map(
-          (s) => `- **${s.name}**: ${s.description}`
-        ),
+        ...skills.map((s) => `- **${s.name}**: ${s.description}`),
       ].join("\n");
     },
   },
@@ -213,13 +210,16 @@ const PLATFORMS: Record<string, PlatformConfig> = {
       content = content.replace(/use the Read tool/g, "read the file");
       content = content.replace(/use the Write tool/g, "write the file");
       content = content.replace(/use the Edit tool/g, "edit the file");
-      content = content.replace(/use the Agent tool/g, "delegate to a sub-agent");
+      content = content.replace(
+        /use the Agent tool/g,
+        "delegate to a sub-agent",
+      );
       content = content.replace(/use the Grep tool/g, "search for");
       content = content.replace(/use the Glob tool/g, "find files matching");
       // Antigravity-specific: reference MCP tools for binary operations
       content = content.replace(
         /apex-forge task /g,
-        "apex-forge task "  // keep as shell command — Antigravity agents can run shell
+        "apex-forge task ", // keep as shell command — Antigravity agents can run shell
       );
       return content;
     },
@@ -286,7 +286,7 @@ const PLATFORMS: Record<string, PlatformConfig> = {
           })),
         },
         null,
-        2
+        2,
       ),
   },
 };
@@ -337,7 +337,7 @@ function readSkillFiles(): SkillMeta[] {
 function convertSkills(
   platform: string,
   skills: SkillMeta[],
-  targetDir: string
+  targetDir: string,
 ): void {
   const config = PLATFORMS[platform];
   if (!config) {
@@ -365,12 +365,8 @@ function convertSkills(
   const manifestFilename = isJsonManifest ? "manifest.json" : "AGENTS.md";
   writeFileSync(join(targetDir, manifestFilename), manifestContent);
 
-  console.log(
-    `Converted ${converted} skills for ${platform} -> ${targetDir}`
-  );
-  console.log(
-    `Manifest written to ${join(targetDir, manifestFilename)}`
-  );
+  console.log(`Converted ${converted} skills for ${platform} -> ${targetDir}`);
+  console.log(`Manifest written to ${join(targetDir, manifestFilename)}`);
 }
 
 /**
@@ -378,9 +374,7 @@ function convertSkills(
  */
 function printUsage(): void {
   const platforms = Object.keys(PLATFORMS).join("|");
-  console.log(
-    `Usage: apex convert --platform ${platforms} [--output DIR]`
-  );
+  console.log(`Usage: apex convert --platform ${platforms} [--output DIR]`);
   console.log("");
   console.log("Available platforms:");
   for (const [name, config] of Object.entries(PLATFORMS)) {
@@ -388,14 +382,12 @@ function printUsage(): void {
   }
   console.log("");
   console.log("Options:");
+  console.log("  --platform PLATFORM   Target platform (required)");
   console.log(
-    "  --platform PLATFORM   Target platform (required)"
+    "  --output DIR          Output directory (default: platform default)",
   );
   console.log(
-    "  --output DIR          Output directory (default: platform default)"
-  );
-  console.log(
-    "  --list                List discovered skills without converting"
+    "  --list                List discovered skills without converting",
   );
 }
 
@@ -407,13 +399,9 @@ export async function main(args?: string[]): Promise<void> {
     const skills = readSkillFiles();
     console.log(`Found ${skills.length} skills:\n`);
     for (const skill of skills) {
-      console.log(
-        `  ${skill.name.padEnd(30)} ${skill.path}`
-      );
+      console.log(`  ${skill.name.padEnd(30)} ${skill.path}`);
       if (skill.description) {
-        console.log(
-          `  ${"".padEnd(30)} ${skill.description}`
-        );
+        console.log(`  ${"".padEnd(30)} ${skill.description}`);
       }
     }
     return;
@@ -421,8 +409,7 @@ export async function main(args?: string[]): Promise<void> {
 
   // Parse --platform
   const platformIdx = argv.indexOf("--platform");
-  const platform =
-    platformIdx >= 0 ? argv[platformIdx + 1] : null;
+  const platform = platformIdx >= 0 ? argv[platformIdx + 1] : null;
 
   if (!platform || !(platform in PLATFORMS)) {
     printUsage();
@@ -431,14 +418,11 @@ export async function main(args?: string[]): Promise<void> {
 
   // Parse --output
   const outputIdx = argv.indexOf("--output");
-  const outputDir =
-    outputIdx >= 0 ? argv[outputIdx + 1] : null;
+  const outputDir = outputIdx >= 0 ? argv[outputIdx + 1] : null;
 
   const skills = readSkillFiles();
   if (skills.length === 0) {
-    console.error(
-      "No skills found. Run from the apex-forge root directory."
-    );
+    console.error("No skills found. Run from the apex-forge root directory.");
     process.exit(1);
   }
 

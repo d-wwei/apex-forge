@@ -3,15 +3,16 @@
  * Bun subprocesses with restricted environment variables and timeouts.
  */
 
-import { spawn, spawnSync } from "child_process";
-import { mkdirSync, writeFileSync, readFileSync, existsSync } from "fs";
-import { join, resolve } from "path";
+import { spawn, spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 
 // Check if Docker is available (cached)
 let _dockerAvailable: boolean | null = null;
 function isDockerAvailable(): boolean {
   if (_dockerAvailable === null) {
-    _dockerAvailable = spawnSync("docker", ["info"], { stdio: "ignore" }).status === 0;
+    _dockerAvailable =
+      spawnSync("docker", ["info"], { stdio: "ignore" }).status === 0;
   }
   return _dockerAvailable;
 }
@@ -108,13 +109,16 @@ async function runInDockerSandbox(
 
   const startMs = Date.now();
   const args = [
-    "run", "--rm",
-    "--network=none",                    // No network access
-    "--memory=256m",                     // Memory limit
-    "--cpus=1",                          // CPU limit
-    "--read-only",                       // Read-only root filesystem
-    "--tmpfs", "/tmp:size=64m",          // Writable /tmp
-    "-v", `${absWorkdir}:/sandbox:ro`,   // Mount code read-only
+    "run",
+    "--rm",
+    "--network=none", // No network access
+    "--memory=256m", // Memory limit
+    "--cpus=1", // CPU limit
+    "--read-only", // Read-only root filesystem
+    "--tmpfs",
+    "/tmp:size=64m", // Writable /tmp
+    "-v",
+    `${absWorkdir}:/sandbox:ro`, // Mount code read-only
     images[language],
     ...containerCmd[language],
   ];
@@ -139,12 +143,22 @@ async function runInDockerSandbox(
     };
 
     const proc = spawn("docker", args, { stdio: ["ignore", "pipe", "pipe"] });
-    proc.stdout.on("data", (d: Buffer) => { stdout += d.toString(); });
-    proc.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
+    proc.stdout.on("data", (d: Buffer) => {
+      stdout += d.toString();
+    });
+    proc.stderr.on("data", (d: Buffer) => {
+      stderr += d.toString();
+    });
     proc.on("close", (code: number | null) => finish(code ?? 1));
-    proc.on("error", (err: Error) => { stderr += err.message; finish(1); });
+    proc.on("error", (err: Error) => {
+      stderr += err.message;
+      finish(1);
+    });
 
-    const timer = setTimeout(() => { timedOut = true; proc.kill("SIGKILL"); }, timeout);
+    const timer = setTimeout(() => {
+      timedOut = true;
+      proc.kill("SIGKILL");
+    }, timeout);
     proc.on("close", () => clearTimeout(timer));
   });
 }

@@ -1,6 +1,6 @@
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { UpdateKit } from "update-kit";
-import { readFileSync, existsSync } from "fs";
-import { resolve, dirname } from "path";
 
 function findRepoRoot(startDir: string): string {
   let dir = startDir;
@@ -145,14 +145,28 @@ export async function applyUpdate(cwd?: string): Promise<ApplyUpdateResult> {
   }
 }
 
-export async function rollbackUpdate(cwd?: string): Promise<{ success: boolean; error?: string }> {
-  const { execSync } = await import("child_process");
+export async function rollbackUpdate(
+  cwd?: string,
+): Promise<{ success: boolean; error?: string }> {
+  const { execSync } = await import("node:child_process");
   const repoRoot = findRepoRoot(cwd || process.cwd());
 
   try {
-    execSync("git reset --hard HEAD@{1}", { cwd: repoRoot, encoding: "utf-8", stdio: "pipe" });
-    execSync("bun install", { cwd: repoRoot, encoding: "utf-8", stdio: "pipe" });
-    execSync("bun run build", { cwd: repoRoot, encoding: "utf-8", stdio: "pipe" });
+    execSync("git reset --hard HEAD@{1}", {
+      cwd: repoRoot,
+      encoding: "utf-8",
+      stdio: "pipe",
+    });
+    execSync("bun install", {
+      cwd: repoRoot,
+      encoding: "utf-8",
+      stdio: "pipe",
+    });
+    execSync("bun run build", {
+      cwd: repoRoot,
+      encoding: "utf-8",
+      stdio: "pipe",
+    });
     return { success: true };
   } catch (err: any) {
     return { success: false, error: err.message };

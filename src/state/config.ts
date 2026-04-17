@@ -5,7 +5,7 @@
  * No external YAML library — the config format is intentionally flat.
  */
 
-import { DEFAULT_CONFIG, type ApexConfig } from "../types/config.js";
+import { type ApexConfig, DEFAULT_CONFIG } from "../types/config.js";
 
 // ---------------------------------------------------------------------------
 // Constants

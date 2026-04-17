@@ -1,7 +1,7 @@
+import { existsSync } from "node:fs";
 import type { StageState } from "../types/state.js";
 import { readJSON, writeJSON } from "../utils/json.js";
 import { sessionStateCachePath } from "./event-log.js";
-import { existsSync } from "fs";
 
 const STATE_FILE = ".apex/state.json";
 

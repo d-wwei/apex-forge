@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from "fs";
-import { join } from "path";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
 export interface AgentResult {
   taskId: string;
@@ -15,16 +15,16 @@ export interface AgentResult {
 export interface Finding {
   severity: "blocker" | "concern" | "note";
   description: string;
-  source?: string;  // which agent/persona found this
+  source?: string; // which agent/persona found this
 }
 
 export interface SynthesizedResult {
   taskId: string;
   agents: string[];
-  contributed: string[];  // agents that produced structured findings
-  partial: string[];      // agents that completed without result.json
-  failed: string[];       // agents that exited non-zero
-  verdict: string;        // "pass" | "fail" | "mixed"
+  contributed: string[]; // agents that produced structured findings
+  partial: string[]; // agents that completed without result.json
+  failed: string[]; // agents that exited non-zero
+  verdict: string; // "pass" | "fail" | "mixed"
   blockers: Finding[];
   concerns: Finding[];
   notes: Finding[];
@@ -65,7 +65,9 @@ export function collectResult(
 
   // Fallback: read log file
   const logPath = join(".apex/orchestrator-logs", `${taskId}.log`);
-  const output = existsSync(logPath) ? readFileSync(logPath, "utf-8") : undefined;
+  const output = existsSync(logPath)
+    ? readFileSync(logPath, "utf-8")
+    : undefined;
 
   return {
     taskId,
@@ -85,7 +87,9 @@ export function collectResult(
  */
 export function synthesizeFindings(results: AgentResult[]): SynthesizedResult {
   const taskId = results[0]?.taskId || "unknown";
-  const agents = results.map(r => `${r.adapter}${r.persona ? `(${r.persona})` : ""}`);
+  const agents = results.map(
+    (r) => `${r.adapter}${r.persona ? `(${r.persona})` : ""}`,
+  );
 
   // Classify agents by contribution quality
   const contributed: string[] = [];
@@ -108,7 +112,9 @@ export function synthesizeFindings(results: AgentResult[]): SynthesizedResult {
     for (const finding of result.findings || []) {
       allFindings.push({
         ...finding,
-        source: finding.source || `${result.adapter}${result.persona ? `(${result.persona})` : ""}`,
+        source:
+          finding.source ||
+          `${result.adapter}${result.persona ? `(${result.persona})` : ""}`,
       });
     }
   }
@@ -125,14 +131,23 @@ export function synthesizeFindings(results: AgentResult[]): SynthesizedResult {
   }
 
   // Categorize
-  const blockers = unique.filter(f => f.severity === "blocker");
-  const concerns = unique.filter(f => f.severity === "concern");
-  const notes = unique.filter(f => f.severity === "note");
+  const blockers = unique.filter((f) => f.severity === "blocker");
+  const concerns = unique.filter((f) => f.severity === "concern");
+  const notes = unique.filter((f) => f.severity === "note");
 
   // Determine overall verdict
-  const anyFail = results.some(r => r.verdict === "fail" || r.exitCode !== 0);
-  const allPass = results.every(r => r.verdict === "pass" && r.exitCode === 0);
-  const verdict = blockers.length > 0 ? "fail" : allPass ? "pass" : anyFail ? "mixed" : "pass";
+  const anyFail = results.some((r) => r.verdict === "fail" || r.exitCode !== 0);
+  const allPass = results.every(
+    (r) => r.verdict === "pass" && r.exitCode === 0,
+  );
+  const verdict =
+    blockers.length > 0
+      ? "fail"
+      : allPass
+        ? "pass"
+        : anyFail
+          ? "mixed"
+          : "pass";
 
   // Build summary
   const summaryParts = [

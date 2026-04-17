@@ -9,11 +9,11 @@
  * For deterministic extraction without an API key, use `apex memory curate`.
  */
 
+import { spawnSync } from "node:child_process";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import Anthropic from "@anthropic-ai/sdk";
-import { spawnSync } from "child_process";
-import { existsSync, readdirSync, readFileSync } from "fs";
-import { readJSON } from "../utils/json.js";
 import type { MemoryStore } from "../types/memory.js";
+import { readJSON } from "../utils/json.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -141,7 +141,7 @@ export async function buildCurationContext(): Promise<string> {
     { encoding: "utf-8" },
   );
   if (gitLog.status === 0 && gitLog.stdout.trim()) {
-    parts.push("## Recent Commits\n" + gitLog.stdout.trim());
+    parts.push(`## Recent Commits\n${gitLog.stdout.trim()}`);
   }
 
   // 2. Recent git diff summary
@@ -149,14 +149,12 @@ export async function buildCurationContext(): Promise<string> {
     encoding: "utf-8",
   });
   if (gitDiff.status === 0 && gitDiff.stdout.trim()) {
-    parts.push("## Recent Changes\n" + gitDiff.stdout.trim());
+    parts.push(`## Recent Changes\n${gitDiff.stdout.trim()}`);
   }
 
   // 3. Completed tasks with evidence
   const tasks = await readJSON<any>(".apex/tasks.json", { tasks: [] });
-  const completed = (tasks.tasks || []).filter(
-    (t: any) => t.status === "done",
-  );
+  const completed = (tasks.tasks || []).filter((t: any) => t.status === "done");
   if (completed.length > 0) {
     parts.push(
       "## Completed Tasks\n" +

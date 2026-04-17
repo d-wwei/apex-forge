@@ -5,7 +5,7 @@
  * Supports listing, importing, syncing, and commenting on issues.
  */
 
-import { spawnSync } from "child_process";
+import { spawnSync } from "node:child_process";
 import { taskCreate } from "../state/tasks.js";
 
 // ---------------------------------------------------------------------------
@@ -137,7 +137,9 @@ export function getIssue(issueNumber: number): Issue | null {
  * Import GitHub issues as apex tasks.
  * Creates tasks in .apex/tasks.json linked to their issue numbers.
  */
-export async function createTasksFromIssues(issues: Issue[]): Promise<SyncResult> {
+export async function createTasksFromIssues(
+  issues: Issue[],
+): Promise<SyncResult> {
   const result: SyncResult = { imported: [], skipped: [], errors: [] };
 
   for (const issue of issues) {
@@ -155,7 +157,9 @@ export async function createTasksFromIssues(issues: Issue[]): Promise<SyncResult
       );
       result.imported.push(`${task.id} <- #${issue.number}: ${issue.title}`);
     } catch (err) {
-      result.errors.push(`#${issue.number}: ${err instanceof Error ? err.message : String(err)}`);
+      result.errors.push(
+        `#${issue.number}: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 

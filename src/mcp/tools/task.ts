@@ -5,19 +5,19 @@
  * Covers the full task lifecycle: create, assign, start, submit, verify, block, release, list, next, get.
  */
 
-import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
 import {
-  taskCreate,
   taskAssign,
+  taskBlock,
+  taskCreate,
+  taskGet,
+  taskList,
+  taskNext,
+  taskRelease,
   taskStart,
   taskSubmit,
   taskVerify,
-  taskBlock,
-  taskRelease,
-  taskList,
-  taskNext,
-  taskGet,
 } from "../../state/tasks.js";
 
 function ok(text: string) {
@@ -26,7 +26,10 @@ function ok(text: string) {
 
 function err(error: unknown) {
   const msg = error instanceof Error ? error.message : String(error);
-  return { content: [{ type: "text" as const, text: `Error: ${msg}` }], isError: true as const };
+  return {
+    content: [{ type: "text" as const, text: `Error: ${msg}` }],
+    isError: true as const,
+  };
 }
 
 export function registerTaskTools(server: McpServer) {
@@ -102,7 +105,9 @@ export function registerTaskTools(server: McpServer) {
     async ({ task_id, pass }) => {
       try {
         const task = await taskVerify(task_id, pass);
-        const outcome = pass ? "verified (done)" : "rejected (back to in_progress)";
+        const outcome = pass
+          ? "verified (done)"
+          : "rejected (back to in_progress)";
         return ok(`${task.id}: ${outcome}`);
       } catch (e) {
         return err(e);
@@ -169,9 +174,7 @@ export function registerTaskTools(server: McpServer) {
       try {
         const task = await taskNext();
         return ok(
-          task
-            ? `Next: ${task.id} — ${task.title}`
-            : "No available tasks",
+          task ? `Next: ${task.id} — ${task.title}` : "No available tasks",
         );
       } catch (e) {
         return err(e);

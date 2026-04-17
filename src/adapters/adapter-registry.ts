@@ -1,7 +1,7 @@
-import type { RuntimeAdapter } from "./runtime.js";
 import { ClaudeAdapter } from "./claude-adapter.js";
 import { CodexAdapter } from "./codex-adapter.js";
 import { GeminiAdapter } from "./gemini-adapter.js";
+import type { RuntimeAdapter } from "./runtime.js";
 
 const BUILT_IN_ADAPTERS: Array<() => RuntimeAdapter> = [
   () => new ClaudeAdapter(),
@@ -51,8 +51,8 @@ export function resolveAdapter(
 
   throw new Error(
     "No agent adapters available. Install at least one agent CLI:\n" +
-    "  - Claude Code: https://docs.anthropic.com/en/docs/claude-code\n" +
-    "  - Codex: https://github.com/openai/codex\n" +
-    "  - Gemini CLI: https://github.com/google/gemini-cli"
+      "  - Claude Code: https://docs.anthropic.com/en/docs/claude-code\n" +
+      "  - Codex: https://github.com/openai/codex\n" +
+      "  - Gemini CLI: https://github.com/google/gemini-cli",
   );
 }

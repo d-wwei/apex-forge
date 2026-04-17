@@ -1,6 +1,6 @@
-import { describe, test, expect } from "bun:test";
-import { materializePerSession } from "../state/event-log.js";
+import { describe, expect, test } from "bun:test";
 import type { DomainEvent } from "../state/event-log.js";
+import { materializePerSession } from "../state/event-log.js";
 
 function makeEvent(
   session_id: string,
@@ -18,7 +18,12 @@ describe("materializePerSession", () => {
 
   test("single session produces single pipeline", () => {
     const events = [
-      makeEvent("s1", "stage.set", { stage: "brainstorm" }, "2026-04-14T10:00:00Z"),
+      makeEvent(
+        "s1",
+        "stage.set",
+        { stage: "brainstorm" },
+        "2026-04-14T10:00:00Z",
+      ),
       makeEvent("s1", "stage.set", { stage: "plan" }, "2026-04-14T10:05:00Z"),
     ];
     const result = materializePerSession(events);
@@ -31,7 +36,12 @@ describe("materializePerSession", () => {
   test("two sessions produce two independent pipelines", () => {
     const events = [
       makeEvent("s1", "stage.set", { stage: "review" }, "2026-04-14T10:00:00Z"),
-      makeEvent("s2", "stage.set", { stage: "compound" }, "2026-04-14T10:01:00Z"),
+      makeEvent(
+        "s2",
+        "stage.set",
+        { stage: "compound" },
+        "2026-04-14T10:01:00Z",
+      ),
     ];
     const result = materializePerSession(events);
     expect(result).toHaveLength(2);
@@ -57,9 +67,19 @@ describe("materializePerSession", () => {
 
   test("interleaved events from two sessions are correctly separated", () => {
     const events = [
-      makeEvent("s1", "stage.set", { stage: "brainstorm" }, "2026-04-14T10:00:00Z"),
+      makeEvent(
+        "s1",
+        "stage.set",
+        { stage: "brainstorm" },
+        "2026-04-14T10:00:00Z",
+      ),
       makeEvent("s2", "stage.set", { stage: "plan" }, "2026-04-14T10:00:30Z"),
-      makeEvent("s1", "stage.set", { stage: "execute" }, "2026-04-14T10:01:00Z"),
+      makeEvent(
+        "s1",
+        "stage.set",
+        { stage: "execute" },
+        "2026-04-14T10:01:00Z",
+      ),
       makeEvent("s2", "stage.set", { stage: "review" }, "2026-04-14T10:01:30Z"),
     ];
     const result = materializePerSession(events);
@@ -74,9 +94,19 @@ describe("materializePerSession", () => {
   test("artifacts are scoped per session", () => {
     const events = [
       makeEvent("s1", "stage.set", { stage: "plan" }, "2026-04-14T10:00:00Z"),
-      makeEvent("s1", "artifact.added", { stage: "plan", path: "plan.md" }, "2026-04-14T10:01:00Z"),
+      makeEvent(
+        "s1",
+        "artifact.added",
+        { stage: "plan", path: "plan.md" },
+        "2026-04-14T10:01:00Z",
+      ),
       makeEvent("s2", "stage.set", { stage: "plan" }, "2026-04-14T10:00:30Z"),
-      makeEvent("s2", "artifact.added", { stage: "plan", path: "plan-v2.md" }, "2026-04-14T10:01:30Z"),
+      makeEvent(
+        "s2",
+        "artifact.added",
+        { stage: "plan", path: "plan-v2.md" },
+        "2026-04-14T10:01:30Z",
+      ),
     ];
     const result = materializePerSession(events);
     const s1 = result.find((p) => p.session_id === "s1")!;
@@ -87,8 +117,18 @@ describe("materializePerSession", () => {
 
   test("stage.completed closes the correct history entry per session", () => {
     const events = [
-      makeEvent("s1", "stage.set", { stage: "execute" }, "2026-04-14T10:00:00Z"),
-      makeEvent("s1", "stage.completed", { stage: "execute" }, "2026-04-14T10:05:00Z"),
+      makeEvent(
+        "s1",
+        "stage.set",
+        { stage: "execute" },
+        "2026-04-14T10:00:00Z",
+      ),
+      makeEvent(
+        "s1",
+        "stage.completed",
+        { stage: "execute" },
+        "2026-04-14T10:05:00Z",
+      ),
     ];
     const result = materializePerSession(events);
     expect(result[0].history[0].completed).toBe("2026-04-14T10:05:00Z");
@@ -96,16 +136,34 @@ describe("materializePerSession", () => {
 
   test("session.summary event populates bilingual summary", () => {
     const events = [
-      makeEvent("s1", "stage.set", { stage: "brainstorm" }, "2026-04-14T10:00:00Z"),
-      makeEvent("s1", "session.summary", { en: "Optimize dashboard", zh: "优化仪表盘" }, "2026-04-14T10:01:00Z"),
+      makeEvent(
+        "s1",
+        "stage.set",
+        { stage: "brainstorm" },
+        "2026-04-14T10:00:00Z",
+      ),
+      makeEvent(
+        "s1",
+        "session.summary",
+        { en: "Optimize dashboard", zh: "优化仪表盘" },
+        "2026-04-14T10:01:00Z",
+      ),
     ];
     const result = materializePerSession(events);
-    expect(result[0].summary).toEqual({ en: "Optimize dashboard", zh: "优化仪表盘" });
+    expect(result[0].summary).toEqual({
+      en: "Optimize dashboard",
+      zh: "优化仪表盘",
+    });
   });
 
   test("session without summary event has undefined summary", () => {
     const events = [
-      makeEvent("s1", "stage.set", { stage: "execute" }, "2026-04-14T10:00:00Z"),
+      makeEvent(
+        "s1",
+        "stage.set",
+        { stage: "execute" },
+        "2026-04-14T10:00:00Z",
+      ),
     ];
     const result = materializePerSession(events);
     expect(result[0].summary).toBeUndefined();

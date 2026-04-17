@@ -56,7 +56,11 @@ export function satisfies(actual: string, constraint: string): boolean {
       return ver.major === target.major && compare(ver, target) >= 0;
     case "~":
       // Same major.minor, and >= target
-      return ver.major === target.major && ver.minor === target.minor && ver.patch >= target.patch;
+      return (
+        ver.major === target.major &&
+        ver.minor === target.minor &&
+        ver.patch >= target.patch
+      );
     default:
       return compare(ver, target) >= 0;
   }

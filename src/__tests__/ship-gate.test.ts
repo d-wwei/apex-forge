@@ -1,8 +1,8 @@
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { spawnSync, execSync } from "child_process";
-import { rmSync, existsSync, mkdirSync, writeFileSync } from "fs";
-import { join } from "path";
-import { tmpdir } from "os";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { execSync, spawnSync } from "node:child_process";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const PROJECT_ROOT = process.cwd();
 const APEX = join(PROJECT_ROOT, "dist/apex-forge");
@@ -10,9 +10,11 @@ const APEX = join(PROJECT_ROOT, "dist/apex-forge");
 let testDir: string;
 let originalCwd: string;
 
-function run(
-  ...args: string[]
-): { stdout: string; stderr: string; exitCode: number } {
+function run(...args: string[]): {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+} {
   const result = spawnSync(APEX, args, {
     encoding: "utf-8",
     cwd: process.cwd(),
@@ -26,10 +28,13 @@ function run(
 }
 
 function initGitRepo(): void {
-  execSync("git init && git config user.email test@test.com && git config user.name Test", {
-    cwd: process.cwd(),
-    stdio: "pipe",
-  });
+  execSync(
+    "git init && git config user.email test@test.com && git config user.name Test",
+    {
+      cwd: process.cwd(),
+      stdio: "pipe",
+    },
+  );
   writeFileSync("README.md", "# Test\n");
   execSync("git add . && git commit -m 'init'", {
     cwd: process.cwd(),
@@ -39,7 +44,10 @@ function initGitRepo(): void {
 
 beforeEach(() => {
   originalCwd = process.cwd();
-  testDir = join(tmpdir(), `apex-test-ship-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+  testDir = join(
+    tmpdir(),
+    `apex-test-ship-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  );
   mkdirSync(testDir, { recursive: true });
   process.chdir(testDir);
   run("init");
@@ -63,7 +71,10 @@ describe("Ship Stage Structural Gate", () => {
   test("ship gate BLOCKS when no git commit since review", () => {
     // Register a review artifact
     mkdirSync("docs/reviews", { recursive: true });
-    writeFileSync("docs/reviews/test-review.md", "---\nstatus: DONE\n---\n# Review\n");
+    writeFileSync(
+      "docs/reviews/test-review.md",
+      "---\nstatus: DONE\n---\n# Review\n",
+    );
     run("stage", "artifact", "review", "docs/reviews/test-review.md");
     run("stage", "set", "ship");
 
@@ -77,7 +88,10 @@ describe("Ship Stage Structural Gate", () => {
   test("ship gate BLOCKS when push-prompt checkpoint missing", () => {
     // Set up: review artifact + git commit
     mkdirSync("docs/reviews", { recursive: true });
-    writeFileSync("docs/reviews/test-review.md", "---\nstatus: DONE\n---\n# Review\n");
+    writeFileSync(
+      "docs/reviews/test-review.md",
+      "---\nstatus: DONE\n---\n# Review\n",
+    );
     run("stage", "artifact", "review", "docs/reviews/test-review.md");
     run("stage", "set", "ship");
 
@@ -98,7 +112,10 @@ describe("Ship Stage Structural Gate", () => {
 
   test("ship gate BLOCKS when iteration-summary checkpoint missing", () => {
     mkdirSync("docs/reviews", { recursive: true });
-    writeFileSync("docs/reviews/test-review.md", "---\nstatus: DONE\n---\n# Review\n");
+    writeFileSync(
+      "docs/reviews/test-review.md",
+      "---\nstatus: DONE\n---\n# Review\n",
+    );
     run("stage", "artifact", "review", "docs/reviews/test-review.md");
     run("stage", "set", "ship");
 
@@ -118,7 +135,10 @@ describe("Ship Stage Structural Gate", () => {
 
   test("ship gate PASSES when all checks satisfied", () => {
     mkdirSync("docs/reviews", { recursive: true });
-    writeFileSync("docs/reviews/test-review.md", "---\nstatus: DONE\n---\n# Review\n");
+    writeFileSync(
+      "docs/reviews/test-review.md",
+      "---\nstatus: DONE\n---\n# Review\n",
+    );
     run("stage", "artifact", "review", "docs/reviews/test-review.md");
     run("stage", "set", "ship");
 
@@ -155,7 +175,10 @@ describe("Ship Stage Structural Gate", () => {
 
   test("ship gate checks required skill invocations from bindings", () => {
     mkdirSync("docs/reviews", { recursive: true });
-    writeFileSync("docs/reviews/test-review.md", "---\nstatus: DONE\n---\n# Review\n");
+    writeFileSync(
+      "docs/reviews/test-review.md",
+      "---\nstatus: DONE\n---\n# Review\n",
+    );
     run("stage", "artifact", "review", "docs/reviews/test-review.md");
     run("stage", "set", "ship");
 

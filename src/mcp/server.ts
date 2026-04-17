@@ -27,10 +27,10 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { registerTaskTools } from "./tools/task.js";
-import { registerMemoryTools } from "./tools/memory.js";
 import { registerBrowseTools } from "./tools/browse.js";
+import { registerMemoryTools } from "./tools/memory.js";
 import { registerStatusTools } from "./tools/status.js";
+import { registerTaskTools } from "./tools/task.js";
 
 // ---------------------------------------------------------------------------
 // Role definitions

@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from "fs";
-import { join } from "path";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
 export interface ValidationResult {
   valid: boolean;
@@ -11,9 +11,16 @@ export interface ValidationResult {
 /**
  * Validate an agent's output by checking exit code and result.json structure.
  */
-export function validateResult(workspacePath: string, exitCode: number): ValidationResult {
+export function validateResult(
+  workspacePath: string,
+  exitCode: number,
+): ValidationResult {
   if (exitCode !== 0) {
-    return { valid: false, status: "failure", reason: `Non-zero exit code: ${exitCode}` };
+    return {
+      valid: false,
+      status: "failure",
+      reason: `Non-zero exit code: ${exitCode}`,
+    };
   }
 
   const resultPath = join(workspacePath, "output", "result.json");
@@ -26,11 +33,19 @@ export function validateResult(workspacePath: string, exitCode: number): Validat
   try {
     parsed = JSON.parse(readFileSync(resultPath, "utf-8"));
   } catch {
-    return { valid: false, status: "partial", reason: "result.json is not valid JSON" };
+    return {
+      valid: false,
+      status: "partial",
+      reason: "result.json is not valid JSON",
+    };
   }
 
   if (!parsed.verdict) {
-    return { valid: false, status: "partial", reason: "result.json missing 'verdict' field" };
+    return {
+      valid: false,
+      status: "partial",
+      reason: "result.json missing 'verdict' field",
+    };
   }
 
   return { valid: true, status: "success", verdict: parsed.verdict };

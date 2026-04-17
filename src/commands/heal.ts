@@ -1,4 +1,7 @@
-import { createApexUddAdapter, createApexUddRuntime } from "../adapters/udd-adapter.js";
+import {
+  createApexUddAdapter,
+  createApexUddRuntime,
+} from "../adapters/udd-adapter.js";
 
 export async function cmdHeal(args: string[]) {
   const sub = args[0];
@@ -6,9 +9,15 @@ export async function cmdHeal(args: string[]) {
 
   if (sub === "analyze" || sub === "diagnose") {
     const errorIdx = args.indexOf("--error");
-    const errorMsg = errorIdx >= 0 ? args.slice(errorIdx + 1).filter(a => a !== "--json").join(" ") : undefined;
+    const errorMsg =
+      errorIdx >= 0
+        ? args
+            .slice(errorIdx + 1)
+            .filter((a) => a !== "--json")
+            .join(" ")
+        : undefined;
     if (!errorMsg) {
-      console.error("Usage: apex heal analyze --error \"error message\"");
+      console.error('Usage: apex heal analyze --error "error message"');
       process.exit(1);
     }
 
@@ -24,7 +33,9 @@ export async function cmdHeal(args: string[]) {
       console.log(`Diagnosis: ${diagnosis.kind}`);
       console.log(`Confidence: ${diagnosis.confidence}`);
       if (diagnosis.suggestedStrategies?.length) {
-        console.log(`Suggested strategies: ${diagnosis.suggestedStrategies.join(", ")}`);
+        console.log(
+          `Suggested strategies: ${diagnosis.suggestedStrategies.join(", ")}`,
+        );
       }
       if (diagnosis.summary) {
         console.log(`\nSummary: ${diagnosis.summary}`);
@@ -32,9 +43,15 @@ export async function cmdHeal(args: string[]) {
     }
   } else if (sub === "run" || sub === "fix") {
     const errorIdx = args.indexOf("--error");
-    const errorMsg = errorIdx >= 0 ? args.slice(errorIdx + 1).filter(a => a !== "--json").join(" ") : undefined;
+    const errorMsg =
+      errorIdx >= 0
+        ? args
+            .slice(errorIdx + 1)
+            .filter((a) => a !== "--json")
+            .join(" ")
+        : undefined;
     if (!errorMsg) {
-      console.error("Usage: apex heal run --error \"error message\"");
+      console.error('Usage: apex heal run --error "error message"');
       process.exit(1);
     }
 
@@ -63,9 +80,15 @@ export async function cmdHeal(args: string[]) {
     }
   } else if (sub === "issue-draft") {
     const errorIdx = args.indexOf("--error");
-    const errorMsg = errorIdx >= 0 ? args.slice(errorIdx + 1).filter(a => a !== "--json").join(" ") : undefined;
+    const errorMsg =
+      errorIdx >= 0
+        ? args
+            .slice(errorIdx + 1)
+            .filter((a) => a !== "--json")
+            .join(" ")
+        : undefined;
     if (!errorMsg) {
-      console.error("Usage: apex heal issue-draft --error \"error message\"");
+      console.error('Usage: apex heal issue-draft --error "error message"');
       process.exit(1);
     }
 
@@ -81,11 +104,19 @@ export async function cmdHeal(args: string[]) {
       console.log("=== Issue Draft ===");
       console.log(`Title: ${draft.title}`);
       console.log(`\n${draft.body}`);
-      console.log("\nTo submit: apex heal issue-submit --error \"...\" --token <GITHUB_TOKEN>");
+      console.log(
+        '\nTo submit: apex heal issue-submit --error "..." --token <GITHUB_TOKEN>',
+      );
     }
   } else if (sub === "contribute") {
     const summaryIdx = args.indexOf("--summary");
-    const summary = summaryIdx >= 0 ? args.slice(summaryIdx + 1).filter(a => a !== "--json").join(" ") : "Fix from local heal";
+    const summary =
+      summaryIdx >= 0
+        ? args
+            .slice(summaryIdx + 1)
+            .filter((a) => a !== "--json")
+            .join(" ")
+        : "Fix from local heal";
 
     const runtime = await createApexUddRuntime();
     const adapter = createApexUddAdapter();
@@ -114,7 +145,9 @@ export async function cmdHeal(args: string[]) {
       console.log(JSON.stringify(result, null, 2));
     } else {
       if (result.hasUpdate) {
-        console.log(`Upstream update: v${result.currentVersion} → v${result.latestVersion}`);
+        console.log(
+          `Upstream update: v${result.currentVersion} → v${result.latestVersion}`,
+        );
         if (result.highlights?.length) {
           console.log("Highlights:");
           for (const h of result.highlights) console.log(`  - ${h}`);

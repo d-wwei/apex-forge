@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.3.0] - 2026-04-17
+
+### Development Principles — 从隐性知识到显性约束
+
+**背景**: 项目有成熟的执行协议（TDD、Evidence Grading、Phase Discipline），但 13 条开发原则中仅 2 条有完整覆盖。项目级规范散落在零散段落里，贡献者在非协议路径下操作时无约束。
+**策略**: 四个落地点系统性补齐——CONTRIBUTING.md 7 个新 section + ADR 目录 + Biome linter CI 门禁 + brainstorm checklist 增补。
+
+### Added
+- ADR (Architecture Decision Records) 目录 `docs/decisions/` + 模板 + 示例（ADR-0001: 混合 CHANGELOG 格式）
+- Biome linter 零警告 CI 门禁（`bunx biome ci src/`），85 个文件 auto-fix
+- CI backward compatibility smoke test：验证 `status --json` 必需字段（version, session_id, stage, tasks）
+- Brainstorm checklist 新增 3 项：Capability Audit（Step 3）、Evidence of Need（Step 1）、Anti-Double-Counting（Step 7）
+- Brainstorm exit gate S8：Standard/Deep scope 下强制写 ADR
+- CONTRIBUTING.md 7 个新 section：Dependency Policy, Backward Compatibility, Changelog Format, ADR, Security Principles, Linting, Test Requirement
+
+### Changed
+- CHANGELOG 格式切换为混合模式：叙事 header + Keep a Changelog 分类（本条目即首次使用）
+- Ship stage Step 2 更新为混合 CHANGELOG 模板
+- Brainstorm checklist 从"9-Step"重编号为 10 步（含 Capability Audit）
+- `src/**/*.ts` 全量 Biome auto-fix：import 排序、`node:` 协议前缀、模板字面量
+
+### Fixed
+- CONTRIBUTING.md 错误引用 `main` 分支（实际为 `master`）
+- CONTRIBUTING.md 架构描述未标注 `skill/` 为主目录（`workflow/` 为 legacy）
+
 ## 0.2.1 (2026-04-17)
 
 ### Protocol Restructuring — "约束越多越偷懒"问题的系统性修复

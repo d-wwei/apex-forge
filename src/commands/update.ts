@@ -1,4 +1,8 @@
-import { quickCheck, applyUpdate, rollbackUpdate } from "../adapters/update-adapter.js";
+import {
+  applyUpdate,
+  quickCheck,
+  rollbackUpdate,
+} from "../adapters/update-adapter.js";
 
 export async function cmdUpdate(args: string[]) {
   const sub = args[0];
@@ -9,7 +13,9 @@ export async function cmdUpdate(args: string[]) {
     if (json) {
       console.log(JSON.stringify(result, null, 2));
     } else if (result.status === "update_available") {
-      console.log(`Update available: v${result.currentVersion} → v${result.latestVersion}`);
+      console.log(
+        `Update available: v${result.currentVersion} → v${result.latestVersion}`,
+      );
       if (result.releaseUrl) console.log(`Release: ${result.releaseUrl}`);
       console.log(`\nRun 'apex update apply' to update.`);
     } else if (result.status === "error") {
@@ -22,7 +28,11 @@ export async function cmdUpdate(args: string[]) {
     const result = await applyUpdate();
     if (json) {
       console.log(JSON.stringify(result, null, 2));
-    } else if (result.success && result.toVersion && result.toVersion !== result.fromVersion) {
+    } else if (
+      result.success &&
+      result.toVersion &&
+      result.toVersion !== result.fromVersion
+    ) {
       console.log(`Updated: v${result.fromVersion} → v${result.toVersion}`);
       if (result.postAction === "suggest-restart") {
         console.log("Restart your terminal to use the new version.");

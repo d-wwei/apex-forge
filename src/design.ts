@@ -5,7 +5,7 @@
  * to produce UI mockups, variants, and comparison pages.
  */
 
-import { mkdirSync, existsSync } from "fs";
+import { existsSync, mkdirSync } from "node:fs";
 
 const OPENAI_API_URL = "https://api.openai.com/v1/images/generations";
 
@@ -192,7 +192,7 @@ ${cards}
 export function listDesigns(dir?: string): string[] {
   const designDir = dir || ".apex/designs";
   if (!existsSync(designDir)) return [];
-  const { readdirSync } = require("fs");
+  const { readdirSync } = require("node:fs");
   return (readdirSync(designDir) as string[])
     .filter((f: string) => f.endsWith(".png"))
     .map((f: string) => `${designDir}/${f}`);

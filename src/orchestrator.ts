@@ -1,17 +1,32 @@
-import { taskList, taskAssign, taskStart, taskSubmit, taskVerify } from "./state/tasks.js";
+import { existsSync, readFileSync } from "node:fs";
+import { detectAdapters, resolveAdapter } from "./adapters/adapter-registry.js";
+import type { AgentHandle, RuntimeAdapter } from "./adapters/runtime.js";
+import { buildAgentPrompt } from "./orchestrator/prompt-builder.js";
+import {
+  type AgentResult,
+  collectResult,
+  synthesizeFindings,
+} from "./orchestrator/result-collector.js";
+import { validateResult } from "./orchestrator/result-validator.js";
+import { backoffMs, shouldRetry } from "./orchestrator/retry.js";
+import {
+  cleanupWorkspace,
+  createWorkspace,
+  injectArtifacts,
+  writePermissionConfig,
+} from "./orchestrator/workspace.js";
 import { loadConfig } from "./state/config.js";
+import {
+  taskAssign,
+  taskList,
+  taskStart,
+  taskSubmit,
+  taskVerify,
+} from "./state/tasks.js";
+import type { ApexConfig } from "./types/config.js";
+import type { Task } from "./types/task.js";
 import { appendJSONL } from "./utils/logger.js";
 import { isoTimestamp } from "./utils/timestamp.js";
-import { existsSync, readFileSync } from "fs";
-import type { Task } from "./types/task.js";
-import type { ApexConfig } from "./types/config.js";
-import type { RuntimeAdapter, AgentHandle } from "./adapters/runtime.js";
-import { detectAdapters, resolveAdapter } from "./adapters/adapter-registry.js";
-import { createWorkspace, injectArtifacts, writePermissionConfig, cleanupWorkspace } from "./orchestrator/workspace.js";
-import { shouldRetry, backoffMs } from "./orchestrator/retry.js";
-import { buildAgentPrompt } from "./orchestrator/prompt-builder.js";
-import { collectResult, synthesizeFindings, type AgentResult } from "./orchestrator/result-collector.js";
-import { validateResult } from "./orchestrator/result-validator.js";
 
 // --- Registry template types ---
 
@@ -50,7 +65,12 @@ function loadRegistry(): RegistryTemplate[] {
       let m: RegExpMatchArray | null;
       if ((m = line.match(/^\s+-\s+id:\s+(.+)/))) {
         if (current.id) templates.push(current as RegistryTemplate);
-        current = { id: m[1].trim(), triggers: [], model_hint: "balanced", estimated_tokens: 5000 };
+        current = {
+          id: m[1].trim(),
+          triggers: [],
+          model_hint: "balanced",
+          estimated_tokens: 5000,
+        };
       } else if ((m = line.match(/^\s+name:\s+(.+)/))) {
         current.name = m[1].trim();
       } else if ((m = line.match(/^\s+description:\s+(.+)/))) {
@@ -58,7 +78,7 @@ function loadRegistry(): RegistryTemplate[] {
       } else if ((m = line.match(/^\s+model_hint:\s+(.+)/))) {
         current.model_hint = m[1].trim();
       } else if ((m = line.match(/^\s+estimated_tokens:\s+(\d+)/))) {
-        current.estimated_tokens = parseInt(m[1]);
+        current.estimated_tokens = parseInt(m[1], 10);
       } else if ((m = line.match(/^\s+dispatch_mode:\s+(.+)/))) {
         current.dispatch_mode = m[1].trim() as "same-model" | "cross-model";
       } else if ((m = line.match(/^\s+skill:\s+(.+)/))) {
@@ -82,10 +102,15 @@ function loadRegistry(): RegistryTemplate[] {
     }
     if (current.id) templates.push(current as RegistryTemplate);
     return templates;
-  } catch { return []; }
+  } catch {
+    return [];
+  }
 }
 
-function matchTemplate(task: Task, registry: RegistryTemplate[]): RegistryTemplate | null {
+function matchTemplate(
+  task: Task,
+  registry: RegistryTemplate[],
+): RegistryTemplate | null {
   const text = `${task.title} ${task.description}`.toLowerCase();
   let bestMatch: RegistryTemplate | null = null;
   let bestScore = 0;
@@ -163,17 +188,36 @@ export async function runOrchestrator(args: string[]): Promise<void> {
   }
 
   const running = new Map<string, RunningAgentEntry>();
-  const retryQueue: Array<{ task: Task; attempt: number; retryAfter: number; template: RegistryTemplate | null }> = [];
+  const retryQueue: Array<{
+    task: Task;
+    attempt: number;
+    retryAfter: number;
+    template: RegistryTemplate | null;
+  }> = [];
   const completedResults = new Map<string, AgentResult[]>();
   let shuttingDown = false;
 
-  process.on("SIGINT", () => { shuttingDown = true; });
-  process.on("SIGTERM", () => { shuttingDown = true; });
+  process.on("SIGINT", () => {
+    shuttingDown = true;
+  });
+  process.on("SIGTERM", () => {
+    shuttingDown = true;
+  });
 
-  console.log(`Orchestrator started (max_concurrent: ${config.max_concurrent_agents}, poll: ${config.polling_interval_ms}ms)`);
+  console.log(
+    `Orchestrator started (max_concurrent: ${config.max_concurrent_agents}, poll: ${config.polling_interval_ms}ms)`,
+  );
 
   while (!shuttingDown) {
-    const allDone = await pollCycle(config, adapters, registry, running, retryQueue, completedResults, dryRun);
+    const allDone = await pollCycle(
+      config,
+      adapters,
+      registry,
+      running,
+      retryQueue,
+      completedResults,
+      dryRun,
+    );
 
     if (once || dryRun || allDone) break;
     await Bun.sleep(config.polling_interval_ms);
@@ -184,12 +228,27 @@ export async function runOrchestrator(args: string[]): Promise<void> {
     // --once mode: wait for agents to finish their work (up to idle_timeout)
     // SIGINT/SIGTERM: short grace period (30s) then exit
     const drainTimeout = once ? config.idle_timeout_ms : 30000;
-    console.log(`Waiting for ${running.size} running agent(s)... (timeout: ${Math.round(drainTimeout / 1000)}s)`);
+    console.log(
+      `Waiting for ${running.size} running agent(s)... (timeout: ${Math.round(drainTimeout / 1000)}s)`,
+    );
     const deadline = Date.now() + drainTimeout;
-    while ((running.size > 0 || retryQueue.length > 0) && Date.now() < deadline && !shuttingDown) {
+    while (
+      (running.size > 0 || retryQueue.length > 0) &&
+      Date.now() < deadline &&
+      !shuttingDown
+    ) {
       await Bun.sleep(1000);
       // Reap completed agents and collect results, but don't dispatch new tasks
-      await pollCycle(config, adapters, registry, running, retryQueue, completedResults, false, true);
+      await pollCycle(
+        config,
+        adapters,
+        registry,
+        running,
+        retryQueue,
+        completedResults,
+        false,
+        true,
+      );
     }
   }
 
@@ -202,7 +261,12 @@ async function pollCycle(
   adapters: Map<string, RuntimeAdapter>,
   registry: RegistryTemplate[],
   running: Map<string, RunningAgentEntry>,
-  retryQueue: Array<{ task: Task; attempt: number; retryAfter: number; template: RegistryTemplate | null }>,
+  retryQueue: Array<{
+    task: Task;
+    attempt: number;
+    retryAfter: number;
+    template: RegistryTemplate | null;
+  }>,
   completedResults: Map<string, AgentResult[]>,
   dryRun: boolean,
   reapOnly: boolean = false,
@@ -215,7 +279,9 @@ async function pollCycle(
     if (status.state === "running" && config.agent_timeout_ms > 0) {
       const elapsed = Date.now() - entry.handle.startedAt;
       if (elapsed > config.agent_timeout_ms) {
-        console.log(`  ${runKey}: timed out after ${Math.round(elapsed / 1000)}s, killing`);
+        console.log(
+          `  ${runKey}: timed out after ${Math.round(elapsed / 1000)}s, killing`,
+        );
         entry.adapter.kill(entry.handle);
         // Will be reaped as exited (non-zero) on next poll cycle
         continue;
@@ -236,14 +302,23 @@ async function pollCycle(
     const validation = validateResult(wsPath, exitCode);
     const effectiveSuccess = validation.status === "success";
 
-    console.log(`  ${runKey}: ${effectiveSuccess ? "completed" : validation.status} (${duration}s, exit ${exitCode}, adapter: ${entry.adapter.name()}${validation.reason ? `, ${validation.reason}` : ""})`);
+    console.log(
+      `  ${runKey}: ${effectiveSuccess ? "completed" : validation.status} (${duration}s, exit ${exitCode}, adapter: ${entry.adapter.name()}${validation.reason ? `, ${validation.reason}` : ""})`,
+    );
 
     // Collect result
-    const result = collectResult(wsPath, baseTaskId, entry.adapter.name(), exitCode, duration, entry.template?.persona);
+    const result = collectResult(
+      wsPath,
+      baseTaskId,
+      entry.adapter.name(),
+      exitCode,
+      duration,
+      entry.template?.persona,
+    );
 
     // Store for synthesis (Mode 2 tasks may have multiple results)
     if (!completedResults.has(baseTaskId)) completedResults.set(baseTaskId, []);
-    completedResults.get(baseTaskId)!.push(result);
+    completedResults.get(baseTaskId)?.push(result);
 
     // Analytics
     appendJSONL(".apex/analytics/orchestrator.jsonl", {
@@ -259,10 +334,16 @@ async function pollCycle(
     });
 
     // Retry logic for failures (only for Mode 1 single-adapter tasks)
-    if (!effectiveSuccess && !isCrossModel && shouldRetry(entry.handle.attempt, config.max_retries, exitCode)) {
+    if (
+      !effectiveSuccess &&
+      !isCrossModel &&
+      shouldRetry(entry.handle.attempt, config.max_retries, exitCode)
+    ) {
       const nextAttempt = entry.handle.attempt + 1;
       const delay = backoffMs(nextAttempt, config.retry_backoff_base_ms);
-      console.log(`  ${runKey}: scheduling retry ${nextAttempt}/${config.max_retries} in ${Math.round(delay / 1000)}s`);
+      console.log(
+        `  ${runKey}: scheduling retry ${nextAttempt}/${config.max_retries} in ${Math.round(delay / 1000)}s`,
+      );
       retryQueue.push({
         task: entry.task,
         attempt: nextAttempt,
@@ -275,7 +356,10 @@ async function pollCycle(
     // Mode 2 tasks are transitioned after all cross-model agents complete (in synthesis step)
     if (effectiveSuccess && !isCrossModel) {
       try {
-        await taskSubmit(baseTaskId, `Agent completed (adapter: ${entry.adapter.name()}, ${duration}s)`);
+        await taskSubmit(
+          baseTaskId,
+          `Agent completed (adapter: ${entry.adapter.name()}, ${duration}s)`,
+        );
         await taskVerify(baseTaskId, true);
         console.log(`  ${baseTaskId}: → done`);
         // Clean up workspace (worktree + branch) after successful completion
@@ -289,157 +373,190 @@ async function pollCycle(
   }
 
   if (!reapOnly) {
-  // 2. Process retry queue
-  const now = Date.now();
-  const readyRetries = retryQueue.filter(r => r.retryAfter <= now);
-  for (const retry of readyRetries) {
-    const idx = retryQueue.indexOf(retry);
-    retryQueue.splice(idx, 1);
+    // 2. Process retry queue
+    const now = Date.now();
+    const readyRetries = retryQueue.filter((r) => r.retryAfter <= now);
+    for (const retry of readyRetries) {
+      const idx = retryQueue.indexOf(retry);
+      retryQueue.splice(idx, 1);
 
-    if (running.size >= config.max_concurrent_agents) break;
+      if (running.size >= config.max_concurrent_agents) break;
 
-    const adapter = resolveAdapterForTemplate(adapters, config, retry.template);
-    const prompt = buildAgentPrompt(retry.task, retry.template, {
-      attempt: retry.attempt,
-      previousAttemptNotes: `Previous attempt failed (attempt ${retry.attempt - 1}).`,
-    });
-
-    const handle = await adapter.spawn(
-      { id: retry.task.id, title: retry.task.title, description: retry.task.description },
-      prompt,
-      { command: adapter.name(), args: [], cwd: retry.task.workspace_path },
-    );
-    handle.attempt = retry.attempt;
-
-    running.set(retry.task.id, { handle, task: retry.task, template: retry.template, adapter });
-    console.log(`  Retried ${retry.task.id} (attempt ${retry.attempt})`);
-  }
-
-  // 3. Find dispatchable tasks
-  const availableSlots = config.max_concurrent_agents - running.size;
-  if (availableSlots > 0) {
-
-  const allTasks = await taskList();
-  const openTasks = allTasks.filter(t => t.status === "open");
-
-  const dispatchable = openTasks.filter(t => {
-    if (running.has(t.id)) return false;
-    if (retryQueue.some(r => r.task.id === t.id)) return false;
-    if (t.depends_on.length === 0) return true;
-    return t.depends_on.every(depId => {
-      const dep = allTasks.find(d => d.id === depId);
-      return dep && dep.status === "done";
-    });
-  });
-
-  // 4. Dispatch
-  const toDispatch = dispatchable.slice(0, availableSlots);
-
-  for (const task of toDispatch) {
-    if (dryRun) {
-      console.log(`  [dry-run] Would dispatch ${task.id}: ${task.title}`);
-      continue;
-    }
-
-    await taskAssign(task.id);
-    await taskStart(task.id);
-
-    const template = matchTemplate(task, registry);
-    if (template) {
-      console.log(`    Template: ${template.name} (${template.model_hint}${template.dispatch_mode === "cross-model" ? ", cross-model" : ""})`);
-    }
-
-    // Prepare upstream artifacts
-    const upstreamArtifacts = task.depends_on
-      .map(depId => ({
-        taskId: depId,
-        resultPath: `.workspaces/APEX-${depId}/output/result.json`,
-      }))
-      .filter(a => existsSync(a.resultPath));
-
-    const dagArtifacts = upstreamArtifacts.map(a => {
-      try {
-        const r = JSON.parse(readFileSync(a.resultPath, "utf-8"));
-        return { taskId: a.taskId, summary: r.summary || r.verdict || "completed" };
-      } catch {
-        return { taskId: a.taskId, summary: "completed" };
-      }
-    });
-
-    // Mode 2: Cross-model dispatch — fan out to multiple adapters
-    if (template?.dispatch_mode === "cross-model" && adapters.size > 1) {
-      const crossModelAdapters = Array.from(adapters.values());
-      console.log(`    Cross-model: dispatching to ${crossModelAdapters.map(a => a.name()).join(", ")}`);
-
-      for (const adapter of crossModelAdapters) {
-        const compositeKey = `${task.id}:${adapter.name()}`;
-        if (running.has(compositeKey)) continue;
-
-        const ws = await createWorkspace(`${task.id}-${adapter.name()}`);
-        writePermissionConfig(ws.path);
-        if (upstreamArtifacts.length > 0) {
-          await injectArtifacts(ws.path, upstreamArtifacts);
-        }
-
-        const prompt = buildAgentPrompt(task, template, {
-          workspacePath: ws.path,
-          attempt: 1,
-          dagArtifacts: dagArtifacts.length > 0 ? dagArtifacts : undefined,
-        });
-
-        const handle = await adapter.spawn(
-          { id: task.id, title: task.title, description: task.description },
-          prompt,
-          { command: adapter.name(), args: [], cwd: ws.path },
-        );
-
-        running.set(compositeKey, {
-          handle,
-          task: { ...task, workspace_path: ws.path, adapter: adapter.name() },
-          template,
-          adapter,
-        });
-        console.log(`    Dispatched ${compositeKey} (cross-model)`);
-      }
-    } else {
-      // Mode 1: Single adapter dispatch
-      const ws = await createWorkspace(task.id);
-      writePermissionConfig(ws.path);
-      if (upstreamArtifacts.length > 0) {
-        await injectArtifacts(ws.path, upstreamArtifacts);
-      }
-
-      const adapter = resolveAdapterForTemplate(adapters, config, template);
-      const prompt = buildAgentPrompt(task, template, {
-        workspacePath: ws.path,
-        attempt: 1,
-        dagArtifacts: dagArtifacts.length > 0 ? dagArtifacts : undefined,
+      const adapter = resolveAdapterForTemplate(
+        adapters,
+        config,
+        retry.template,
+      );
+      const prompt = buildAgentPrompt(retry.task, retry.template, {
+        attempt: retry.attempt,
+        previousAttemptNotes: `Previous attempt failed (attempt ${retry.attempt - 1}).`,
       });
 
       const handle = await adapter.spawn(
-        { id: task.id, title: task.title, description: task.description },
+        {
+          id: retry.task.id,
+          title: retry.task.title,
+          description: retry.task.description,
+        },
         prompt,
-        { command: adapter.name(), args: [], cwd: ws.path },
+        { command: adapter.name(), args: [], cwd: retry.task.workspace_path },
       );
+      handle.attempt = retry.attempt;
 
-      running.set(task.id, { handle, task: { ...task, workspace_path: ws.path }, template, adapter });
-      console.log(`  Dispatched ${task.id}: ${task.title} (adapter: ${adapter.name()})`);
+      running.set(retry.task.id, {
+        handle,
+        task: retry.task,
+        template: retry.template,
+        adapter,
+      });
+      console.log(`  Retried ${retry.task.id} (attempt ${retry.attempt})`);
     }
-  }
 
-  } // end if (availableSlots > 0)
+    // 3. Find dispatchable tasks
+    const availableSlots = config.max_concurrent_agents - running.size;
+    if (availableSlots > 0) {
+      const allTasks = await taskList();
+      const openTasks = allTasks.filter((t) => t.status === "open");
+
+      const dispatchable = openTasks.filter((t) => {
+        if (running.has(t.id)) return false;
+        if (retryQueue.some((r) => r.task.id === t.id)) return false;
+        if (t.depends_on.length === 0) return true;
+        return t.depends_on.every((depId) => {
+          const dep = allTasks.find((d) => d.id === depId);
+          return dep && dep.status === "done";
+        });
+      });
+
+      // 4. Dispatch
+      const toDispatch = dispatchable.slice(0, availableSlots);
+
+      for (const task of toDispatch) {
+        if (dryRun) {
+          console.log(`  [dry-run] Would dispatch ${task.id}: ${task.title}`);
+          continue;
+        }
+
+        await taskAssign(task.id);
+        await taskStart(task.id);
+
+        const template = matchTemplate(task, registry);
+        if (template) {
+          console.log(
+            `    Template: ${template.name} (${template.model_hint}${template.dispatch_mode === "cross-model" ? ", cross-model" : ""})`,
+          );
+        }
+
+        // Prepare upstream artifacts
+        const upstreamArtifacts = task.depends_on
+          .map((depId) => ({
+            taskId: depId,
+            resultPath: `.workspaces/APEX-${depId}/output/result.json`,
+          }))
+          .filter((a) => existsSync(a.resultPath));
+
+        const dagArtifacts = upstreamArtifacts.map((a) => {
+          try {
+            const r = JSON.parse(readFileSync(a.resultPath, "utf-8"));
+            return {
+              taskId: a.taskId,
+              summary: r.summary || r.verdict || "completed",
+            };
+          } catch {
+            return { taskId: a.taskId, summary: "completed" };
+          }
+        });
+
+        // Mode 2: Cross-model dispatch — fan out to multiple adapters
+        if (template?.dispatch_mode === "cross-model" && adapters.size > 1) {
+          const crossModelAdapters = Array.from(adapters.values());
+          console.log(
+            `    Cross-model: dispatching to ${crossModelAdapters.map((a) => a.name()).join(", ")}`,
+          );
+
+          for (const adapter of crossModelAdapters) {
+            const compositeKey = `${task.id}:${adapter.name()}`;
+            if (running.has(compositeKey)) continue;
+
+            const ws = await createWorkspace(`${task.id}-${adapter.name()}`);
+            writePermissionConfig(ws.path);
+            if (upstreamArtifacts.length > 0) {
+              await injectArtifacts(ws.path, upstreamArtifacts);
+            }
+
+            const prompt = buildAgentPrompt(task, template, {
+              workspacePath: ws.path,
+              attempt: 1,
+              dagArtifacts: dagArtifacts.length > 0 ? dagArtifacts : undefined,
+            });
+
+            const handle = await adapter.spawn(
+              { id: task.id, title: task.title, description: task.description },
+              prompt,
+              { command: adapter.name(), args: [], cwd: ws.path },
+            );
+
+            running.set(compositeKey, {
+              handle,
+              task: {
+                ...task,
+                workspace_path: ws.path,
+                adapter: adapter.name(),
+              },
+              template,
+              adapter,
+            });
+            console.log(`    Dispatched ${compositeKey} (cross-model)`);
+          }
+        } else {
+          // Mode 1: Single adapter dispatch
+          const ws = await createWorkspace(task.id);
+          writePermissionConfig(ws.path);
+          if (upstreamArtifacts.length > 0) {
+            await injectArtifacts(ws.path, upstreamArtifacts);
+          }
+
+          const adapter = resolveAdapterForTemplate(adapters, config, template);
+          const prompt = buildAgentPrompt(task, template, {
+            workspacePath: ws.path,
+            attempt: 1,
+            dagArtifacts: dagArtifacts.length > 0 ? dagArtifacts : undefined,
+          });
+
+          const handle = await adapter.spawn(
+            { id: task.id, title: task.title, description: task.description },
+            prompt,
+            { command: adapter.name(), args: [], cwd: ws.path },
+          );
+
+          running.set(task.id, {
+            handle,
+            task: { ...task, workspace_path: ws.path },
+            template,
+            adapter,
+          });
+          console.log(
+            `  Dispatched ${task.id}: ${task.title} (adapter: ${adapter.name()})`,
+          );
+        }
+      }
+    } // end if (availableSlots > 0)
   } // end if (!reapOnly)
 
   // 5. Check for completed cross-model tasks — synthesize when all agents done
   for (const [taskId, results] of completedResults) {
     // Count how many cross-model agents are still running for this task
-    const stillRunning = Array.from(running.keys()).filter(k => k.startsWith(`${taskId}:`));
+    const stillRunning = Array.from(running.keys()).filter((k) =>
+      k.startsWith(`${taskId}:`),
+    );
     if (stillRunning.length > 0) continue;
     if (results.length <= 1) continue; // Not a cross-model task
 
     const synthesis = synthesizeFindings(results);
     console.log(`  ${taskId}: cross-model synthesis — ${synthesis.summary}`);
-    console.log(`    Verdict: ${synthesis.verdict} (${synthesis.blockers.length} blockers, ${synthesis.concerns.length} concerns, ${synthesis.notes.length} notes)`);
+    console.log(
+      `    Verdict: ${synthesis.verdict} (${synthesis.blockers.length} blockers, ${synthesis.concerns.length} concerns, ${synthesis.notes.length} notes)`,
+    );
 
     appendJSONL(".apex/analytics/orchestrator.jsonl", {
       task_id: taskId,
@@ -456,11 +573,15 @@ async function pollCycle(
     try {
       await taskSubmit(taskId, `Cross-model synthesis: ${synthesis.summary}`);
       await taskVerify(taskId, synthesis.verdict !== "fail");
-      console.log(`  ${taskId}: → ${synthesis.verdict === "fail" ? "needs attention" : "done"}`);
+      console.log(
+        `  ${taskId}: → ${synthesis.verdict === "fail" ? "needs attention" : "done"}`,
+      );
       // Clean up all cross-model workspaces for this task
       for (const agent of synthesis.agents) {
         const adapterName = agent.split("(")[0]; // strip persona suffix
-        await cleanupWorkspace(`.workspaces/APEX-${taskId}-${adapterName}`).catch(() => {});
+        await cleanupWorkspace(
+          `.workspaces/APEX-${taskId}-${adapterName}`,
+        ).catch(() => {});
       }
     } catch (e: any) {
       console.log(`  ${taskId}: state transition warning: ${e.message}`);
@@ -474,7 +595,7 @@ async function pollCycle(
   // Check if all tasks are done (auto-exit signal)
   if (running.size === 0 && retryQueue.length === 0) {
     const allTasks = await taskList();
-    const remaining = allTasks.filter(t => t.status !== "done");
+    const remaining = allTasks.filter((t) => t.status !== "done");
     if (remaining.length === 0 && allTasks.length > 0) {
       console.log("All tasks complete.");
       return true;
@@ -484,8 +605,13 @@ async function pollCycle(
 }
 
 let _lastStatusLine = "";
-function printStatus(running: Map<string, RunningAgentEntry>, config: ApexConfig) {
-  const adaptersUsed = new Set(Array.from(running.values()).map(e => e.adapter.name()));
+function printStatus(
+  running: Map<string, RunningAgentEntry>,
+  config: ApexConfig,
+) {
+  const adaptersUsed = new Set(
+    Array.from(running.values()).map((e) => e.adapter.name()),
+  );
   const statusParts = [
     `running: ${running.size}/${config.max_concurrent_agents}`,
     `adapters: ${adaptersUsed.size > 0 ? Array.from(adaptersUsed).join("+") : "none"}`,

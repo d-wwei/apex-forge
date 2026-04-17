@@ -44,7 +44,30 @@ The delivery gate. Tests pass, diff reviewed, version bumped, changelog updated,
 
 Update `VERSION` file or `package.json` version field if they exist.
 
-**Step 2: Changelog Update** — Append entry to `CHANGELOG.md` (create if needed): version, date, summary, artifact links.
+**Step 2: Changelog Update** — Append entry to `CHANGELOG.md` (create if needed) using **hybrid format**:
+
+```markdown
+## [X.Y.Z] - YYYY-MM-DD
+
+### {Title} — {one-line summary}
+
+**背景**: {2-3 sentences: what problem existed, what motivated this change}
+**策略**: {1-2 sentences: high-level approach taken}
+
+### Added
+- {new features, capabilities, commands}
+
+### Changed
+- {modifications to existing behavior}
+
+### Fixed
+- {bug fixes}
+
+### Removed
+- {removed features or deprecated items}
+```
+
+Rules: narrative block limited to 5 lines max. Omit empty categories (e.g., skip "Removed" if nothing was removed). Old CHANGELOG entries keep their original format — do not retroactively reformat.
 **Step 3: README & Repository Presentation** → `details/ship-sequence.md` (Path A: new repo — naming + README + metadata; Path B: existing repo — update options).
 **Step 4: Stage All Changes** — Source, tests, version/changelog, README, docs artifacts.
 **Step 5: Commit**

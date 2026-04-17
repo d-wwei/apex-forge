@@ -1,5 +1,11 @@
-import { describe, test, expect } from "bun:test";
-import type { RuntimeAdapter, AgentHandle, AdapterStatus, AdapterConfig, TaskDispatchInfo } from "../adapters/runtime.js";
+import { describe, expect, test } from "bun:test";
+import type {
+  AdapterConfig,
+  AdapterStatus,
+  AgentHandle,
+  RuntimeAdapter,
+  TaskDispatchInfo,
+} from "../adapters/runtime.js";
 
 describe("RuntimeAdapter interface", () => {
   test("AdapterStatus has required state variants", () => {
@@ -60,7 +66,11 @@ describe("RuntimeAdapter interface", () => {
     const mockAdapter: RuntimeAdapter = {
       name: () => "mock",
       available: () => true,
-      spawn: async (_task: TaskDispatchInfo, _prompt: string, _config: AdapterConfig) => ({
+      spawn: async (
+        _task: TaskDispatchInfo,
+        _prompt: string,
+        _config: AdapterConfig,
+      ) => ({
         id: "mock-001",
         taskId: "T1",
         adapter: "mock",
@@ -68,10 +78,17 @@ describe("RuntimeAdapter interface", () => {
         attempt: 1,
         logPath: "/dev/null",
       }),
-      monitor: (_handle: AgentHandle) => ({ state: "exited" as const, exitCode: 0 }),
+      monitor: (_handle: AgentHandle) => ({
+        state: "exited" as const,
+        exitCode: 0,
+      }),
       output: (_handle: AgentHandle) => "mock output",
       kill: (_handle: AgentHandle) => {},
-      resume: async (_sessionId: string, _prompt: string, _config: AdapterConfig) => ({
+      resume: async (
+        _sessionId: string,
+        _prompt: string,
+        _config: AdapterConfig,
+      ) => ({
         id: "mock-002",
         taskId: "T1",
         adapter: "mock",
@@ -89,7 +106,11 @@ describe("RuntimeAdapter interface", () => {
     const mockAdapter: RuntimeAdapter = {
       name: () => "test",
       available: () => true,
-      spawn: async (task: TaskDispatchInfo, _prompt: string, _config: AdapterConfig) => ({
+      spawn: async (
+        task: TaskDispatchInfo,
+        _prompt: string,
+        _config: AdapterConfig,
+      ) => ({
         id: `agent-${task.id}`,
         taskId: task.id,
         adapter: "test",
@@ -100,7 +121,11 @@ describe("RuntimeAdapter interface", () => {
       monitor: (_h: AgentHandle) => ({ state: "running" as const }),
       output: (_h: AgentHandle) => null,
       kill: (_h: AgentHandle) => {},
-      resume: async (sessionId: string, _prompt: string, _config: AdapterConfig) => ({
+      resume: async (
+        sessionId: string,
+        _prompt: string,
+        _config: AdapterConfig,
+      ) => ({
         id: `agent-resume-${sessionId}`,
         taskId: "T1",
         adapter: "test",
@@ -114,7 +139,7 @@ describe("RuntimeAdapter interface", () => {
     const handle = await mockAdapter.spawn(
       { id: "T5", title: "Test task", description: "A test" },
       "Do the thing",
-      { command: "test", args: [] }
+      { command: "test", args: [] },
     );
 
     expect(handle.taskId).toBe("T5");
@@ -126,11 +151,22 @@ describe("RuntimeAdapter interface", () => {
     const mockAdapter: RuntimeAdapter = {
       name: () => "test",
       available: () => true,
-      spawn: async (_t: TaskDispatchInfo, _p: string, _c: AdapterConfig) => ({ id: "x", taskId: "T1", adapter: "test", startedAt: 0, attempt: 1, logPath: "" }),
+      spawn: async (_t: TaskDispatchInfo, _p: string, _c: AdapterConfig) => ({
+        id: "x",
+        taskId: "T1",
+        adapter: "test",
+        startedAt: 0,
+        attempt: 1,
+        logPath: "",
+      }),
       monitor: (_h: AgentHandle) => ({ state: "running" as const }),
       output: (_h: AgentHandle) => null,
       kill: (_h: AgentHandle) => {},
-      resume: async (sessionId: string, _prompt: string, _config: AdapterConfig) => ({
+      resume: async (
+        sessionId: string,
+        _prompt: string,
+        _config: AdapterConfig,
+      ) => ({
         id: `resumed-${sessionId}`,
         taskId: "T1",
         adapter: "test",
@@ -141,7 +177,10 @@ describe("RuntimeAdapter interface", () => {
       }),
     };
 
-    const handle = await mockAdapter.resume("sess-abc", "Continue work", { command: "test", args: [] });
+    const handle = await mockAdapter.resume("sess-abc", "Continue work", {
+      command: "test",
+      args: [],
+    });
     expect(handle.attempt).toBe(3);
     expect(handle.sessionId).toBe("sess-abc");
   });

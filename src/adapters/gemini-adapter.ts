@@ -1,7 +1,18 @@
-import { spawn, spawnSync } from "child_process";
-import { mkdirSync, appendFileSync, readFileSync, writeFileSync } from "fs";
-import { join } from "path";
-import type { RuntimeAdapter, AgentHandle, AdapterStatus, AdapterConfig, TaskDispatchInfo } from "./runtime.js";
+import { spawn, spawnSync } from "node:child_process";
+import {
+  appendFileSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
+import { join } from "node:path";
+import type {
+  AdapterConfig,
+  AdapterStatus,
+  AgentHandle,
+  RuntimeAdapter,
+  TaskDispatchInfo,
+} from "./runtime.js";
 
 let handleCounter = 0;
 
@@ -20,14 +31,21 @@ export class GeminiAdapter implements RuntimeAdapter {
 
   available(): boolean {
     try {
-      const result = spawnSync("gemini", ["--version"], { encoding: "utf-8", timeout: 5000 });
+      const result = spawnSync("gemini", ["--version"], {
+        encoding: "utf-8",
+        timeout: 5000,
+      });
       return result.status === 0;
     } catch {
       return false;
     }
   }
 
-  async spawn(task: TaskDispatchInfo, prompt: string, config: AdapterConfig): Promise<AgentHandle> {
+  async spawn(
+    task: TaskDispatchInfo,
+    prompt: string,
+    config: AdapterConfig,
+  ): Promise<AgentHandle> {
     const logDir = ".apex/orchestrator-logs";
     mkdirSync(logDir, { recursive: true });
     const logPath = `${logDir}/${task.id}-gemini.log`;
@@ -44,7 +62,10 @@ export class GeminiAdapter implements RuntimeAdapter {
         // Long prompt: use shell to read from file, avoids ARG_MAX
         const extraArgs = (config.args || []).join(" ");
         spawnCmd = "sh";
-        args = ["-c", `${baseCmd} ${extraArgs} --yolo -p "$(cat '${promptFile}')"`.trim()];
+        args = [
+          "-c",
+          `${baseCmd} ${extraArgs} --yolo -p "$(cat '${promptFile}')"`.trim(),
+        ];
       } else {
         spawnCmd = baseCmd;
         args = [...(config.args || []), "--yolo", "-p", prompt];
@@ -96,10 +117,19 @@ export class GeminiAdapter implements RuntimeAdapter {
     }
   }
 
-  async resume(sessionId: string, prompt: string, config: AdapterConfig, taskId?: string): Promise<AgentHandle> {
+  async resume(
+    sessionId: string,
+    prompt: string,
+    config: AdapterConfig,
+    taskId?: string,
+  ): Promise<AgentHandle> {
     // Gemini supports --resume for session continuation
     return this.spawn(
-      { id: taskId || `resume-${sessionId}`, title: "Resume", description: prompt },
+      {
+        id: taskId || `resume-${sessionId}`,
+        title: "Resume",
+        description: prompt,
+      },
       prompt,
       config,
     );

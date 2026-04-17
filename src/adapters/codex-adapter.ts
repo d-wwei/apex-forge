@@ -1,7 +1,18 @@
-import { spawn, spawnSync } from "child_process";
-import { mkdirSync, appendFileSync, readFileSync, writeFileSync } from "fs";
-import { join } from "path";
-import type { RuntimeAdapter, AgentHandle, AdapterStatus, AdapterConfig, TaskDispatchInfo } from "./runtime.js";
+import { spawn, spawnSync } from "node:child_process";
+import {
+  appendFileSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
+import { join } from "node:path";
+import type {
+  AdapterConfig,
+  AdapterStatus,
+  AgentHandle,
+  RuntimeAdapter,
+  TaskDispatchInfo,
+} from "./runtime.js";
 
 let handleCounter = 0;
 
@@ -20,14 +31,21 @@ export class CodexAdapter implements RuntimeAdapter {
 
   available(): boolean {
     try {
-      const result = spawnSync("codex", ["--version"], { encoding: "utf-8", timeout: 5000 });
+      const result = spawnSync("codex", ["--version"], {
+        encoding: "utf-8",
+        timeout: 5000,
+      });
       return result.status === 0;
     } catch {
       return false;
     }
   }
 
-  async spawn(task: TaskDispatchInfo, prompt: string, config: AdapterConfig): Promise<AgentHandle> {
+  async spawn(
+    task: TaskDispatchInfo,
+    prompt: string,
+    config: AdapterConfig,
+  ): Promise<AgentHandle> {
     const logDir = ".apex/orchestrator-logs";
     mkdirSync(logDir, { recursive: true });
     const logPath = `${logDir}/${task.id}-codex.log`;
@@ -96,10 +114,19 @@ export class CodexAdapter implements RuntimeAdapter {
     }
   }
 
-  async resume(sessionId: string, prompt: string, config: AdapterConfig, taskId?: string): Promise<AgentHandle> {
+  async resume(
+    sessionId: string,
+    prompt: string,
+    config: AdapterConfig,
+    taskId?: string,
+  ): Promise<AgentHandle> {
     // Codex supports resume via `codex exec resume --last`; fall back to fresh spawn
     return this.spawn(
-      { id: taskId || `resume-${sessionId}`, title: "Resume", description: prompt },
+      {
+        id: taskId || `resume-${sessionId}`,
+        title: "Resume",
+        description: prompt,
+      },
       prompt,
       config,
     );

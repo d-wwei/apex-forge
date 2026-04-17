@@ -1,16 +1,15 @@
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { spawnSync } from "child_process";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { spawnSync } from "node:child_process";
 import {
-  rmSync,
-  existsSync,
-  mkdirSync,
-  writeFileSync,
   appendFileSync,
-  readFileSync,
+  mkdirSync,
   readdirSync,
-} from "fs";
-import { join } from "path";
-import { tmpdir } from "os";
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const PROJECT_ROOT = process.cwd();
 const APEX = join(PROJECT_ROOT, "dist/apex-forge");
@@ -18,9 +17,11 @@ const APEX = join(PROJECT_ROOT, "dist/apex-forge");
 let testDir: string;
 let originalCwd: string;
 
-function run(
-  ...args: string[]
-): { stdout: string; stderr: string; exitCode: number } {
+function run(...args: string[]): {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+} {
   const result = spawnSync(APEX, args, {
     encoding: "utf-8",
     cwd: process.cwd(),
@@ -38,75 +39,109 @@ function seedCompletePipeline(sessionId: string): void {
   const logDir = join(".apex", "log");
   mkdirSync(logDir, { recursive: true });
 
-  const stages = ["brainstorm", "plan", "execute", "review", "ship", "compound"];
+  const stages = [
+    "brainstorm",
+    "plan",
+    "execute",
+    "review",
+    "ship",
+    "compound",
+  ];
   const events: string[] = [];
   let t = new Date("2026-04-10T10:00:00Z");
 
   // stage.set + stage.completed for each stage
   let prev = "idle";
   for (const stage of stages) {
-    events.push(JSON.stringify({
-      ts: t.toISOString(),
-      session_id: sessionId,
-      domain: "state",
-      type: "stage.set",
-      payload: { stage, previous: prev },
-    }));
+    events.push(
+      JSON.stringify({
+        ts: t.toISOString(),
+        session_id: sessionId,
+        domain: "state",
+        type: "stage.set",
+        payload: { stage, previous: prev },
+      }),
+    );
     t = new Date(t.getTime() + 5 * 60 * 1000); // +5 min
-    events.push(JSON.stringify({
-      ts: t.toISOString(),
-      session_id: sessionId,
-      domain: "state",
-      type: "stage.completed",
-      payload: { stage },
-    }));
+    events.push(
+      JSON.stringify({
+        ts: t.toISOString(),
+        session_id: sessionId,
+        domain: "state",
+        type: "stage.completed",
+        payload: { stage },
+      }),
+    );
     prev = stage;
   }
 
   // ship checkpoint
-  events.push(JSON.stringify({
-    ts: new Date("2026-04-10T10:25:00Z").toISOString(),
-    session_id: sessionId,
-    domain: "state",
-    type: "ship.checkpoint",
-    payload: { name: "iteration-summary" },
-  }));
-  events.push(JSON.stringify({
-    ts: new Date("2026-04-10T10:25:01Z").toISOString(),
-    session_id: sessionId,
-    domain: "state",
-    type: "ship.checkpoint",
-    payload: { name: "push-prompt" },
-  }));
-  events.push(JSON.stringify({
-    ts: new Date("2026-04-10T10:25:02Z").toISOString(),
-    session_id: sessionId,
-    domain: "state",
-    type: "ship.checkpoint",
-    payload: { name: "compound-transition" },
-  }));
+  events.push(
+    JSON.stringify({
+      ts: new Date("2026-04-10T10:25:00Z").toISOString(),
+      session_id: sessionId,
+      domain: "state",
+      type: "ship.checkpoint",
+      payload: { name: "iteration-summary" },
+    }),
+  );
+  events.push(
+    JSON.stringify({
+      ts: new Date("2026-04-10T10:25:01Z").toISOString(),
+      session_id: sessionId,
+      domain: "state",
+      type: "ship.checkpoint",
+      payload: { name: "push-prompt" },
+    }),
+  );
+  events.push(
+    JSON.stringify({
+      ts: new Date("2026-04-10T10:25:02Z").toISOString(),
+      session_id: sessionId,
+      domain: "state",
+      type: "ship.checkpoint",
+      payload: { name: "compound-transition" },
+    }),
+  );
 
   // skill invocation
-  events.push(JSON.stringify({
-    ts: new Date("2026-04-10T10:20:00Z").toISOString(),
-    session_id: sessionId,
-    domain: "state",
-    type: "skill.invoked",
-    payload: { stage: "review", skill: "thorough-code-review", version: "1.0", output_status: "done", af_mapping: "review" },
-  }));
+  events.push(
+    JSON.stringify({
+      ts: new Date("2026-04-10T10:20:00Z").toISOString(),
+      session_id: sessionId,
+      domain: "state",
+      type: "skill.invoked",
+      payload: {
+        stage: "review",
+        skill: "thorough-code-review",
+        version: "1.0",
+        output_status: "done",
+        af_mapping: "review",
+      },
+    }),
+  );
 
-  appendFileSync(join(logDir, "state.jsonl"), events.join("\n") + "\n");
+  appendFileSync(join(logDir, "state.jsonl"), `${events.join("\n")}\n`);
 
   // Write minimal state.json for init
-  writeFileSync(join(".apex", "state.json"), JSON.stringify({
-    current_stage: "idle",
-    last_updated: "2026-04-10T10:30:00Z",
-    session_id: sessionId,
-    artifacts: {},
-    history: [],
-  }));
-  writeFileSync(join(".apex", "tasks.json"), JSON.stringify({ tasks: [], next_id: 1 }));
-  writeFileSync(join(".apex", "memory.json"), JSON.stringify({ facts: [], next_id: 1 }));
+  writeFileSync(
+    join(".apex", "state.json"),
+    JSON.stringify({
+      current_stage: "idle",
+      last_updated: "2026-04-10T10:30:00Z",
+      session_id: sessionId,
+      artifacts: {},
+      history: [],
+    }),
+  );
+  writeFileSync(
+    join(".apex", "tasks.json"),
+    JSON.stringify({ tasks: [], next_id: 1 }),
+  );
+  writeFileSync(
+    join(".apex", "memory.json"),
+    JSON.stringify({ facts: [], next_id: 1 }),
+  );
 }
 
 /** Seed a pipeline where brainstorm was completed via transition (not gate) */
@@ -118,69 +153,96 @@ function seedBrokenPipeline(sessionId: string): void {
   let t = new Date("2026-04-10T10:00:00Z");
 
   // brainstorm: only stage.set, NO stage.completed (closed by transition)
-  events.push(JSON.stringify({
-    ts: t.toISOString(),
-    session_id: sessionId,
-    domain: "state",
-    type: "stage.set",
-    payload: { stage: "brainstorm", previous: "idle" },
-  }));
-  t = new Date(t.getTime() + 30 * 1000); // only 30 seconds
-
-  // Jump straight to plan (brainstorm auto-closed by transition)
-  events.push(JSON.stringify({
-    ts: t.toISOString(),
-    session_id: sessionId,
-    domain: "state",
-    type: "stage.set",
-    payload: { stage: "plan", previous: "brainstorm" },
-  }));
-  t = new Date(t.getTime() + 5 * 60 * 1000);
-  events.push(JSON.stringify({
-    ts: t.toISOString(),
-    session_id: sessionId,
-    domain: "state",
-    type: "stage.completed",
-    payload: { stage: "plan" },
-  }));
-
-  // execute, review, ship with gate completions
-  for (const stage of ["execute", "review", "ship"]) {
-    events.push(JSON.stringify({
+  events.push(
+    JSON.stringify({
       ts: t.toISOString(),
       session_id: sessionId,
       domain: "state",
       type: "stage.set",
-      payload: { stage, previous: stage === "execute" ? "plan" : stage === "review" ? "execute" : "review" },
-    }));
-    t = new Date(t.getTime() + 5 * 60 * 1000);
-    events.push(JSON.stringify({
+      payload: { stage: "brainstorm", previous: "idle" },
+    }),
+  );
+  t = new Date(t.getTime() + 30 * 1000); // only 30 seconds
+
+  // Jump straight to plan (brainstorm auto-closed by transition)
+  events.push(
+    JSON.stringify({
+      ts: t.toISOString(),
+      session_id: sessionId,
+      domain: "state",
+      type: "stage.set",
+      payload: { stage: "plan", previous: "brainstorm" },
+    }),
+  );
+  t = new Date(t.getTime() + 5 * 60 * 1000);
+  events.push(
+    JSON.stringify({
       ts: t.toISOString(),
       session_id: sessionId,
       domain: "state",
       type: "stage.completed",
-      payload: { stage },
-    }));
+      payload: { stage: "plan" },
+    }),
+  );
+
+  // execute, review, ship with gate completions
+  for (const stage of ["execute", "review", "ship"]) {
+    events.push(
+      JSON.stringify({
+        ts: t.toISOString(),
+        session_id: sessionId,
+        domain: "state",
+        type: "stage.set",
+        payload: {
+          stage,
+          previous:
+            stage === "execute"
+              ? "plan"
+              : stage === "review"
+                ? "execute"
+                : "review",
+        },
+      }),
+    );
+    t = new Date(t.getTime() + 5 * 60 * 1000);
+    events.push(
+      JSON.stringify({
+        ts: t.toISOString(),
+        session_id: sessionId,
+        domain: "state",
+        type: "stage.completed",
+        payload: { stage },
+      }),
+    );
   }
 
-  appendFileSync(join(logDir, "state.jsonl"), events.join("\n") + "\n");
+  appendFileSync(join(logDir, "state.jsonl"), `${events.join("\n")}\n`);
 
-  writeFileSync(join(".apex", "state.json"), JSON.stringify({
-    current_stage: "idle",
-    last_updated: t.toISOString(),
-    session_id: sessionId,
-    artifacts: {},
-    history: [],
-  }));
-  writeFileSync(join(".apex", "tasks.json"), JSON.stringify({ tasks: [], next_id: 1 }));
-  writeFileSync(join(".apex", "memory.json"), JSON.stringify({ facts: [], next_id: 1 }));
+  writeFileSync(
+    join(".apex", "state.json"),
+    JSON.stringify({
+      current_stage: "idle",
+      last_updated: t.toISOString(),
+      session_id: sessionId,
+      artifacts: {},
+      history: [],
+    }),
+  );
+  writeFileSync(
+    join(".apex", "tasks.json"),
+    JSON.stringify({ tasks: [], next_id: 1 }),
+  );
+  writeFileSync(
+    join(".apex", "memory.json"),
+    JSON.stringify({ facts: [], next_id: 1 }),
+  );
 }
 
 beforeEach(() => {
   originalCwd = process.cwd();
   testDir = join(
     tmpdir(),
-    `apex-test-audit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    `apex-test-audit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   );
   mkdirSync(testDir, { recursive: true });
   process.chdir(testDir);
@@ -206,13 +268,13 @@ describe("apex audit", () => {
     const logDir = join(".apex", "log");
     appendFileSync(
       join(logDir, "state.jsonl"),
-      JSON.stringify({
+      `${JSON.stringify({
         ts: "2026-04-11T10:00:00Z",
         session_id: "other-session",
         domain: "state",
         type: "stage.set",
         payload: { stage: "brainstorm", previous: "idle" },
-      }) + "\n"
+      })}\n`,
     );
     const r = run("audit", "--session", "target-session", "--no-test");
     expect(r.exitCode).toBe(0);
@@ -236,7 +298,7 @@ describe("apex audit", () => {
     expect(r.exitCode).toBe(0);
     const json = JSON.parse(r.stdout);
     const gateCheck = json.checks.find(
-      (c: any) => c.id.includes("L1") && c.detail?.includes("transition")
+      (c: any) => c.id.includes("L1") && c.detail?.includes("transition"),
     );
     expect(gateCheck).toBeDefined();
     expect(gateCheck.verdict).toBe("WARN");
@@ -248,7 +310,7 @@ describe("apex audit", () => {
     expect(r.exitCode).toBe(0);
     const json = JSON.parse(r.stdout);
     const stageCheck = json.checks.find(
-      (c: any) => c.id === "L1-stages" && c.verdict !== "PASS"
+      (c: any) => c.id === "L1-stages" && c.verdict !== "PASS",
     );
     // broken pipeline is missing compound
     expect(stageCheck).toBeDefined();

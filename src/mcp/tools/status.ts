@@ -6,9 +6,9 @@
  */
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { memoryList } from "../../state/memory.js";
 import { loadState } from "../../state/stage.js";
 import { taskList } from "../../state/tasks.js";
-import { memoryList } from "../../state/memory.js";
 import type { TaskStatus } from "../../types/task.js";
 
 const VERSION = "0.1.0";
@@ -19,7 +19,10 @@ function ok(text: string) {
 
 function err(error: unknown) {
   const msg = error instanceof Error ? error.message : String(error);
-  return { content: [{ type: "text" as const, text: `Error: ${msg}` }], isError: true as const };
+  return {
+    content: [{ type: "text" as const, text: `Error: ${msg}` }],
+    isError: true as const,
+  };
 }
 
 export function registerStatusTools(server: McpServer) {
@@ -48,9 +51,7 @@ export function registerStatusTools(server: McpServer) {
 
         // Highest confidence
         const highestConf =
-          facts.length > 0
-            ? Math.max(...facts.map((f) => f.confidence))
-            : 0;
+          facts.length > 0 ? Math.max(...facts.map((f) => f.confidence)) : 0;
 
         // Next available task
         const doneIds = new Set(

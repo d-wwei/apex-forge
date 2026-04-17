@@ -1,9 +1,8 @@
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { spawnSync } from "child_process";
-import { rmSync, mkdirSync, writeFileSync } from "fs";
-import { join } from "path";
-import { tmpdir } from "os";
-import { execSync } from "child_process";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { execSync, spawnSync } from "node:child_process";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const PROJECT_ROOT = process.cwd();
 const APEX = join(PROJECT_ROOT, "dist/apex-forge");
@@ -12,9 +11,11 @@ const GATE_HOOK = join(PROJECT_ROOT, "skill/hooks/apex-forge-gate.sh");
 let testDir: string;
 let originalCwd: string;
 
-function run(
-  ...args: string[]
-): { stdout: string; stderr: string; exitCode: number } {
+function run(...args: string[]): {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+} {
   const result = spawnSync(APEX, args, {
     encoding: "utf-8",
     cwd: process.cwd(),
@@ -37,7 +38,9 @@ function runHook(input: object): { stdout: string; exitCode: number } {
   return { stdout: result.stdout || "", exitCode: result.status ?? 1 };
 }
 
-function parseDecision(stdout: string): { decision: string; reason: string } | null {
+function parseDecision(
+  stdout: string,
+): { decision: string; reason: string } | null {
   try {
     const d = JSON.parse(stdout);
     return {
@@ -50,10 +53,13 @@ function parseDecision(stdout: string): { decision: string; reason: string } | n
 }
 
 function initGitRepo(): void {
-  execSync("git init && git config user.email test@test.com && git config user.name Test", {
-    cwd: process.cwd(),
-    stdio: "pipe",
-  });
+  execSync(
+    "git init && git config user.email test@test.com && git config user.name Test",
+    {
+      cwd: process.cwd(),
+      stdio: "pipe",
+    },
+  );
   writeFileSync("README.md", "# Test\n");
   execSync("git add . && git commit -m 'init'", {
     cwd: process.cwd(),
@@ -69,7 +75,10 @@ function writeArtifact(path: string, content: string): void {
 
 beforeEach(() => {
   originalCwd = process.cwd();
-  testDir = join(tmpdir(), `apex-skip-gate-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+  testDir = join(
+    tmpdir(),
+    `apex-skip-gate-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  );
   mkdirSync(testDir, { recursive: true });
   process.chdir(testDir);
   run("init");
@@ -86,8 +95,10 @@ afterEach(() => {
 describe("PreToolUse hook: --skip-gate denial", () => {
   test("deny apex stage complete with --skip-gate", () => {
     mkdirSync(join(testDir, ".apex"), { recursive: true });
-    writeFileSync(join(testDir, ".apex/state.test.json"),
-      JSON.stringify({ current_stage: "brainstorm" }));
+    writeFileSync(
+      join(testDir, ".apex/state.test.json"),
+      JSON.stringify({ current_stage: "brainstorm" }),
+    );
 
     const r = runHook({
       tool_name: "Bash",
@@ -96,14 +107,16 @@ describe("PreToolUse hook: --skip-gate denial", () => {
     });
     const d = parseDecision(r.stdout);
     expect(d).not.toBeNull();
-    expect(d!.decision).toBe("deny");
-    expect(d!.reason).toContain("skip-gate");
+    expect(d?.decision).toBe("deny");
+    expect(d?.reason).toContain("skip-gate");
   });
 
   test("allow apex stage complete without --skip-gate", () => {
     mkdirSync(join(testDir, ".apex"), { recursive: true });
-    writeFileSync(join(testDir, ".apex/state.test.json"),
-      JSON.stringify({ current_stage: "brainstorm" }));
+    writeFileSync(
+      join(testDir, ".apex/state.test.json"),
+      JSON.stringify({ current_stage: "brainstorm" }),
+    );
 
     const r = runHook({
       tool_name: "Bash",
@@ -126,9 +139,16 @@ describe("Stage ordering enforcement", () => {
 
   test("apex stage set plan after brainstorm completed → allowed", () => {
     // Create proper brainstorm artifact
-    writeArtifact("docs/brainstorms/test-requirements.md",
-      "---\ntitle: Test\nscope: Lightweight\nstatus: approved\n---\n\n## Acceptance Criteria\n1. First criterion\n2. Second criterion\n3. Third criterion\n\n## Constraints\n- C1\n");
-    run("stage", "artifact", "brainstorm", "docs/brainstorms/test-requirements.md");
+    writeArtifact(
+      "docs/brainstorms/test-requirements.md",
+      "---\ntitle: Test\nscope: Lightweight\nstatus: approved\n---\n\n## Acceptance Criteria\n1. First criterion\n2. Second criterion\n3. Third criterion\n\n## Constraints\n- C1\n",
+    );
+    run(
+      "stage",
+      "artifact",
+      "brainstorm",
+      "docs/brainstorms/test-requirements.md",
+    );
     run("stage", "set", "brainstorm");
     run("stage", "complete", "brainstorm");
 
@@ -174,16 +194,25 @@ describe("--skip-gate removed from CLI", () => {
 describe("Normal pipeline flow", () => {
   test("brainstorm → plan → execute (correct order) works", () => {
     // Brainstorm
-    writeArtifact("docs/brainstorms/test-requirements.md",
-      "---\ntitle: Test\nscope: Lightweight\nstatus: approved\n---\n\n## Acceptance Criteria\n1. First criterion\n2. Second criterion\n3. Third criterion\n\n## Constraints\n- C1\n");
-    run("stage", "artifact", "brainstorm", "docs/brainstorms/test-requirements.md");
+    writeArtifact(
+      "docs/brainstorms/test-requirements.md",
+      "---\ntitle: Test\nscope: Lightweight\nstatus: approved\n---\n\n## Acceptance Criteria\n1. First criterion\n2. Second criterion\n3. Third criterion\n\n## Constraints\n- C1\n",
+    );
+    run(
+      "stage",
+      "artifact",
+      "brainstorm",
+      "docs/brainstorms/test-requirements.md",
+    );
     run("stage", "set", "brainstorm");
     const b = run("stage", "complete", "brainstorm");
     expect(b.exitCode).toBe(0);
 
     // Plan
-    writeArtifact("docs/plans/test-plan.md",
-      "---\ntitle: Test\nstatus: approved\n---\n\n## File Manifest\n- src/foo.ts\n\n## Test Files\n- src/foo.test.ts\n\n## Tasks\n- T1: Do thing\n");
+    writeArtifact(
+      "docs/plans/test-plan.md",
+      "---\ntitle: Test\nstatus: approved\n---\n\n## File Manifest\n- src/foo.ts\n\n## Test Files\n- src/foo.test.ts\n\n## Tasks\n- T1: Do thing\n",
+    );
     run("stage", "artifact", "plan", "docs/plans/test-plan.md");
     run("task", "create", "Do thing", "desc");
     const p = run("stage", "set", "plan");

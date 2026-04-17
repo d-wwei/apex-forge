@@ -1,9 +1,15 @@
+import { execSync } from "node:child_process";
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
+import { dirname, resolve } from "node:path";
+import type { UddAdapter } from "udd-kit";
 import { defineAdapter } from "udd-kit/adapter";
 import { createRuntime, type UddRuntime } from "udd-kit/runtime";
-import type { UddAdapter } from "udd-kit";
-import { readFileSync, existsSync, appendFileSync, mkdirSync, writeFileSync } from "fs";
-import { resolve, dirname } from "path";
-import { execSync } from "child_process";
 
 function findRepoRoot(startDir: string): string {
   let dir = startDir;
@@ -22,11 +28,27 @@ function loadVersion(repoRoot: string): string {
   return "0.0.0";
 }
 
-function getGitInfo(repoRoot: string): { branch?: string; head?: string; changedFiles?: string[] } {
+function getGitInfo(repoRoot: string): {
+  branch?: string;
+  head?: string;
+  changedFiles?: string[];
+} {
   try {
-    const branch = execSync("git rev-parse --abbrev-ref HEAD", { cwd: repoRoot, encoding: "utf-8", stdio: "pipe" }).trim();
-    const head = execSync("git rev-parse HEAD", { cwd: repoRoot, encoding: "utf-8", stdio: "pipe" }).trim();
-    const changed = execSync("git diff --name-only", { cwd: repoRoot, encoding: "utf-8", stdio: "pipe" }).trim();
+    const branch = execSync("git rev-parse --abbrev-ref HEAD", {
+      cwd: repoRoot,
+      encoding: "utf-8",
+      stdio: "pipe",
+    }).trim();
+    const head = execSync("git rev-parse HEAD", {
+      cwd: repoRoot,
+      encoding: "utf-8",
+      stdio: "pipe",
+    }).trim();
+    const changed = execSync("git diff --name-only", {
+      cwd: repoRoot,
+      encoding: "utf-8",
+      stdio: "pipe",
+    }).trim();
     return {
       branch,
       head,
@@ -92,13 +114,19 @@ export function createApexUddAdapter(cwd?: string): UddAdapter {
     async writeState(state) {
       const stateDir = resolve(repoRoot, ".udd");
       mkdirSync(stateDir, { recursive: true });
-      writeFileSync(resolve(stateDir, "state.json"), JSON.stringify(state, null, 2));
+      writeFileSync(
+        resolve(stateDir, "state.json"),
+        JSON.stringify(state, null, 2),
+      );
     },
 
     async writeAudit(record) {
       const stateDir = resolve(repoRoot, ".udd");
       mkdirSync(stateDir, { recursive: true });
-      appendFileSync(resolve(stateDir, "audit.jsonl"), JSON.stringify(record) + "\n");
+      appendFileSync(
+        resolve(stateDir, "audit.jsonl"),
+        `${JSON.stringify(record)}\n`,
+      );
     },
   });
 }

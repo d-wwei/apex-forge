@@ -10,11 +10,11 @@
  * Usage: apex audit [--session ID] [--json] [--no-test] [--all]
  */
 
-import { existsSync, readFileSync } from "fs";
-import { execFileSync, execSync } from "child_process";
-import { readEvents, materializePerSession } from "../state/event-log.js";
-import type { StageHistory } from "../types/state.js";
+import { execFileSync, execSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import type { DomainEvent } from "../state/event-log.js";
+import { materializePerSession, readEvents } from "../state/event-log.js";
+import type { StageHistory } from "../types/state.js";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -59,7 +59,14 @@ const WEIGHT: Record<Severity, number> = {
   LOW: 0.5,
 };
 
-const ALL_STAGES = ["brainstorm", "plan", "execute", "review", "ship", "compound"];
+const ALL_STAGES = [
+  "brainstorm",
+  "plan",
+  "execute",
+  "review",
+  "ship",
+  "compound",
+];
 
 const MIN_STAGE_DURATION_MS: Record<string, number> = {
   brainstorm: 2 * 60 * 1000,
@@ -93,14 +100,19 @@ function parseFrontmatter(filePath: string): Record<string, string> {
       if (colonIdx > 0) {
         const key = line.slice(0, colonIdx).trim();
         let val = line.slice(colonIdx + 1).trim();
-        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+        if (
+          (val.startsWith('"') && val.endsWith('"')) ||
+          (val.startsWith("'") && val.endsWith("'"))
+        ) {
           val = val.slice(1, -1);
         }
         fm[key] = val;
       }
     }
     return fm;
-  } catch { return {}; }
+  } catch {
+    return {};
+  }
 }
 
 // ─── Git helpers (P0-1 fix: execFileSync, no shell) ─────────────────
@@ -144,7 +156,7 @@ function extractSessionExtras(sessionEvents: DomainEvent[]): {
 
 function findPipeline(
   events: DomainEvent[],
-  targetSession?: string
+  targetSession?: string,
 ): PipelineSlice | null {
   if (events.length === 0) return null;
 
@@ -158,7 +170,8 @@ function findPipeline(
   if (!match) return null;
 
   const sessionEvents = events.filter((e) => e.session_id === match.session_id);
-  const { shipCheckpoints, skillInvocations } = extractSessionExtras(sessionEvents);
+  const { shipCheckpoints, skillInvocations } =
+    extractSessionExtras(sessionEvents);
 
   return {
     sessionId: match.session_id,
@@ -174,11 +187,12 @@ function findPipeline(
 
 function checkLayer1(pipeline: PipelineSlice): Check[] {
   const checks: Check[] = [];
-  const { history, shipCheckpoints, skillInvocations, sessionEvents } = pipeline;
+  const { history, shipCheckpoints, skillInvocations, sessionEvents } =
+    pipeline;
 
   // L1-stages: All 6 stages present
   const stagesPresent = ALL_STAGES.filter((s) =>
-    history.some((h) => h.stage === s)
+    history.some((h) => h.stage === s),
   );
   const missing = ALL_STAGES.filter((s) => !stagesPresent.includes(s));
   checks.push({
@@ -213,7 +227,11 @@ function checkLayer1(pipeline: PipelineSlice): Check[] {
   });
 
   // L1-ship-cp: Ship checkpoints present
-  const requiredCps = ["iteration-summary", "push-prompt", "compound-transition"];
+  const requiredCps = [
+    "iteration-summary",
+    "push-prompt",
+    "compound-transition",
+  ];
   const missingCps = requiredCps.filter((cp) => !shipCheckpoints.includes(cp));
   checks.push({
     id: "L1-ship-cp",
@@ -229,7 +247,7 @@ function checkLayer1(pipeline: PipelineSlice): Check[] {
 
   // L1-review-skill: thorough-code-review invoked
   const hasReviewSkill = skillInvocations.some(
-    (si) => si.skill === "thorough-code-review"
+    (si) => si.skill === "thorough-code-review",
   );
   checks.push({
     id: "L1-review-skill",
@@ -244,7 +262,7 @@ function checkLayer1(pipeline: PipelineSlice): Check[] {
   const hasSkipGate = sessionEvents.some(
     (e) =>
       JSON.stringify(e.payload).includes("skip-gate") ||
-      JSON.stringify(e.payload).includes("skip_gate")
+      JSON.stringify(e.payload).includes("skip_gate"),
   );
   checks.push({
     id: "L1-skip-gate",
@@ -320,7 +338,7 @@ function checkLayer2(pipeline: PipelineSlice): Check[] {
 
   // Brainstorm artifact
   const brainstormPaths = (artifacts.brainstorm || []).filter(
-    (p) => p.endsWith("-requirements.md") && existsSync(p)
+    (p) => p.endsWith("-requirements.md") && existsSync(p),
   );
   if (brainstormPaths.length > 0) {
     const content = readFileSync(brainstormPaths[0], "utf-8");
@@ -359,7 +377,8 @@ function checkLayer2(pipeline: PipelineSlice): Check[] {
       description: "Brainstorm: Constraints section non-empty",
       severity: "LOW",
       verdict: constraints.length > 0 ? "PASS" : "WARN",
-      detail: constraints.length > 0 ? `${countWords(constraints)} words` : "Empty",
+      detail:
+        constraints.length > 0 ? `${countWords(constraints)} words` : "Empty",
     });
   } else {
     checks.push({
@@ -374,7 +393,7 @@ function checkLayer2(pipeline: PipelineSlice): Check[] {
 
   // Plan artifact
   const planPaths = (artifacts.plan || []).filter(
-    (p) => p.endsWith("-plan.md") && existsSync(p)
+    (p) => p.endsWith("-plan.md") && existsSync(p),
   );
   if (planPaths.length > 0) {
     const content = readFileSync(planPaths[0], "utf-8");
@@ -403,7 +422,7 @@ function checkLayer2(pipeline: PipelineSlice): Check[] {
 
   // Review artifact
   const reviewPaths = (artifacts.review || []).filter(
-    (p) => p.endsWith("-review.md") && existsSync(p)
+    (p) => p.endsWith("-review.md") && existsSync(p),
   );
   if (reviewPaths.length > 0) {
     const content = readFileSync(reviewPaths[0], "utf-8");
@@ -412,7 +431,7 @@ function checkLayer2(pipeline: PipelineSlice): Check[] {
       .filter((l) => /^#{2,3}\s*(Persona|Reviewer|审查)/i.test(l));
     const totalWords = countWords(content);
     const fileRefs = content.match(
-      /[a-zA-Z0-9_\-/.]+\.(ts|js|tsx|jsx|py|go|rs|md)/g
+      /[a-zA-Z0-9_\-/.]+\.(ts|js|tsx|jsx|py|go|rs|md)/g,
     );
 
     checks.push({
@@ -448,12 +467,12 @@ function checkLayer2(pipeline: PipelineSlice): Check[] {
 
   // Ship artifact (P1-2 fix: check ship summary)
   const shipPaths = (artifacts.ship || []).filter(
-    (p) => typeof p === "string" && p.endsWith(".md") && existsSync(p)
+    (p) => typeof p === "string" && p.endsWith(".md") && existsSync(p),
   );
   if (shipPaths.length > 0) {
     const content = readFileSync(shipPaths[0], "utf-8");
     const sections = ["改了什么", "为什么", "怎么试", "已知"].filter((s) =>
-      content.includes(s)
+      content.includes(s),
     );
     checks.push({
       id: "L2-ship-summary",
@@ -467,7 +486,7 @@ function checkLayer2(pipeline: PipelineSlice): Check[] {
 
   // Compound artifact (P1-2 fix: check root cause depth)
   const compoundPaths = (artifacts.compound || []).filter(
-    (p) => typeof p === "string" && p.endsWith(".md") && existsSync(p)
+    (p) => typeof p === "string" && p.endsWith(".md") && existsSync(p),
   );
   if (compoundPaths.length > 0) {
     const content = readFileSync(compoundPaths[0], "utf-8");
@@ -493,10 +512,10 @@ function checkLayer3(pipeline: PipelineSlice, runTests: boolean): Check[] {
 
   // 3a: Plan vs Git Diff
   const planPaths = (artifacts.plan || []).filter(
-    (p) => p.endsWith("-plan.md") && existsSync(p)
+    (p) => p.endsWith("-plan.md") && existsSync(p),
   );
   const shipCommits = (artifacts.ship || []).filter((a) =>
-    /^[0-9a-f]{7,40}$/.test(a)
+    /^[0-9a-f]{7,40}$/.test(a),
   );
 
   if (planPaths.length > 0 && shipCommits.length > 0) {
@@ -508,13 +527,18 @@ function checkLayer3(pipeline: PipelineSlice, runTests: boolean): Check[] {
 
     const firstCommit = shipCommits[0];
     // P0-1 fix: use execFileSync instead of shell string
-    const diffFiles = gitArgs("diff", "--name-only", `${firstCommit}~1`, firstCommit)
+    const diffFiles = gitArgs(
+      "diff",
+      "--name-only",
+      `${firstCommit}~1`,
+      firstCommit,
+    )
       .split("\n")
       .filter(Boolean);
 
     if (plannedFiles.length > 0 && diffFiles.length > 0) {
       const hits = plannedFiles.filter((f) =>
-        diffFiles.some((d) => d.includes(f) || f.includes(d))
+        diffFiles.some((d) => d.includes(f) || f.includes(d)),
       );
       const hitRate = hits.length / plannedFiles.length;
       checks.push({
@@ -548,7 +572,7 @@ function checkLayer3(pipeline: PipelineSlice, runTests: boolean): Check[] {
 
   // 3b: AC vs Code — keywords from ACs grepped in diff (P2-1 fix: hoist diff)
   const brainstormPaths = (artifacts.brainstorm || []).filter(
-    (p) => p.endsWith("-requirements.md") && existsSync(p)
+    (p) => p.endsWith("-requirements.md") && existsSync(p),
   );
   if (brainstormPaths.length > 0 && shipCommits.length > 0) {
     const content = readFileSync(brainstormPaths[0], "utf-8");
@@ -558,9 +582,31 @@ function checkLayer3(pipeline: PipelineSlice, runTests: boolean): Check[] {
       .filter((l) => /^\d+\.|^-\s/.test(l.trim()));
 
     const stopwords = new Set([
-      "the", "and", "that", "this", "with", "from", "should", "must", "when",
-      "then", "given", "have", "been", "will", "each", "after", "before",
-      "into", "more", "than", "also", "only", "does", "make", "about",
+      "the",
+      "and",
+      "that",
+      "this",
+      "with",
+      "from",
+      "should",
+      "must",
+      "when",
+      "then",
+      "given",
+      "have",
+      "been",
+      "will",
+      "each",
+      "after",
+      "before",
+      "into",
+      "more",
+      "than",
+      "also",
+      "only",
+      "does",
+      "make",
+      "about",
     ]);
 
     // Fetch diff once, not per-AC (P2-1 fix)
@@ -606,20 +652,25 @@ function checkLayer3(pipeline: PipelineSlice, runTests: boolean): Check[] {
 
   // 3c: Review vs Diff
   const reviewPaths = (artifacts.review || []).filter(
-    (p) => p.endsWith("-review.md") && existsSync(p)
+    (p) => p.endsWith("-review.md") && existsSync(p),
   );
   if (reviewPaths.length > 0 && shipCommits.length > 0) {
     const content = readFileSync(reviewPaths[0], "utf-8");
     const fileRefs =
       content.match(/[a-zA-Z0-9_\-/.]+\.(ts|js|tsx|jsx|py|go|rs)/g) || [];
     const firstCommit = shipCommits[0];
-    const diffFiles = gitArgs("diff", "--name-only", `${firstCommit}~1`, firstCommit)
+    const diffFiles = gitArgs(
+      "diff",
+      "--name-only",
+      `${firstCommit}~1`,
+      firstCommit,
+    )
       .split("\n")
       .filter(Boolean);
 
     if (fileRefs.length > 0 && diffFiles.length > 0) {
       const valid = fileRefs.filter((ref) =>
-        diffFiles.some((d) => d.includes(ref) || ref.includes(d))
+        diffFiles.some((d) => d.includes(ref) || ref.includes(d)),
       );
       const rate = valid.length / fileRefs.length;
       checks.push({
@@ -722,7 +773,10 @@ function scoreByCategory(checks: Check[]): CategoryScore[] {
   const scores: CategoryScore[] = [];
   for (const [category, items] of categories) {
     const scorable = items.filter((c) => c.verdict !== "SKIP");
-    const totalWeight = scorable.reduce((sum, c) => sum + WEIGHT[c.severity], 0);
+    const totalWeight = scorable.reduce(
+      (sum, c) => sum + WEIGHT[c.severity],
+      0,
+    );
     const passWeight = scorable
       .filter((c) => c.verdict === "PASS")
       .reduce((sum, c) => sum + WEIGHT[c.severity], 0);
@@ -751,16 +805,16 @@ function computeOverall(scores: CategoryScore[]): number {
   for (const s of scores) byName[s.category] = s.score;
 
   return Math.round(
-    (byName["Process"] ?? 100) * LAYER_WEIGHTS.process +
-    (byName["Content"] ?? 100) * LAYER_WEIGHTS.content +
-    (byName["Verified"] ?? 100) * LAYER_WEIGHTS.verified
+    (byName.Process ?? 100) * LAYER_WEIGHTS.process +
+      (byName.Content ?? 100) * LAYER_WEIGHTS.content +
+      (byName.Verified ?? 100) * LAYER_WEIGHTS.verified,
   );
 }
 
 function overallGrade(checks: Check[], scores: CategoryScore[]): string {
   const overall = computeOverall(scores);
   const hasL3Fail = checks.some(
-    (c) => c.category === "Verified" && c.verdict === "FAIL"
+    (c) => c.category === "Verified" && c.verdict === "FAIL",
   );
 
   let grade: string;
@@ -782,21 +836,21 @@ function formatReport(
   pipeline: PipelineSlice,
   checks: Check[],
   scores: CategoryScore[],
-  grade: string
+  grade: string,
 ): string {
   const lines: string[] = [];
 
   lines.push("");
-  lines.push("\u2554" + "\u2550".repeat(50) + "\u2557");
+  lines.push(`\u2554${"\u2550".repeat(50)}\u2557`);
   lines.push(
     "\u2551        APEX FORGE \u2014 PIPELINE AUDIT" +
       " ".repeat(12) +
-      "\u2551"
+      "\u2551",
   );
   lines.push(
-    `\u2551        Session: ${pipeline.sessionId.slice(0, 30).padEnd(30)}\u2551`
+    `\u2551        Session: ${pipeline.sessionId.slice(0, 30).padEnd(30)}\u2551`,
   );
-  lines.push("\u255a" + "\u2550".repeat(50) + "\u255d");
+  lines.push(`\u255a${"\u2550".repeat(50)}\u255d`);
   lines.push("");
 
   let currentCat = "";
@@ -807,10 +861,10 @@ function formatReport(
         currentCat === "Process"
           ? "Layer 1: Process Integrity"
           : currentCat === "Content"
-          ? "Layer 2: Artifact Content"
-          : "Layer 3: Cross-Verification";
+            ? "Layer 2: Artifact Content"
+            : "Layer 3: Cross-Verification";
       lines.push(
-        `\u2500\u2500 ${label} ${"\u2500".repeat(Math.max(0, 44 - label.length))}`
+        `\u2500\u2500 ${label} ${"\u2500".repeat(Math.max(0, 44 - label.length))}`,
       );
     }
     const icon = ICONS[check.verdict];
@@ -819,7 +873,7 @@ function formatReport(
   }
 
   lines.push("");
-  lines.push("\u2500\u2500 Score " + "\u2500".repeat(43));
+  lines.push(`\u2500\u2500 Score ${"\u2500".repeat(43)}`);
   for (const s of scores) {
     const bar =
       "\u2588".repeat(Math.round(s.score / 5)) +
@@ -827,7 +881,7 @@ function formatReport(
     const warnings =
       s.warn > 0 ? `  (${s.warn} warning${s.warn > 1 ? "s" : ""})` : "";
     lines.push(
-      `  ${s.category.padEnd(14)} ${bar} ${String(s.score).padStart(3)}%${warnings}`
+      `  ${s.category.padEnd(14)} ${bar} ${String(s.score).padStart(3)}%${warnings}`,
     );
   }
 
@@ -836,21 +890,21 @@ function formatReport(
   lines.push(`  Overall: Grade ${grade} (${overall}%)`);
 
   const hasL3Fail = checks.some(
-    (c) => c.category === "Verified" && c.verdict === "FAIL"
+    (c) => c.category === "Verified" && c.verdict === "FAIL",
   );
   if (hasL3Fail) {
     lines.push("  \u26a0 Layer 3 FAIL detected \u2014 grade capped at C");
   }
 
   const actionable = checks.filter(
-    (c) => c.verdict === "FAIL" || c.verdict === "WARN"
+    (c) => c.verdict === "FAIL" || c.verdict === "WARN",
   );
   if (actionable.length > 0) {
     lines.push("");
-    lines.push("\u2500\u2500 Actions " + "\u2500".repeat(41));
+    lines.push(`\u2500\u2500 Actions ${"\u2500".repeat(41)}`);
     for (const a of actionable) {
       lines.push(
-        `  ${ICONS[a.verdict]} [${a.id}] ${a.description}: ${a.detail}`
+        `  ${ICONS[a.verdict]} [${a.id}] ${a.description}: ${a.detail}`,
       );
     }
   }
@@ -879,7 +933,8 @@ function auditAll(events: DomainEvent[]): {
 
   for (const p of pipelines.slice(0, 20)) {
     const sessionEvents = events.filter((e) => e.session_id === p.session_id);
-    const { shipCheckpoints, skillInvocations } = extractSessionExtras(sessionEvents);
+    const { shipCheckpoints, skillInvocations } =
+      extractSessionExtras(sessionEvents);
 
     const slice: PipelineSlice = {
       sessionId: p.session_id,
@@ -921,7 +976,9 @@ function formatQuickSummary(pipeline: PipelineSlice): string {
   // ── Header: task name + scope
   let taskName = pipeline.sessionId;
   let scope = "Unknown";
-  const bPaths = (artifacts.brainstorm || []).filter((p: string) => p.endsWith(".md") && existsSync(p));
+  const bPaths = (artifacts.brainstorm || []).filter(
+    (p: string) => p.endsWith(".md") && existsSync(p),
+  );
   if (bPaths.length > 0) {
     const bFm = parseFrontmatter(bPaths[0]);
     taskName = bFm.title || taskName;
@@ -932,12 +989,16 @@ function formatQuickSummary(pipeline: PipelineSlice): string {
   lines.push(`任务: ${taskName}`);
 
   // Tier + scope + file count
-  const shipCommits = (artifacts.ship || []).filter((a: string) => /^[0-9a-f]{7,40}$/.test(a));
+  const shipCommits = (artifacts.ship || []).filter((a: string) =>
+    /^[0-9a-f]{7,40}$/.test(a),
+  );
   let diffStat = "";
   if (shipCommits.length > 0) {
     diffStat = gitArgs("diff", "--stat", `${shipCommits[0]}~1`, shipCommits[0]);
   }
-  const fileCount = diffStat ? diffStat.split("\n").filter((l: string) => l.includes("|")).length : 0;
+  const fileCount = diffStat
+    ? diffStat.split("\n").filter((l: string) => l.includes("|")).length
+    : 0;
   lines.push(`范围: ${scope} | ${fileCount} files changed`);
   lines.push("");
 
@@ -945,11 +1006,15 @@ function formatQuickSummary(pipeline: PipelineSlice): string {
   if (bPaths.length > 0) {
     const bContent = readFileSync(bPaths[0], "utf-8");
     const acSection = extractSection(bContent, /^#+\s*Acceptance\s*Criteria/i);
-    const acLines = acSection.split("\n").filter((l: string) => /^\s*\d+\./.test(l));
+    const acLines = acSection
+      .split("\n")
+      .filter((l: string) => /^\s*\d+\./.test(l));
     if (acLines.length > 0) {
       lines.push("── 验收标准 ──");
       // Check if all tasks are done as a proxy for AC satisfaction
-      const allDone = pipeline.history.some((h: StageHistory) => h.stage === "ship" && h.completed);
+      const allDone = pipeline.history.some(
+        (h: StageHistory) => h.stage === "ship" && h.completed,
+      );
       for (const ac of acLines) {
         const icon = allDone ? "✓" : "?";
         lines.push(`  ${icon} ${ac.trim()}`);
@@ -961,11 +1026,14 @@ function formatQuickSummary(pipeline: PipelineSlice): string {
   // ── Changes (git diff --stat, condensed)
   if (diffStat) {
     lines.push("── 变更 ──");
-    const statLines = diffStat.split("\n").filter((l: string) => l.includes("|"));
+    const statLines = diffStat
+      .split("\n")
+      .filter((l: string) => l.includes("|"));
     for (const sl of statLines.slice(0, 8)) {
       lines.push(`  ${sl.trim()}`);
     }
-    if (statLines.length > 8) lines.push(`  ... and ${statLines.length - 8} more files`);
+    if (statLines.length > 8)
+      lines.push(`  ... and ${statLines.length - 8} more files`);
     lines.push("");
   }
 
@@ -980,8 +1048,11 @@ function formatQuickSummary(pipeline: PipelineSlice): string {
     for (const advFile of advFiles) {
       const content = readFileSync(advFile, "utf-8");
       // Extract lines that look like findings (bullets with ⚠, *, -)
-      const findings = content.split("\n")
-        .filter((l: string) => /^\s*[-*⚠•]\s/.test(l) || /^\s*\d+\.\s+\*\*/.test(l))
+      const findings = content
+        .split("\n")
+        .filter(
+          (l: string) => /^\s*[-*⚠•]\s/.test(l) || /^\s*\d+\.\s+\*\*/.test(l),
+        )
         .map((l: string) => l.trim())
         .slice(0, 5);
       for (const f of findings) {
@@ -993,7 +1064,14 @@ function formatQuickSummary(pipeline: PipelineSlice): string {
 
   // ── Gate status per stage
   lines.push("── 门控状态 ──");
-  const stageNames = ["brainstorm", "plan", "execute", "review", "ship", "compound"];
+  const stageNames = [
+    "brainstorm",
+    "plan",
+    "execute",
+    "review",
+    "ship",
+    "compound",
+  ];
   for (const s of stageNames) {
     const stageHistory = history.find((h: StageHistory) => h.stage === s);
     const hasArt = (artifacts[s] || []).length > 0;
@@ -1012,7 +1090,6 @@ function formatQuickSummary(pipeline: PipelineSlice): string {
 
   return lines.join("\n");
 }
-
 
 // ─── Main ───────────────────────────────────────────────────────────
 
@@ -1035,7 +1112,9 @@ export async function cmdAudit(args: string[]): Promise<void> {
     } else {
       console.log("\nAPEX FORGE \u2014 PIPELINE TRENDS\n");
       for (const s of result.sessions) {
-        console.log(`  ${s.grade} ${s.session_id} (${s.stage}) L1:${s.l1_score}%`);
+        console.log(
+          `  ${s.grade} ${s.session_id} (${s.stage}) L1:${s.l1_score}%`,
+        );
       }
       console.log("");
     }
@@ -1045,7 +1124,7 @@ export async function cmdAudit(args: string[]): Promise<void> {
   const pipeline = findPipeline(events, targetSession);
   if (!pipeline) {
     console.error(
-      "No pipeline found. Run apex init and complete a pipeline first."
+      "No pipeline found. Run apex init and complete a pipeline first.",
     );
     process.exit(1);
   }
@@ -1053,7 +1132,13 @@ export async function cmdAudit(args: string[]): Promise<void> {
   if (quickMode) {
     if (jsonMode) {
       const summary = formatQuickSummary(pipeline);
-      console.log(JSON.stringify({ format: "quick", summary, session: pipeline.sessionId }, null, 2));
+      console.log(
+        JSON.stringify(
+          { format: "quick", summary, session: pipeline.sessionId },
+          null,
+          2,
+        ),
+      );
     } else {
       console.log(formatQuickSummary(pipeline));
     }
@@ -1073,8 +1158,8 @@ export async function cmdAudit(args: string[]): Promise<void> {
       JSON.stringify(
         { checks: allChecks, scores, grade, session: pipeline.sessionId },
         null,
-        2
-      )
+        2,
+      ),
     );
   } else {
     console.log(formatReport(pipeline, allChecks, scores, grade));

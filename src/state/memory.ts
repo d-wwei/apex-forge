@@ -5,11 +5,17 @@
  * Provides a scored fact store with search, pruning, and context injection.
  */
 
+import type { Fact, MemoryStore } from "../types/memory.js";
+import { FactNotFoundError } from "../utils/errors.js";
 import { readJSON } from "../utils/json.js";
 import { isoTimestamp } from "../utils/timestamp.js";
-import { FactNotFoundError } from "../utils/errors.js";
-import type { Fact, MemoryStore } from "../types/memory.js";
-import { appendEvent, rebuildAndCache, appendGlobalMemoryEvent, rebuildGlobalMemoryCache, getGlobalMemoryCachePath } from "./event-log.js";
+import {
+  appendEvent,
+  appendGlobalMemoryEvent,
+  getGlobalMemoryCachePath,
+  rebuildAndCache,
+  rebuildGlobalMemoryCache,
+} from "./event-log.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -127,9 +133,7 @@ export async function memoryInject(): Promise<string> {
     return "";
   }
 
-  const sorted = [...store.facts].sort(
-    (a, b) => b.confidence - a.confidence,
-  );
+  const sorted = [...store.facts].sort((a, b) => b.confidence - a.confidence);
 
   const lines = sorted.map((f) => {
     const label =
@@ -157,7 +161,9 @@ export async function memoryPrune(): Promise<{
   const original = store.facts.length;
 
   // Find facts to prune
-  const belowThreshold = store.facts.filter((f) => f.confidence < PRUNE_THRESHOLD);
+  const belowThreshold = store.facts.filter(
+    (f) => f.confidence < PRUNE_THRESHOLD,
+  );
   const remaining = store.facts.filter((f) => f.confidence >= PRUNE_THRESHOLD);
 
   let overCap: Fact[] = [];
@@ -197,7 +203,9 @@ export async function memoryAddGlobal(
   source: string = "",
 ): Promise<Fact> {
   if (confidence < 0 || confidence > 1) {
-    throw new RangeError(`Confidence must be between 0.0 and 1.0, got ${confidence}`);
+    throw new RangeError(
+      `Confidence must be between 0.0 and 1.0, got ${confidence}`,
+    );
   }
 
   const store = await loadGlobalStore();
@@ -221,7 +229,9 @@ export async function memoryAddGlobal(
  * List facts merged from both project and global stores.
  * Each fact is tagged with its layer ("project" or "global").
  */
-export async function memoryListMerged(minConfidence: number = 0): Promise<(Fact & { layer: "project" | "global" })[]> {
+export async function memoryListMerged(
+  minConfidence: number = 0,
+): Promise<(Fact & { layer: "project" | "global" })[]> {
   const project = await loadStore();
   const global = await loadGlobalStore();
 
@@ -233,8 +243,9 @@ export async function memoryListMerged(minConfidence: number = 0): Promise<(Fact
     .filter((f) => f.confidence >= minConfidence)
     .map((f) => ({ ...f, layer: "global" as const }));
 
-  return [...globalFacts, ...projectFacts]
-    .sort((a, b) => b.confidence - a.confidence);
+  return [...globalFacts, ...projectFacts].sort(
+    (a, b) => b.confidence - a.confidence,
+  );
 }
 
 /**

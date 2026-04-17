@@ -1,11 +1,23 @@
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { mkdirSync, rmSync, existsSync, readFileSync } from "fs";
-import { join } from "path";
-import { spawn } from "child_process";
-import type { RuntimeAdapter, AgentHandle, AdapterStatus, AdapterConfig, TaskDispatchInfo } from "../adapters/runtime.js";
-import { createWorkspace, cleanupWorkspace } from "../orchestrator/workspace.js";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { spawn } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import type {
+  AdapterConfig,
+  AdapterStatus,
+  AgentHandle,
+  RuntimeAdapter,
+  TaskDispatchInfo,
+} from "../adapters/runtime.js";
+import {
+  collectResult,
+  synthesizeFindings,
+} from "../orchestrator/result-collector.js";
 import { validateResult } from "../orchestrator/result-validator.js";
-import { collectResult, synthesizeFindings } from "../orchestrator/result-collector.js";
+import {
+  cleanupWorkspace,
+  createWorkspace,
+} from "../orchestrator/workspace.js";
 
 // Use tmp dir to avoid .apex/ conflicts with other test suites
 const TMP_ROOT = "/tmp/apex-e2e-test";
@@ -19,11 +31,15 @@ function createMockAdapter(name: string): RuntimeAdapter {
   return {
     name: () => name,
     available: () => true,
-    async spawn(task: TaskDispatchInfo, prompt: string, config: AdapterConfig): Promise<AgentHandle> {
+    async spawn(
+      task: TaskDispatchInfo,
+      prompt: string,
+      config: AdapterConfig,
+    ): Promise<AgentHandle> {
       const logDir = join(TMP_ROOT, "logs");
       mkdirSync(logDir, { recursive: true });
       const logPath = join(logDir, `${task.id}-${name}.log`);
-      const { appendFileSync } = await import("fs");
+      const { appendFileSync } = await import("node:fs");
 
       const cmd = config.command;
       const args = config.args || [];
@@ -35,8 +51,12 @@ function createMockAdapter(name: string): RuntimeAdapter {
         ...(config.cwd ? { cwd: config.cwd } : {}),
       });
 
-      proc.stdout?.on("data", (chunk: Buffer) => appendFileSync(logPath, chunk));
-      proc.stderr?.on("data", (chunk: Buffer) => appendFileSync(logPath, chunk));
+      proc.stdout?.on("data", (chunk: Buffer) =>
+        appendFileSync(logPath, chunk),
+      );
+      proc.stderr?.on("data", (chunk: Buffer) =>
+        appendFileSync(logPath, chunk),
+      );
 
       return {
         id: `${name}-${++counter}-${task.id}`,
@@ -56,15 +76,27 @@ function createMockAdapter(name: string): RuntimeAdapter {
       return { state: "running" };
     },
     output(handle: AgentHandle): string | null {
-      try { return readFileSync(handle.logPath, "utf-8"); } catch { return null; }
+      try {
+        return readFileSync(handle.logPath, "utf-8");
+      } catch {
+        return null;
+      }
     },
     kill(handle: AgentHandle): void {
       if (handle.process && handle.process.exitCode === null) {
         handle.process.kill("SIGTERM");
       }
     },
-    async resume(_sessionId: string, prompt: string, config: AdapterConfig): Promise<AgentHandle> {
-      return this.spawn({ id: "resume", title: "Resume", description: "" }, prompt, config);
+    async resume(
+      _sessionId: string,
+      prompt: string,
+      config: AdapterConfig,
+    ): Promise<AgentHandle> {
+      return this.spawn(
+        { id: "resume", title: "Resume", description: "" },
+        prompt,
+        config,
+      );
     },
   };
 }
@@ -164,7 +196,9 @@ describe("Orchestrator E2E", () => {
     const wsB = await createWorkspace("DEP-B", wsRoot);
     // Copy A's result into B's input (simulating injectArtifacts)
     const { injectArtifacts } = await import("../orchestrator/workspace.js");
-    await injectArtifacts(wsB.path, [{ taskId: "DEP-A", resultPath: join(wsA.path, "output", "result.json") }]);
+    await injectArtifacts(wsB.path, [
+      { taskId: "DEP-A", resultPath: join(wsA.path, "output", "result.json") },
+    ]);
 
     // Verify artifact was injected
     const injectedPath = join(wsB.path, "input", "DEP-A-result.json");
@@ -273,7 +307,14 @@ describe("Orchestrator E2E", () => {
 
     // Collect results from both
     const resultA = collectResult(wsA.path, "CROSS-1", "claude", exitA, 10);
-    const resultB = collectResult(wsB.path, "CROSS-1", "codex", exitB, 8, "security");
+    const resultB = collectResult(
+      wsB.path,
+      "CROSS-1",
+      "codex",
+      exitB,
+      8,
+      "security",
+    );
 
     // Synthesize
     const synthesis = synthesizeFindings([resultA, resultB]);

@@ -1,5 +1,11 @@
-import { describe, test, expect, beforeEach } from "bun:test";
-import { mkdirSync, rmSync, existsSync, readFileSync, writeFileSync } from "fs";
+import { beforeEach, describe, expect, test } from "bun:test";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import type { Task } from "../types/task.js";
 
 // --- T2: ClaudeAdapter tests ---
@@ -27,7 +33,7 @@ describe("ClaudeAdapter", () => {
     const handle = await adapter.spawn(
       { id: "T-test", title: "Test", description: "test task" },
       "echo test",
-      { command: "echo", args: [] }  // override to echo for testing
+      { command: "echo", args: [] }, // override to echo for testing
     );
 
     expect(handle.taskId).toBe("T-test");
@@ -49,11 +55,11 @@ describe("ClaudeAdapter", () => {
     const handle = await adapter.spawn(
       { id: "T-cwd", title: "Test", description: "test" },
       "",
-      { command: "pwd", args: [], cwd: tmpDir }
+      { command: "pwd", args: [], cwd: tmpDir },
     );
 
     // Wait for process to exit
-    await new Promise(r => setTimeout(r, 300));
+    await new Promise((r) => setTimeout(r, 300));
     const output = adapter.output(handle);
     expect(output).toContain(tmpDir);
 
@@ -68,7 +74,7 @@ describe("ClaudeAdapter", () => {
     const handle = await adapter.spawn(
       { id: "T-monitor", title: "Test", description: "test" },
       "",
-      { command: "sleep", args: ["10"] }
+      { command: "sleep", args: ["10"] },
     );
 
     const status = adapter.monitor(handle);
@@ -84,11 +90,11 @@ describe("ClaudeAdapter", () => {
     const handle = await adapter.spawn(
       { id: "T-exit", title: "Test", description: "test" },
       "",
-      { command: "true", args: [] }  // exits immediately with 0
+      { command: "true", args: [] }, // exits immediately with 0
     );
 
     // wait for process to exit
-    await new Promise(r => setTimeout(r, 200));
+    await new Promise((r) => setTimeout(r, 200));
 
     const status = adapter.monitor(handle);
     expect(status.state).toBe("exited");
@@ -100,14 +106,19 @@ describe("ClaudeAdapter", () => {
 
 describe("Workspace", () => {
   const testWorkspaceRoot = ".test-workspaces";
-  const { spawnSync: gitSync } = require("child_process");
+  const { spawnSync: gitSync } = require("node:child_process");
 
   function cleanupTestWorkspaces() {
     // Remove worktree dirs first, then prune, then delete branches
     rmSync(testWorkspaceRoot, { recursive: true, force: true });
     gitSync("git", ["worktree", "prune"], { encoding: "utf-8" });
-    const branches = gitSync("git", ["branch", "--list", "apex/*"], { encoding: "utf-8" });
-    for (const b of (branches.stdout || "").trim().split("\n").filter(Boolean)) {
+    const branches = gitSync("git", ["branch", "--list", "apex/*"], {
+      encoding: "utf-8",
+    });
+    for (const b of (branches.stdout || "")
+      .trim()
+      .split("\n")
+      .filter(Boolean)) {
       gitSync("git", ["branch", "-D", b.trim()], { encoding: "utf-8" });
     }
   }
@@ -115,7 +126,9 @@ describe("Workspace", () => {
   beforeEach(cleanupTestWorkspaces);
 
   test("createWorkspace creates directory structure", async () => {
-    const { createWorkspace, cleanupWorkspace } = await import("../orchestrator/workspace.js");
+    const { createWorkspace, cleanupWorkspace } = await import(
+      "../orchestrator/workspace.js"
+    );
     const ws = await createWorkspace("T42", testWorkspaceRoot);
 
     expect(existsSync(ws.path)).toBe(true);
@@ -128,19 +141,28 @@ describe("Workspace", () => {
   });
 
   test("injectArtifacts copies upstream results into workspace", async () => {
-    const { createWorkspace, injectArtifacts, cleanupWorkspace } = await import("../orchestrator/workspace.js");
+    const { createWorkspace, injectArtifacts, cleanupWorkspace } = await import(
+      "../orchestrator/workspace.js"
+    );
 
     // Create upstream workspace with result
     const upstream = await createWorkspace("T40", testWorkspaceRoot);
-    writeFileSync(`${upstream.path}/output/result.json`, JSON.stringify({ verdict: "pass", findings: [] }));
+    writeFileSync(
+      `${upstream.path}/output/result.json`,
+      JSON.stringify({ verdict: "pass", findings: [] }),
+    );
 
     // Create downstream workspace
     const downstream = await createWorkspace("T42", testWorkspaceRoot);
 
     // Inject
-    await injectArtifacts(downstream.path, [{ taskId: "T40", resultPath: `${upstream.path}/output/result.json` }]);
+    await injectArtifacts(downstream.path, [
+      { taskId: "T40", resultPath: `${upstream.path}/output/result.json` },
+    ]);
 
-    const injected = JSON.parse(readFileSync(`${downstream.path}/input/T40-result.json`, "utf-8"));
+    const injected = JSON.parse(
+      readFileSync(`${downstream.path}/input/T40-result.json`, "utf-8"),
+    );
     expect(injected.verdict).toBe("pass");
 
     await cleanupWorkspace(upstream.path);
@@ -149,7 +171,9 @@ describe("Workspace", () => {
   });
 
   test("cleanupWorkspace removes directory", async () => {
-    const { createWorkspace, cleanupWorkspace } = await import("../orchestrator/workspace.js");
+    const { createWorkspace, cleanupWorkspace } = await import(
+      "../orchestrator/workspace.js"
+    );
     const ws = await createWorkspace("T99", testWorkspaceRoot);
     expect(existsSync(ws.path)).toBe(true);
 
@@ -170,8 +194,10 @@ describe("Workspace", () => {
     expect(ws.isWorktree).toBe(true);
 
     // Check if it's a git worktree (HEAD file should exist)
-    const { spawnSync } = await import("child_process");
-    const result = spawnSync("git", ["worktree", "list"], { encoding: "utf-8" });
+    const { spawnSync } = await import("node:child_process");
+    const result = spawnSync("git", ["worktree", "list"], {
+      encoding: "utf-8",
+    });
     expect(result.stdout).toContain(`APEX-wt-test-1`);
 
     // Cleanup via git worktree remove
@@ -179,7 +205,9 @@ describe("Workspace", () => {
     await cleanupWorkspace(ws.path);
 
     // Verify worktree is removed
-    const afterClean = spawnSync("git", ["worktree", "list"], { encoding: "utf-8" });
+    const afterClean = spawnSync("git", ["worktree", "list"], {
+      encoding: "utf-8",
+    });
     expect(afterClean.stdout).not.toContain(`APEX-wt-test-1`);
 
     // Also clean up the branch
@@ -188,7 +216,9 @@ describe("Workspace", () => {
   });
 
   test("createWorkspace falls back to mkdirSync when git worktree fails", async () => {
-    const { createWorkspace, cleanupWorkspace } = await import("../orchestrator/workspace.js");
+    const { createWorkspace, cleanupWorkspace } = await import(
+      "../orchestrator/workspace.js"
+    );
 
     // First call creates the branch; second call with same taskId will fail
     // because the branch already exists
@@ -220,7 +250,9 @@ describe("PermissionConfig", () => {
   });
 
   test("writePermissionConfig creates .claude/settings.json in workspace", async () => {
-    const { writePermissionConfig } = await import("../orchestrator/workspace.js");
+    const { writePermissionConfig } = await import(
+      "../orchestrator/workspace.js"
+    );
     mkdirSync(`${testWs}/output`, { recursive: true });
 
     writePermissionConfig(testWs);
@@ -237,12 +269,16 @@ describe("PermissionConfig", () => {
   });
 
   test("writePermissionConfig includes essential tools", async () => {
-    const { writePermissionConfig } = await import("../orchestrator/workspace.js");
+    const { writePermissionConfig } = await import(
+      "../orchestrator/workspace.js"
+    );
     mkdirSync(`${testWs}/output`, { recursive: true });
 
     writePermissionConfig(testWs);
 
-    const settings = JSON.parse(readFileSync(`${testWs}/.claude/settings.json`, "utf-8"));
+    const settings = JSON.parse(
+      readFileSync(`${testWs}/.claude/settings.json`, "utf-8"),
+    );
     const allowed = settings.permissions.allow;
     // Should include Read, Write, Edit, Bash, Glob, Grep at minimum
     expect(allowed.some((p: string) => p.includes("Read"))).toBe(true);
@@ -262,12 +298,17 @@ describe("ResultValidator", () => {
   });
 
   test("validates well-formed result.json as success", async () => {
-    const { validateResult } = await import("../orchestrator/result-validator.js");
+    const { validateResult } = await import(
+      "../orchestrator/result-validator.js"
+    );
     mkdirSync(`${testWs}/output`, { recursive: true });
-    writeFileSync(`${testWs}/output/result.json`, JSON.stringify({
-      verdict: "pass",
-      findings: [{ severity: "note", description: "minor" }],
-    }));
+    writeFileSync(
+      `${testWs}/output/result.json`,
+      JSON.stringify({
+        verdict: "pass",
+        findings: [{ severity: "note", description: "minor" }],
+      }),
+    );
 
     const v = validateResult(testWs, 0);
     expect(v.valid).toBe(true);
@@ -276,7 +317,9 @@ describe("ResultValidator", () => {
   });
 
   test("exit code 0 but missing result.json yields partial", async () => {
-    const { validateResult } = await import("../orchestrator/result-validator.js");
+    const { validateResult } = await import(
+      "../orchestrator/result-validator.js"
+    );
     mkdirSync(`${testWs}/output`, { recursive: true });
 
     const v = validateResult(testWs, 0);
@@ -285,7 +328,9 @@ describe("ResultValidator", () => {
   });
 
   test("exit code 0 but malformed result.json yields partial", async () => {
-    const { validateResult } = await import("../orchestrator/result-validator.js");
+    const { validateResult } = await import(
+      "../orchestrator/result-validator.js"
+    );
     mkdirSync(`${testWs}/output`, { recursive: true });
     writeFileSync(`${testWs}/output/result.json`, "not json{{{");
 
@@ -295,9 +340,14 @@ describe("ResultValidator", () => {
   });
 
   test("exit code 0 but result.json missing verdict yields partial", async () => {
-    const { validateResult } = await import("../orchestrator/result-validator.js");
+    const { validateResult } = await import(
+      "../orchestrator/result-validator.js"
+    );
     mkdirSync(`${testWs}/output`, { recursive: true });
-    writeFileSync(`${testWs}/output/result.json`, JSON.stringify({ foo: "bar" }));
+    writeFileSync(
+      `${testWs}/output/result.json`,
+      JSON.stringify({ foo: "bar" }),
+    );
 
     const v = validateResult(testWs, 0);
     expect(v.valid).toBe(false);
@@ -305,7 +355,9 @@ describe("ResultValidator", () => {
   });
 
   test("non-zero exit code yields failure", async () => {
-    const { validateResult } = await import("../orchestrator/result-validator.js");
+    const { validateResult } = await import(
+      "../orchestrator/result-validator.js"
+    );
     mkdirSync(`${testWs}/output`, { recursive: true });
 
     const v = validateResult(testWs, 1);
@@ -356,11 +408,15 @@ describe("AdapterRegistry", () => {
   });
 
   test("resolveAdapter returns requested adapter if available", async () => {
-    const { detectAdapters, resolveAdapter } = await import("../adapters/adapter-registry.js");
+    const { detectAdapters, resolveAdapter } = await import(
+      "../adapters/adapter-registry.js"
+    );
     const adapters = detectAdapters();
     if (adapters.size === 0) {
       // CI: no agent CLIs — resolveAdapter should throw
-      expect(() => resolveAdapter(adapters, "claude")).toThrow(/No agent adapters available/);
+      expect(() => resolveAdapter(adapters, "claude")).toThrow(
+        /No agent adapters available/,
+      );
     } else {
       const first = adapters.values().next().value!;
       const adapter = resolveAdapter(adapters, first.name());
@@ -381,7 +437,9 @@ describe("AdapterRegistry", () => {
   test("resolveAdapter throws when no adapters available", async () => {
     const { resolveAdapter } = await import("../adapters/adapter-registry.js");
     const empty = new Map();
-    expect(() => resolveAdapter(empty, "claude")).toThrow("No agent adapters available");
+    expect(() => resolveAdapter(empty, "claude")).toThrow(
+      "No agent adapters available",
+    );
   });
 });
 
@@ -389,11 +447,19 @@ describe("AdapterRegistry", () => {
 
 describe("PromptBuilder", () => {
   test("builds basic prompt from task", async () => {
-    const { buildAgentPrompt } = await import("../orchestrator/prompt-builder.js");
+    const { buildAgentPrompt } = await import(
+      "../orchestrator/prompt-builder.js"
+    );
     const task: Task = {
-      id: "T42", title: "Build login", description: "Implement login endpoint",
-      status: "in_progress", depends_on: [], blocked_by: [], evidence: [],
-      created_at: "", updated_at: "",
+      id: "T42",
+      title: "Build login",
+      description: "Implement login endpoint",
+      status: "in_progress",
+      depends_on: [],
+      blocked_by: [],
+      evidence: [],
+      created_at: "",
+      updated_at: "",
     };
 
     const prompt = buildAgentPrompt(task, null);
@@ -404,24 +470,43 @@ describe("PromptBuilder", () => {
   });
 
   test("includes template role info", async () => {
-    const { buildAgentPrompt } = await import("../orchestrator/prompt-builder.js");
+    const { buildAgentPrompt } = await import(
+      "../orchestrator/prompt-builder.js"
+    );
     const task: Task = {
-      id: "T1", title: "Test", description: "test",
-      status: "in_progress", depends_on: [], blocked_by: [], evidence: [],
-      created_at: "", updated_at: "",
+      id: "T1",
+      title: "Test",
+      description: "test",
+      status: "in_progress",
+      depends_on: [],
+      blocked_by: [],
+      evidence: [],
+      created_at: "",
+      updated_at: "",
     };
 
-    const prompt = buildAgentPrompt(task, { name: "Security Reviewer", description: "Reviews for security issues" });
+    const prompt = buildAgentPrompt(task, {
+      name: "Security Reviewer",
+      description: "Reviews for security issues",
+    });
     expect(prompt).toContain("Security Reviewer");
     expect(prompt).toContain("Reviews for security issues");
   });
 
   test("includes retry context when attempt > 1", async () => {
-    const { buildAgentPrompt } = await import("../orchestrator/prompt-builder.js");
+    const { buildAgentPrompt } = await import(
+      "../orchestrator/prompt-builder.js"
+    );
     const task: Task = {
-      id: "T1", title: "Test", description: "test",
-      status: "in_progress", depends_on: [], blocked_by: [], evidence: [],
-      created_at: "", updated_at: "",
+      id: "T1",
+      title: "Test",
+      description: "test",
+      status: "in_progress",
+      depends_on: [],
+      blocked_by: [],
+      evidence: [],
+      created_at: "",
+      updated_at: "",
     };
 
     const prompt = buildAgentPrompt(task, null, {
@@ -433,11 +518,19 @@ describe("PromptBuilder", () => {
   });
 
   test("includes DAG artifacts", async () => {
-    const { buildAgentPrompt } = await import("../orchestrator/prompt-builder.js");
+    const { buildAgentPrompt } = await import(
+      "../orchestrator/prompt-builder.js"
+    );
     const task: Task = {
-      id: "T5", title: "Test", description: "test",
-      status: "in_progress", depends_on: ["T3", "T4"], blocked_by: [], evidence: [],
-      created_at: "", updated_at: "",
+      id: "T5",
+      title: "Test",
+      description: "test",
+      status: "in_progress",
+      depends_on: ["T3", "T4"],
+      blocked_by: [],
+      evidence: [],
+      created_at: "",
+      updated_at: "",
     };
 
     const prompt = buildAgentPrompt(task, null, {
@@ -451,14 +544,24 @@ describe("PromptBuilder", () => {
   });
 
   test("loads persona content from file", async () => {
-    const { buildAgentPrompt } = await import("../orchestrator/prompt-builder.js");
+    const { buildAgentPrompt } = await import(
+      "../orchestrator/prompt-builder.js"
+    );
     const task: Task = {
-      id: "T1", title: "Review", description: "review plan",
-      status: "in_progress", depends_on: [], blocked_by: [], evidence: [],
-      created_at: "", updated_at: "",
+      id: "T1",
+      title: "Review",
+      description: "review plan",
+      status: "in_progress",
+      depends_on: [],
+      blocked_by: [],
+      evidence: [],
+      created_at: "",
+      updated_at: "",
     };
 
-    const prompt = buildAgentPrompt(task, { persona: "experts/technical-architect" });
+    const prompt = buildAgentPrompt(task, {
+      persona: "experts/technical-architect",
+    });
     expect(prompt).toContain("Technical Architect");
     expect(prompt).toContain("Evaluation Perspective");
   });
@@ -474,24 +577,31 @@ describe("ResultCollector", () => {
   });
 
   test("collectResult reads result.json from workspace", async () => {
-    const { collectResult } = await import("../orchestrator/result-collector.js");
+    const { collectResult } = await import(
+      "../orchestrator/result-collector.js"
+    );
 
     mkdirSync(`${testWs}/output`, { recursive: true });
-    writeFileSync(`${testWs}/output/result.json`, JSON.stringify({
-      verdict: "pass",
-      findings: [{ severity: "note", description: "Minor style issue" }],
-    }));
+    writeFileSync(
+      `${testWs}/output/result.json`,
+      JSON.stringify({
+        verdict: "pass",
+        findings: [{ severity: "note", description: "Minor style issue" }],
+      }),
+    );
 
     const result = collectResult(testWs, "T1", "claude", 0, 30);
     expect(result.verdict).toBe("pass");
     expect(result.findings).toHaveLength(1);
-    expect(result.findings![0].severity).toBe("note");
+    expect(result.findings?.[0].severity).toBe("note");
 
     rmSync(testWs, { recursive: true, force: true });
   });
 
   test("collectResult falls back when no result.json", async () => {
-    const { collectResult } = await import("../orchestrator/result-collector.js");
+    const { collectResult } = await import(
+      "../orchestrator/result-collector.js"
+    );
 
     mkdirSync(`${testWs}/output`, { recursive: true });
     const result = collectResult(testWs, "T1", "codex", 0, 15);
@@ -502,23 +612,41 @@ describe("ResultCollector", () => {
   });
 
   test("synthesizeFindings merges and deduplicates", async () => {
-    const { synthesizeFindings } = await import("../orchestrator/result-collector.js");
+    const { synthesizeFindings } = await import(
+      "../orchestrator/result-collector.js"
+    );
 
     const results = [
       {
-        taskId: "T1", adapter: "claude", exitCode: 0, duration_s: 30,
+        taskId: "T1",
+        adapter: "claude",
+        exitCode: 0,
+        duration_s: 30,
         verdict: "pass" as const,
         findings: [
-          { severity: "concern" as const, description: "Missing error handling" },
+          {
+            severity: "concern" as const,
+            description: "Missing error handling",
+          },
           { severity: "note" as const, description: "Consider adding docs" },
         ],
       },
       {
-        taskId: "T1", adapter: "codex", persona: "security", exitCode: 0, duration_s: 25,
+        taskId: "T1",
+        adapter: "codex",
+        persona: "security",
+        exitCode: 0,
+        duration_s: 25,
         verdict: "pass" as const,
         findings: [
-          { severity: "blocker" as const, description: "SQL injection vulnerability" },
-          { severity: "concern" as const, description: "Missing error handling" },  // duplicate
+          {
+            severity: "blocker" as const,
+            description: "SQL injection vulnerability",
+          },
+          {
+            severity: "concern" as const,
+            description: "Missing error handling",
+          }, // duplicate
         ],
       },
     ];

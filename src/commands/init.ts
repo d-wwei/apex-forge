@@ -1,11 +1,19 @@
-import { existsSync, lstatSync, mkdirSync, symlinkSync, readdirSync, statSync, unlinkSync } from "fs";
-import path from "path";
-import { writeJSON } from "../utils/json.js";
-import { isoTimestamp, sessionId } from "../utils/timestamp.js";
-import { register, autoPort } from "../registry.js";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  statSync,
+  symlinkSync,
+  unlinkSync,
+} from "node:fs";
+import path from "node:path";
+import { autoPort, register } from "../registry.js";
+import type { MemoryStore } from "../types/memory.js";
 import type { StageState } from "../types/state.js";
 import type { TaskStore } from "../types/task.js";
-import type { MemoryStore } from "../types/memory.js";
+import { writeJSON } from "../utils/json.js";
+import { isoTimestamp, sessionId } from "../utils/timestamp.js";
 
 const APEX_DIR = ".apex";
 
@@ -65,12 +73,21 @@ export async function cmdInit(): Promise<void> {
     mkdirSync(hooksDir, { recursive: true });
 
     const gitHooks = [
-      { name: "pre-commit", desc: "pipeline stage gate + auto memory curation" },
+      {
+        name: "pre-commit",
+        desc: "pipeline stage gate + auto memory curation",
+      },
       { name: "pre-push", desc: "preflight scan (secrets, PII, local paths)" },
     ];
 
     // Look for hook sources in multiple locations (skill dir first, then CWD)
-    const skillHooksDir = path.join(process.env.HOME || "/tmp", ".claude", "skills", "apex-forge", "hooks");
+    const skillHooksDir = path.join(
+      process.env.HOME || "/tmp",
+      ".claude",
+      "skills",
+      "apex-forge",
+      "hooks",
+    );
     const cwdHooksDir = path.join(process.cwd(), "hooks");
 
     for (const hook of gitHooks) {
@@ -82,7 +99,12 @@ export async function cmdInit(): Promise<void> {
         : path.join(cwdHooksDir, hook.name);
 
       const linkExists = (() => {
-        try { lstatSync(hookDst); return true; } catch { return false; }
+        try {
+          lstatSync(hookDst);
+          return true;
+        } catch {
+          return false;
+        }
       })();
       const targetValid = linkExists && existsSync(hookDst);
 
@@ -107,7 +129,7 @@ export async function cmdInit(): Promise<void> {
     if (existsSync(gitignorePath)) {
       const content = (await Bun.file(gitignorePath).text()).trim();
       if (!content.includes(".apex/")) {
-        await Bun.write(gitignorePath, content + "\n.apex/\n");
+        await Bun.write(gitignorePath, `${content}\n.apex/\n`);
         console.log("Added .apex/ to .gitignore");
       }
     }
@@ -115,15 +137,21 @@ export async function cmdInit(): Promise<void> {
 
   // Clean up stale per-session state caches (older than 7 days)
   try {
-    const files = readdirSync(APEX_DIR).filter(f => /^state\..+\.json$/.test(f) && f !== "state.json");
+    const files = readdirSync(APEX_DIR).filter(
+      (f) => /^state\..+\.json$/.test(f) && f !== "state.json",
+    );
     const cutoff = Date.now() - 7 * 86400000;
     for (const f of files) {
       const fp = path.join(APEX_DIR, f);
       try {
         if (statSync(fp).mtimeMs < cutoff) unlinkSync(fp);
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 
   // Auto-register project so Dashboard Hub can discover it without
   // requiring a separate `apex dashboard` invocation.
@@ -133,9 +161,11 @@ export async function cmdInit(): Promise<void> {
     name: projectName,
     path: projectDir,
     port: autoPort(projectDir),
-    pid: 0,  // no dashboard server running — Hub uses .apex/ existence, not PID
+    pid: 0, // no dashboard server running — Hub uses .apex/ existence, not PID
     startedAt: new Date().toISOString(),
   });
 
-  console.log(alreadyExists ? ".apex/ updated" : "Initialized .apex/ directory");
+  console.log(
+    alreadyExists ? ".apex/ updated" : "Initialized .apex/ directory",
+  );
 }

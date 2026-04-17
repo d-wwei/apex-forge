@@ -18,13 +18,25 @@
  * Or via .apex/config.yaml telemetry section.
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
-import { dirname } from "path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 
 const ANALYTICS_FILES = [
-  { path: ".apex/analytics/usage.jsonl", stateFile: ".apex/analytics/.sync-state", source: "telemetry" },
-  { path: ".apex/analytics/orchestrator.jsonl", stateFile: ".apex/analytics/.sync-state-orchestrator", source: "orchestrator" },
-  { path: ".apex/analytics/traces.jsonl", stateFile: ".apex/analytics/.sync-state-traces", source: "trace" },
+  {
+    path: ".apex/analytics/usage.jsonl",
+    stateFile: ".apex/analytics/.sync-state",
+    source: "telemetry",
+  },
+  {
+    path: ".apex/analytics/orchestrator.jsonl",
+    stateFile: ".apex/analytics/.sync-state-orchestrator",
+    source: "orchestrator",
+  },
+  {
+    path: ".apex/analytics/traces.jsonl",
+    stateFile: ".apex/analytics/.sync-state-traces",
+    source: "trace",
+  },
 ];
 
 interface SyncConfig {
@@ -54,7 +66,9 @@ async function loadSyncConfig(): Promise<SyncConfig | null> {
     try {
       const raw = readFileSync(configPath, "utf-8");
       // Simple YAML parsing for telemetry block (no external dependency)
-      const endpointMatch = raw.match(/telemetry[\s\S]*?endpoint:\s*["']?([^\s"']+)/);
+      const endpointMatch = raw.match(
+        /telemetry[\s\S]*?endpoint:\s*["']?([^\s"']+)/,
+      );
       const keyMatch = raw.match(/telemetry[\s\S]*?api_key:\s*["']?([^\s"']+)/);
       if (endpointMatch) {
         const endpoint = endpointMatch[1];
@@ -104,10 +118,10 @@ function buildHeaders(config: SyncConfig): Record<string, string> {
   };
 
   if (config.mode === "supabase" && config.api_key) {
-    headers["apikey"] = config.api_key;
-    headers["Authorization"] = `Bearer ${config.api_key}`;
+    headers.apikey = config.api_key;
+    headers.Authorization = `Bearer ${config.api_key}`;
   } else if (config.api_key) {
-    headers["Authorization"] = `Bearer ${config.api_key}`;
+    headers.Authorization = `Bearer ${config.api_key}`;
   }
 
   return headers;
@@ -117,10 +131,17 @@ function buildHeaders(config: SyncConfig): Record<string, string> {
  * Collect unsynced events from a single JSONL file.
  * Returns parsed events tagged with their source, and the total line count for cursor update.
  */
-function collectUnsyncedEvents(filePath: string, stateFile: string, source: string): { events: any[]; totalLines: number } {
+function collectUnsyncedEvents(
+  filePath: string,
+  stateFile: string,
+  source: string,
+): { events: any[]; totalLines: number } {
   if (!existsSync(filePath)) return { events: [], totalLines: 0 };
 
-  const allLines = readFileSync(filePath, "utf-8").trim().split("\n").filter(Boolean);
+  const allLines = readFileSync(filePath, "utf-8")
+    .trim()
+    .split("\n")
+    .filter(Boolean);
   const lastSynced = readSyncState(stateFile);
   const newLines = allLines.slice(lastSynced);
 
@@ -145,7 +166,9 @@ export async function sync(): Promise<void> {
   const config = await loadSyncConfig();
   if (!config) {
     console.log("No telemetry sync configured.");
-    console.log("Set APEX_TELEMETRY_ENDPOINT and optionally APEX_TELEMETRY_KEY to enable.");
+    console.log(
+      "Set APEX_TELEMETRY_ENDPOINT and optionally APEX_TELEMETRY_KEY to enable.",
+    );
     return;
   }
 
@@ -162,7 +185,9 @@ export async function sync(): Promise<void> {
     return;
   }
 
-  console.log(`Syncing ${allEvents.length} event(s) to ${config.mode} (${config.endpoint})...`);
+  console.log(
+    `Syncing ${allEvents.length} event(s) to ${config.mode} (${config.endpoint})...`,
+  );
   for (const c of collected) {
     if (c.events.length > 0) {
       console.log(`  ${c.source}: ${c.events.length} new event(s)`);

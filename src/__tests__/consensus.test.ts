@@ -1,8 +1,8 @@
-import { describe, test, expect } from "bun:test";
-import { RaftConsensus } from "../consensus/raft.js";
+import { describe, expect, test } from "bun:test";
 import { BftConsensus } from "../consensus/bft.js";
-import { GossipProtocol } from "../consensus/gossip.js";
 import { GCounter, LWWRegister, ORSet } from "../consensus/crdt.js";
+import { GossipProtocol } from "../consensus/gossip.js";
+import { RaftConsensus } from "../consensus/raft.js";
 
 describe("Consensus Protocols", () => {
   test("Raft node starts as follower", () => {
@@ -27,10 +27,8 @@ describe("Consensus Protocols", () => {
 
   test("BFT reaches consensus", () => {
     const committed: unknown[] = [];
-    const bft = new BftConsensus(
-      ["a", "b", "c", "d"],
-      1,
-      (data) => committed.push(data),
+    const bft = new BftConsensus(["a", "b", "c", "d"], 1, (data) =>
+      committed.push(data),
     );
     const result = bft.propose({ action: "test" });
     expect(result).toBe(true);

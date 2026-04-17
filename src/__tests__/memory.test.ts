@@ -1,23 +1,26 @@
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { mkdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   memoryAdd,
-  memoryList,
-  memorySearch,
-  memoryRemove,
   memoryInject,
+  memoryList,
   memoryPrune,
+  memoryRemove,
+  memorySearch,
 } from "../state/memory.js";
 import { writeJSON } from "../utils/json.js";
-import { mkdirSync, rmSync } from "fs";
-import { join } from "path";
-import { tmpdir } from "os";
 
 let testDir: string;
 let originalCwd: string;
 
 beforeEach(async () => {
   originalCwd = process.cwd();
-  testDir = join(tmpdir(), `apex-test-memory-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+  testDir = join(
+    tmpdir(),
+    `apex-test-memory-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  );
   mkdirSync(testDir, { recursive: true });
   process.chdir(testDir);
 

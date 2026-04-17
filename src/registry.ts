@@ -6,9 +6,9 @@
  * Hub and sidebars read this to discover all active projects.
  */
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
-import { join, resolve, dirname } from "path";
-import { spawnSync } from "child_process";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 
 const REGISTRY_DIR = join(process.env.HOME || "/tmp", ".apex-forge");
 const REGISTRY_FILE = join(REGISTRY_DIR, "registry.json");
@@ -74,7 +74,9 @@ export function hubPort(): number {
 function isGitRepo(dir: string): boolean {
   try {
     const r = spawnSync("git", ["rev-parse", "--git-dir"], {
-      cwd: dir, encoding: "utf-8", timeout: 3000,
+      cwd: dir,
+      encoding: "utf-8",
+      timeout: 3000,
     });
     return r.status === 0;
   } catch {
@@ -86,8 +88,8 @@ function isGitRepo(dir: string): boolean {
  * True if a is an ancestor of b or b is an ancestor of a.
  */
 function isAncestorOrDescendant(a: string, b: string): boolean {
-  const aN = a.endsWith("/") ? a : a + "/";
-  const bN = b.endsWith("/") ? b : b + "/";
+  const aN = a.endsWith("/") ? a : `${a}/`;
+  const bN = b.endsWith("/") ? b : `${b}/`;
   return aN.startsWith(bN) || bN.startsWith(aN);
 }
 
@@ -111,18 +113,24 @@ function getCanonicalProjectRoot(dir: string): string {
         const linked = resolve(dir, match[1].trim());
         if (existsSync(linked)) return linked;
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   // 2. Git repo root
   try {
     const result = spawnSync("git", ["rev-parse", "--git-common-dir"], {
-      cwd: dir, encoding: "utf-8", timeout: 3000,
+      cwd: dir,
+      encoding: "utf-8",
+      timeout: 3000,
     });
     if (result.status === 0) {
       return resolve(dir, dirname(result.stdout.trim()));
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 
   // 3. Fallback: directory itself
   return dir;
@@ -155,7 +163,10 @@ export function register(entry: ProjectEntry) {
       // Both are git repos → genuinely separate projects, keep both
       if (pIsGit && entryIsGit) return true;
       // Existing is git, new is not → new is a ghost, keep existing
-      if (pIsGit && !entryIsGit) { dominated = true; return true; }
+      if (pIsGit && !entryIsGit) {
+        dominated = true;
+        return true;
+      }
       // Existing is not git, new is (or neither) → remove existing
       return false;
     }

@@ -5,15 +5,15 @@
  * Covers: add, list, search, remove, inject, prune.
  */
 
-import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
 import {
   memoryAdd,
-  memoryList,
-  memorySearch,
-  memoryRemove,
   memoryInject,
+  memoryList,
   memoryPrune,
+  memoryRemove,
+  memorySearch,
 } from "../../state/memory.js";
 
 function ok(text: string) {
@@ -22,7 +22,10 @@ function ok(text: string) {
 
 function err(error: unknown) {
   const msg = error instanceof Error ? error.message : String(error);
-  return { content: [{ type: "text" as const, text: `Error: ${msg}` }], isError: true as const };
+  return {
+    content: [{ type: "text" as const, text: `Error: ${msg}` }],
+    isError: true as const,
+  };
 }
 
 export function registerMemoryTools(server: McpServer) {
@@ -38,8 +41,15 @@ export function registerMemoryTools(server: McpServer) {
     },
     async ({ content, confidence, tags, source }) => {
       try {
-        const fact = await memoryAdd(content, confidence, tags || [], source || "");
-        return ok(`Added ${fact.id}: ${fact.content} (confidence: ${fact.confidence})`);
+        const fact = await memoryAdd(
+          content,
+          confidence,
+          tags || [],
+          source || "",
+        );
+        return ok(
+          `Added ${fact.id}: ${fact.content} (confidence: ${fact.confidence})`,
+        );
       } catch (e) {
         return err(e);
       }

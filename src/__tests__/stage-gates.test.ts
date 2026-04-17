@@ -1,9 +1,8 @@
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { spawnSync } from "child_process";
-import { rmSync, mkdirSync, writeFileSync } from "fs";
-import { join } from "path";
-import { tmpdir } from "os";
-import { execSync } from "child_process";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { execSync, spawnSync } from "node:child_process";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const PROJECT_ROOT = process.cwd();
 const APEX = join(PROJECT_ROOT, "dist/apex-forge");
@@ -11,9 +10,11 @@ const APEX = join(PROJECT_ROOT, "dist/apex-forge");
 let testDir: string;
 let originalCwd: string;
 
-function run(
-  ...args: string[]
-): { stdout: string; stderr: string; exitCode: number } {
+function run(...args: string[]): {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+} {
   const result = spawnSync(APEX, args, {
     encoding: "utf-8",
     cwd: process.cwd(),
@@ -27,10 +28,13 @@ function run(
 }
 
 function initGitRepo(): void {
-  execSync("git init && git config user.email test@test.com && git config user.name Test", {
-    cwd: process.cwd(),
-    stdio: "pipe",
-  });
+  execSync(
+    "git init && git config user.email test@test.com && git config user.name Test",
+    {
+      cwd: process.cwd(),
+      stdio: "pipe",
+    },
+  );
   writeFileSync("README.md", "# Test\n");
   execSync("git add . && git commit -m 'init'", {
     cwd: process.cwd(),
@@ -46,7 +50,10 @@ function writeArtifact(path: string, content: string): void {
 
 beforeEach(() => {
   originalCwd = process.cwd();
-  testDir = join(tmpdir(), `apex-test-gates-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+  testDir = join(
+    tmpdir(),
+    `apex-test-gates-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  );
   mkdirSync(testDir, { recursive: true });
   process.chdir(testDir);
   run("init");
@@ -69,9 +76,16 @@ describe("Brainstorm Gate", () => {
   });
 
   test("BLOCKS when artifact missing status: approved", () => {
-    writeArtifact("docs/brainstorms/test-requirements.md",
-      "---\ntitle: Test\nscope: Lightweight\nstatus: draft\n---\n\n## Acceptance Criteria\n1. AC1\n2. AC2\n3. AC3\n\n## Constraints\n- C1\n");
-    run("stage", "artifact", "brainstorm", "docs/brainstorms/test-requirements.md");
+    writeArtifact(
+      "docs/brainstorms/test-requirements.md",
+      "---\ntitle: Test\nscope: Lightweight\nstatus: draft\n---\n\n## Acceptance Criteria\n1. AC1\n2. AC2\n3. AC3\n\n## Constraints\n- C1\n",
+    );
+    run(
+      "stage",
+      "artifact",
+      "brainstorm",
+      "docs/brainstorms/test-requirements.md",
+    );
     run("stage", "set", "brainstorm");
 
     const r = run("stage", "complete", "brainstorm");
@@ -80,9 +94,16 @@ describe("Brainstorm Gate", () => {
   });
 
   test("PASSES when all checks satisfied", () => {
-    writeArtifact("docs/brainstorms/test-requirements.md",
-      "---\ntitle: Test\nscope: Lightweight\nstatus: approved\n---\n\n## Acceptance Criteria\n1. First criterion\n2. Second criterion\n3. Third criterion\n\n## Constraints\n- C1\n");
-    run("stage", "artifact", "brainstorm", "docs/brainstorms/test-requirements.md");
+    writeArtifact(
+      "docs/brainstorms/test-requirements.md",
+      "---\ntitle: Test\nscope: Lightweight\nstatus: approved\n---\n\n## Acceptance Criteria\n1. First criterion\n2. Second criterion\n3. Third criterion\n\n## Constraints\n- C1\n",
+    );
+    run(
+      "stage",
+      "artifact",
+      "brainstorm",
+      "docs/brainstorms/test-requirements.md",
+    );
     run("stage", "set", "brainstorm");
 
     const r = run("stage", "complete", "brainstorm");
@@ -93,9 +114,16 @@ describe("Brainstorm Gate", () => {
   });
 
   test("checks acceptance criteria section", () => {
-    writeArtifact("docs/brainstorms/test-requirements.md",
-      "---\ntitle: Test\nscope: Lightweight\nstatus: approved\n---\n\n## Constraints\n- C1\n");
-    run("stage", "artifact", "brainstorm", "docs/brainstorms/test-requirements.md");
+    writeArtifact(
+      "docs/brainstorms/test-requirements.md",
+      "---\ntitle: Test\nscope: Lightweight\nstatus: approved\n---\n\n## Constraints\n- C1\n",
+    );
+    run(
+      "stage",
+      "artifact",
+      "brainstorm",
+      "docs/brainstorms/test-requirements.md",
+    );
     run("stage", "set", "brainstorm");
 
     const r = run("stage", "complete", "brainstorm");
@@ -115,8 +143,10 @@ describe("Plan Gate", () => {
   });
 
   test("BLOCKS when status not approved", () => {
-    writeArtifact("docs/plans/test-plan.md",
-      "---\ntitle: Test\nstatus: draft\n---\n\n## File Manifest\n- src/foo.ts\n\n## Test Files\n- src/__tests__/foo.test.ts\n\n## Tasks\n- T1: Do thing\n");
+    writeArtifact(
+      "docs/plans/test-plan.md",
+      "---\ntitle: Test\nstatus: draft\n---\n\n## File Manifest\n- src/foo.ts\n\n## Test Files\n- src/__tests__/foo.test.ts\n\n## Tasks\n- T1: Do thing\n",
+    );
     run("stage", "artifact", "plan", "docs/plans/test-plan.md");
     run("task", "create", "Do thing", "desc");
     run("stage", "set", "plan");
@@ -127,8 +157,10 @@ describe("Plan Gate", () => {
   });
 
   test("PASSES when all checks satisfied", () => {
-    writeArtifact("docs/plans/test-plan.md",
-      "---\ntitle: Test\nstatus: approved\n---\n\n## File Manifest\n- src/foo.ts\n\n## Test Files\n- src/__tests__/foo.test.ts\n\n## Tasks\n- T1: Do thing\n");
+    writeArtifact(
+      "docs/plans/test-plan.md",
+      "---\ntitle: Test\nstatus: approved\n---\n\n## File Manifest\n- src/foo.ts\n\n## Test Files\n- src/__tests__/foo.test.ts\n\n## Tasks\n- T1: Do thing\n",
+    );
     run("stage", "artifact", "plan", "docs/plans/test-plan.md");
     run("task", "create", "Do thing", "desc");
     run("stage", "set", "plan");
@@ -177,8 +209,10 @@ describe("Review Gate", () => {
   });
 
   test("BLOCKS when missing persona sections", () => {
-    writeArtifact("docs/reviews/test-review.md",
-      "---\nstatus: DONE\n---\n\n# Review\nLooks good.\n");
+    writeArtifact(
+      "docs/reviews/test-review.md",
+      "---\nstatus: DONE\n---\n\n# Review\nLooks good.\n",
+    );
     run("stage", "artifact", "review", "docs/reviews/test-review.md");
     run("stage", "set", "review");
 
@@ -189,8 +223,10 @@ describe("Review Gate", () => {
   });
 
   test("BLOCKS when status not DONE", () => {
-    writeArtifact("docs/reviews/test-review.md",
-      "---\nstatus: BLOCKED\n---\n\n## Security\nOK\n## Correctness\nOK\n## Spec Compliance\nOK\n## Adversarial\nOK\n");
+    writeArtifact(
+      "docs/reviews/test-review.md",
+      "---\nstatus: BLOCKED\n---\n\n## Security\nOK\n## Correctness\nOK\n## Spec Compliance\nOK\n## Adversarial\nOK\n",
+    );
     run("stage", "artifact", "review", "docs/reviews/test-review.md");
     run("stage", "set", "review");
 
@@ -200,8 +236,10 @@ describe("Review Gate", () => {
   });
 
   test("BLOCKS on unresolved P0", () => {
-    writeArtifact("docs/reviews/test-review.md",
-      "---\nstatus: DONE\n---\n\n## Security\n- P0: SQL injection in login handler\n## Correctness\nOK\n## Spec Compliance\nOK\n## Adversarial\nOK\n");
+    writeArtifact(
+      "docs/reviews/test-review.md",
+      "---\nstatus: DONE\n---\n\n## Security\n- P0: SQL injection in login handler\n## Correctness\nOK\n## Spec Compliance\nOK\n## Adversarial\nOK\n",
+    );
     run("stage", "artifact", "review", "docs/reviews/test-review.md");
     run("stage", "set", "review");
 
@@ -212,12 +250,21 @@ describe("Review Gate", () => {
 
   test("PASSES with all persona sections and DONE status", () => {
     // Brainstorm artifact with Lightweight scope so ADV2 is skipped
-    writeArtifact("docs/brainstorms/test-requirements.md",
-      "---\ntitle: Test\nscope: Lightweight\nstatus: approved\n---\n\n## Acceptance Criteria\n1. A\n2. B\n3. C\n\n## Constraints\n- C1\n");
-    run("stage", "artifact", "brainstorm", "docs/brainstorms/test-requirements.md");
+    writeArtifact(
+      "docs/brainstorms/test-requirements.md",
+      "---\ntitle: Test\nscope: Lightweight\nstatus: approved\n---\n\n## Acceptance Criteria\n1. A\n2. B\n3. C\n\n## Constraints\n- C1\n",
+    );
+    run(
+      "stage",
+      "artifact",
+      "brainstorm",
+      "docs/brainstorms/test-requirements.md",
+    );
     // Review artifact with substantive persona content (> 50 chars each)
-    writeArtifact("docs/reviews/test-review.md",
-      "---\nstatus: DONE\n---\n\n## Security\nNo SQL injection, XSS, or SSRF vulnerabilities found in the changed files. Input validation is correct.\n## Correctness\nAll edge cases handled properly. Error paths return appropriate status codes and messages.\n## Spec Compliance\nAll acceptance criteria from the requirements document are met. File manifest matches plan.\n## Adversarial\nTested assumption violations and composition failures. No cascade risks identified in the current scope.\n");
+    writeArtifact(
+      "docs/reviews/test-review.md",
+      "---\nstatus: DONE\n---\n\n## Security\nNo SQL injection, XSS, or SSRF vulnerabilities found in the changed files. Input validation is correct.\n## Correctness\nAll edge cases handled properly. Error paths return appropriate status codes and messages.\n## Spec Compliance\nAll acceptance criteria from the requirements document are met. File manifest matches plan.\n## Adversarial\nTested assumption violations and composition failures. No cascade risks identified in the current scope.\n",
+    );
     run("stage", "artifact", "review", "docs/reviews/test-review.md");
     run("stage", "set", "review");
 
@@ -238,8 +285,10 @@ describe("Compound Gate", () => {
   });
 
   test("BLOCKS when re-entry-prompt checkpoint missing", () => {
-    writeArtifact("docs/solutions/test/solution.md",
-      "# Solution\n\n## Root Cause\nBug in X.\n\n## Prevention\nAdd test.\n");
+    writeArtifact(
+      "docs/solutions/test/solution.md",
+      "# Solution\n\n## Root Cause\nBug in X.\n\n## Prevention\nAdd test.\n",
+    );
     run("stage", "artifact", "compound", "docs/solutions/test/solution.md");
     writeArtifact("docs/roadmaps/roadmap-20260415.md", "# Roadmap\n");
     run("memory", "add", "Test lesson", "0.8", "test");
@@ -264,8 +313,10 @@ describe("Compound Gate", () => {
   });
 
   test("PASSES when all checks satisfied", () => {
-    writeArtifact("docs/solutions/test/solution.md",
-      "# Solution\n\n## Root Cause\nBug in X.\n\n## Prevention\nAdd test.\n");
+    writeArtifact(
+      "docs/solutions/test/solution.md",
+      "# Solution\n\n## Root Cause\nBug in X.\n\n## Prevention\nAdd test.\n",
+    );
     run("stage", "artifact", "compound", "docs/solutions/test/solution.md");
     writeArtifact("docs/roadmaps/roadmap-20260415.md", "# Roadmap\n");
     run("memory", "add", "Test lesson", "0.8", "test");

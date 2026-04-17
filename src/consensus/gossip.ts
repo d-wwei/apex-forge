@@ -117,7 +117,7 @@ export class GossipProtocol {
   isConverged(key: string): boolean {
     const values = [...this.nodes.values()].map((n) => n.state.get(key));
     if (values.some((v) => !v)) return false;
-    return values.every((v) => v!.version === values[0]!.version);
+    return values.every((v) => v?.version === values[0]?.version);
   }
 
   isFullyConverged(): boolean {
@@ -142,9 +142,7 @@ export class GossipProtocol {
     return this.nodes.size;
   }
 
-  getNodeState(
-    nodeId: string,
-  ): Map<string, GossipEntry> | undefined {
+  getNodeState(nodeId: string): Map<string, GossipEntry> | undefined {
     return this.nodes.get(nodeId)?.state;
   }
 }

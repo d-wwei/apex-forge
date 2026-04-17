@@ -13,18 +13,18 @@
 
 import {
   memoryAdd,
-  memoryList,
-  memorySearch,
-  memoryRemove,
-  memoryPrune,
   memoryInject,
+  memoryList,
+  memoryPrune,
+  memoryRemove,
+  memorySearch,
 } from "../state/memory.js";
 import type {
+  ActiveTask,
+  CheckpointData,
   MemoryBackend,
   MemoryFact,
   SolutionRef,
-  ActiveTask,
-  CheckpointData,
 } from "./interface.js";
 
 const BASE_URL = "http://localhost:37777";
@@ -34,7 +34,10 @@ const TIMEOUT_MS = 5000;
 // HTTP helpers
 // ---------------------------------------------------------------------------
 
-async function arGet(path: string, params?: Record<string, string>): Promise<string> {
+async function arGet(
+  path: string,
+  params?: Record<string, string>,
+): Promise<string> {
   const url = new URL(path, BASE_URL);
   if (params) {
     for (const [k, v] of Object.entries(params)) {
@@ -52,12 +55,15 @@ async function arGet(path: string, params?: Record<string, string>): Promise<str
   if (ct.includes("text/plain")) {
     return resp.text();
   }
-  const json = await resp.json() as { content?: Array<{ text: string }> };
+  const json = (await resp.json()) as { content?: Array<{ text: string }> };
   if (json.content?.[0]?.text) return json.content[0].text;
   return JSON.stringify(json);
 }
 
-async function arPost<T>(path: string, body: Record<string, unknown>): Promise<T> {
+async function arPost<T>(
+  path: string,
+  body: Record<string, unknown>,
+): Promise<T> {
   const resp = await fetch(new URL(path, BASE_URL).toString(), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -70,7 +76,10 @@ async function arPost<T>(path: string, body: Record<string, unknown>): Promise<T
   return resp.json() as Promise<T>;
 }
 
-async function arGetJson<T>(path: string, params?: Record<string, string>): Promise<T> {
+async function arGetJson<T>(
+  path: string,
+  params?: Record<string, string>,
+): Promise<T> {
   const url = new URL(path, BASE_URL);
   if (params) {
     for (const [k, v] of Object.entries(params)) {
@@ -174,7 +183,12 @@ export class AgentRecallBackend implements MemoryBackend {
     tags: string[],
   ): Promise<void> {
     // Local store
-    await memoryAdd(`Solution: ${path}`, 0.9, ["solution", category, ...tags], "compound");
+    await memoryAdd(
+      `Solution: ${path}`,
+      0.9,
+      ["solution", category, ...tags],
+      "compound",
+    );
 
     // Agent Recall
     try {
@@ -195,8 +209,7 @@ export class AgentRecallBackend implements MemoryBackend {
       .filter((f) => f.tags.includes("solution"))
       .map((f) => {
         const pathMatch = f.content.match(/Solution:\s*(\S+)/);
-        const category =
-          f.tags.find((t) => t !== "solution") || "unknown";
+        const category = f.tags.find((t) => t !== "solution") || "unknown";
         return {
           path: pathMatch?.[1] || "",
           category,
@@ -250,10 +263,14 @@ export class AgentRecallBackend implements MemoryBackend {
 
     // Local fallback: read tasks.json
     const { readJSON } = await import("../utils/json.js");
-    const store = await readJSON<{ tasks: Array<{ id: string; status: string; title: string; updated_at: string }> }>(
-      ".apex/tasks.json",
-      { tasks: [] },
-    );
+    const store = await readJSON<{
+      tasks: Array<{
+        id: string;
+        status: string;
+        title: string;
+        updated_at: string;
+      }>;
+    }>(".apex/tasks.json", { tasks: [] });
     const active = store.tasks.find((t) => t.status === "in_progress");
     if (!active) return null;
     return {
@@ -284,6 +301,9 @@ export class AgentRecallBackend implements MemoryBackend {
       context: data.context,
       savedAt: isoTimestamp(),
     };
-    await writeJSON(`.apex/checkpoints/${data.stage}-${Date.now()}.json`, checkpoint);
+    await writeJSON(
+      `.apex/checkpoints/${data.stage}-${Date.now()}.json`,
+      checkpoint,
+    );
   }
 }

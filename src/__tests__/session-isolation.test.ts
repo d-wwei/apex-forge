@@ -1,20 +1,26 @@
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { mkdtempSync, writeFileSync, readFileSync, existsSync, rmSync, mkdirSync } from "fs";
-import { join } from "path";
-import { tmpdir } from "os";
-
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import {
-  sessionStateCachePath,
-  _resetSessionIdCache,
-  currentSessionId,
-  appendEvent,
-  rebuildAndCache,
-  materializeTasks,
-} from "../state/event-log.js";
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { cmdInit } from "../commands/init.js";
 import type { DomainEvent } from "../state/event-log.js";
+import {
+  _resetSessionIdCache,
+  appendEvent,
+  currentSessionId,
+  materializeTasks,
+  rebuildAndCache,
+  sessionStateCachePath,
+} from "../state/event-log.js";
 import { getState } from "../state/state.js";
 import { taskCreate } from "../state/tasks.js";
-import { cmdInit } from "../commands/init.js";
 
 describe("session-aware state cache", () => {
   describe("T31: sessionStateCachePath", () => {
@@ -69,17 +75,36 @@ describe("session-aware state cache", () => {
       rmSync(tmpDir, { recursive: true, force: true });
     });
 
-    test("does NOT read another session's ID from state.json", () => {
-      // Write a state.json with someone else's session_id
+    test("reads session_id from state.json when no env var is set", () => {
+      // Write a state.json with a known session_id
       writeFileSync(
         join(tmpDir, ".apex/state.json"),
-        JSON.stringify({ session_id: "other-session-xyz", current_stage: "review" }),
+        JSON.stringify({
+          session_id: "project-session-xyz",
+          current_stage: "review",
+        }),
       );
 
       const myId = currentSessionId();
-      // Must NOT return the other session's ID
-      expect(myId).not.toBe("other-session-xyz");
-      // Should be a freshly generated ID
+      // Should inherit the project's canonical session ID
+      expect(myId).toBe("project-session-xyz");
+    });
+
+    test("generates fresh ID when state.json has no session_id", () => {
+      // Write a state.json without session_id
+      writeFileSync(
+        join(tmpDir, ".apex/state.json"),
+        JSON.stringify({ current_stage: "idle" }),
+      );
+
+      const myId = currentSessionId();
+      // Should generate a fresh ID
+      expect(myId.startsWith("apex-")).toBe(true);
+    });
+
+    test("generates fresh ID when no state.json exists", () => {
+      // No state.json written — tmpDir/.apex/ is empty
+      const myId = currentSessionId();
       expect(myId.startsWith("apex-")).toBe(true);
     });
   });
@@ -116,14 +141,20 @@ describe("session-aware state cache", () => {
       await rebuildAndCache("state");
 
       // Check per-session caches
-      const cacheA = JSON.parse(readFileSync(join(tmpDir, ".apex/state.session-a.json"), "utf-8"));
-      const cacheB = JSON.parse(readFileSync(join(tmpDir, ".apex/state.session-b.json"), "utf-8"));
+      const cacheA = JSON.parse(
+        readFileSync(join(tmpDir, ".apex/state.session-a.json"), "utf-8"),
+      );
+      const cacheB = JSON.parse(
+        readFileSync(join(tmpDir, ".apex/state.session-b.json"), "utf-8"),
+      );
 
       expect(cacheA.current_stage).toBe("brainstorm");
       expect(cacheB.current_stage).toBe("execute");
 
       // Global cache has the last writer's full state (both events)
-      const global = JSON.parse(readFileSync(join(tmpDir, ".apex/state.json"), "utf-8"));
+      const global = JSON.parse(
+        readFileSync(join(tmpDir, ".apex/state.json"), "utf-8"),
+      );
       expect(global.current_stage).toBe("execute");
     });
 
@@ -132,7 +163,10 @@ describe("session-aware state cache", () => {
       process.env.APEX_SESSION_ID = "session-b";
       _resetSessionIdCache();
       appendEvent("state", "stage.set", { stage: "brainstorm" });
-      appendEvent("state", "artifact.added", { stage: "brainstorm", path: "docs/b-artifact.md" });
+      appendEvent("state", "artifact.added", {
+        stage: "brainstorm",
+        path: "docs/b-artifact.md",
+      });
       await rebuildAndCache("state");
 
       // Session A has its own stage but no artifacts
@@ -142,12 +176,16 @@ describe("session-aware state cache", () => {
       await rebuildAndCache("state");
 
       // Session A's per-session cache should NOT contain B's artifact
-      const cacheA = JSON.parse(readFileSync(join(tmpDir, ".apex/state.session-a.json"), "utf-8"));
+      const cacheA = JSON.parse(
+        readFileSync(join(tmpDir, ".apex/state.session-a.json"), "utf-8"),
+      );
       const brainstormArtifacts = cacheA.artifacts?.brainstorm || [];
       expect(brainstormArtifacts.includes("docs/b-artifact.md")).toBe(false);
 
       // Session B's per-session cache should contain its artifact
-      const cacheB = JSON.parse(readFileSync(join(tmpDir, ".apex/state.session-b.json"), "utf-8"));
+      const cacheB = JSON.parse(
+        readFileSync(join(tmpDir, ".apex/state.session-b.json"), "utf-8"),
+      );
       expect(cacheB.artifacts?.brainstorm).toEqual(["docs/b-artifact.md"]);
     });
   });
@@ -176,12 +214,24 @@ describe("session-aware state cache", () => {
       // Write global with stage=review
       writeFileSync(
         join(tmpDir, ".apex/state.json"),
-        JSON.stringify({ current_stage: "review", last_updated: "2026-01-01T00:00:00Z", session_id: "other", artifacts: {}, history: [] }),
+        JSON.stringify({
+          current_stage: "review",
+          last_updated: "2026-01-01T00:00:00Z",
+          session_id: "other",
+          artifacts: {},
+          history: [],
+        }),
       );
       // Write per-session with stage=plan
       writeFileSync(
         join(tmpDir, ".apex/state.test-session.json"),
-        JSON.stringify({ current_stage: "plan", last_updated: "2026-01-01T00:00:00Z", session_id: "test-session", artifacts: {}, history: [] }),
+        JSON.stringify({
+          current_stage: "plan",
+          last_updated: "2026-01-01T00:00:00Z",
+          session_id: "test-session",
+          artifacts: {},
+          history: [],
+        }),
       );
 
       const state = await getState();
@@ -192,7 +242,13 @@ describe("session-aware state cache", () => {
       // Write only global
       writeFileSync(
         join(tmpDir, ".apex/state.json"),
-        JSON.stringify({ current_stage: "review", last_updated: "2026-01-01T00:00:00Z", session_id: "other", artifacts: {}, history: [] }),
+        JSON.stringify({
+          current_stage: "review",
+          last_updated: "2026-01-01T00:00:00Z",
+          session_id: "other",
+          artifacts: {},
+          history: [],
+        }),
       );
 
       const state = await getState();
@@ -210,7 +266,10 @@ describe("task ID collision resistance", () => {
     tmpDir = mkdtempSync(join(tmpdir(), "apex-taskid-"));
     mkdirSync(join(tmpDir, ".apex/log"), { recursive: true });
     // Write minimal tasks.json seed
-    writeFileSync(join(tmpDir, ".apex/tasks.json"), JSON.stringify({ tasks: [], next_id: 1 }));
+    writeFileSync(
+      join(tmpDir, ".apex/tasks.json"),
+      JSON.stringify({ tasks: [], next_id: 1 }),
+    );
     process.chdir(tmpDir);
   });
 
@@ -246,18 +305,40 @@ describe("task ID collision resistance", () => {
   test("T36: duplicate task ID events annotated with conflict marker", () => {
     // Inject two task.created events with the same ID from different sessions
     const events: DomainEvent[] = [
-      { ts: "2026-01-01T00:00:00Z", session_id: "s1", domain: "task", type: "task.created", payload: { id: "T1", title: "first", description: "from s1", depends_on: [] } },
-      { ts: "2026-01-01T00:01:00Z", session_id: "s2", domain: "task", type: "task.created", payload: { id: "T1", title: "second", description: "from s2", depends_on: [] } },
+      {
+        ts: "2026-01-01T00:00:00Z",
+        session_id: "s1",
+        domain: "task",
+        type: "task.created",
+        payload: {
+          id: "T1",
+          title: "first",
+          description: "from s1",
+          depends_on: [],
+        },
+      },
+      {
+        ts: "2026-01-01T00:01:00Z",
+        session_id: "s2",
+        domain: "task",
+        type: "task.created",
+        payload: {
+          id: "T1",
+          title: "second",
+          description: "from s2",
+          depends_on: [],
+        },
+      },
     ];
 
     const store = materializeTasks(events);
     // First T1 preserved
-    const t1 = store.tasks.find(t => t.id === "T1");
+    const t1 = store.tasks.find((t) => t.id === "T1");
     expect(t1).toBeDefined();
-    expect(t1!.title).toBe("first");
+    expect(t1?.title).toBe("first");
     // Conflict annotated (not silently dropped)
-    expect(t1!.description.includes("[conflict:")).toBe(true);
-    expect(t1!.description.includes("s2")).toBe(true);
+    expect(t1?.description.includes("[conflict:")).toBe(true);
+    expect(t1?.description.includes("s2")).toBe(true);
   });
 });
 
@@ -286,7 +367,7 @@ describe("stale cache cleanup", () => {
 
     // Backdate the stale file to 8 days ago
     const eightDaysAgo = new Date(Date.now() - 8 * 86400000);
-    const { utimesSync } = await import("fs");
+    const { utimesSync } = await import("node:fs");
     utimesSync(staleFile, eightDaysAgo, eightDaysAgo);
 
     await cmdInit();

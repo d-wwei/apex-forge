@@ -90,7 +90,7 @@ export class BftConsensus {
       if (id === primary.id) continue;
       node.log.push({ ...entry });
       if (!node.prepared.has(digest)) node.prepared.set(digest, new Set());
-      node.prepared.get(digest)!.add(id);
+      node.prepared.get(digest)?.add(id);
     }
 
     return digest;
@@ -105,7 +105,7 @@ export class BftConsensus {
       if (!node.prepared.has(digest)) node.prepared.set(digest, new Set());
       // Each node records all other nodes' prepare messages
       for (const [otherId] of this.nodes) {
-        if (otherId !== id) node.prepared.get(digest)!.add(otherId);
+        if (otherId !== id) node.prepared.get(digest)?.add(otherId);
       }
     }
 
@@ -121,10 +121,10 @@ export class BftConsensus {
   // -----------------------------------------------------------------------
 
   commit(digest: string): boolean {
-    for (const [id, node] of this.nodes) {
+    for (const [_id, node] of this.nodes) {
       if (!node.committed.has(digest)) node.committed.set(digest, new Set());
       for (const [otherId] of this.nodes) {
-        node.committed.get(digest)!.add(otherId);
+        node.committed.get(digest)?.add(otherId);
       }
     }
 
@@ -164,9 +164,7 @@ export class BftConsensus {
     const currentPrimary = nodeList.find((n) => n.isPrimary);
     if (currentPrimary) currentPrimary.isPrimary = false;
 
-    const currentIdx = currentPrimary
-      ? nodeList.indexOf(currentPrimary)
-      : -1;
+    const currentIdx = currentPrimary ? nodeList.indexOf(currentPrimary) : -1;
     const nextIdx = (currentIdx + 1) % nodeList.length;
     nodeList[nextIdx].isPrimary = true;
 

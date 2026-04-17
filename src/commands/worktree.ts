@@ -1,4 +1,4 @@
-import { spawnSync } from "child_process";
+import { spawnSync } from "node:child_process";
 
 export async function cmdWorktree(args: string[]): Promise<void> {
   const verb = args[0];
@@ -12,10 +12,7 @@ export async function cmdWorktree(args: string[]): Promise<void> {
       }
 
       // Verify we are in a git repo
-      const gitCheck = spawnSync("git", [
-        "rev-parse",
-        "--is-inside-work-tree",
-      ]);
+      const gitCheck = spawnSync("git", ["rev-parse", "--is-inside-work-tree"]);
       if (gitCheck.status !== 0) {
         console.error("Not in a git repository");
         process.exit(1);
@@ -24,13 +21,7 @@ export async function cmdWorktree(args: string[]): Promise<void> {
       const branch = `apex/${taskId}`;
       const dir = `.apex/worktrees/${taskId}`;
 
-      const result = spawnSync("git", [
-        "worktree",
-        "add",
-        dir,
-        "-b",
-        branch,
-      ]);
+      const result = spawnSync("git", ["worktree", "add", dir, "-b", branch]);
       if (result.status !== 0) {
         const stderr = result.stderr?.toString().trim();
         console.error(
@@ -64,12 +55,7 @@ export async function cmdWorktree(args: string[]): Promise<void> {
         process.exit(1);
       }
       const dir = `.apex/worktrees/${taskId}`;
-      const result = spawnSync("git", [
-        "worktree",
-        "remove",
-        dir,
-        "--force",
-      ]);
+      const result = spawnSync("git", ["worktree", "remove", dir, "--force"]);
       if (result.status !== 0) {
         const stderr = result.stderr?.toString().trim();
         console.error(
@@ -82,9 +68,7 @@ export async function cmdWorktree(args: string[]): Promise<void> {
     }
 
     default:
-      console.error(
-        `Unknown worktree command: ${verb || "(none)"}`,
-      );
+      console.error(`Unknown worktree command: ${verb || "(none)"}`);
       console.error("Usage: apex worktree [create|list|cleanup]");
       process.exit(1);
   }

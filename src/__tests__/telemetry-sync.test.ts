@@ -1,6 +1,12 @@
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from "fs";
-import { join } from "path";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { join } from "node:path";
 
 /**
  * Since telemetry-sync.ts doesn't export collectUnsyncedEvents,
@@ -21,7 +27,10 @@ afterEach(() => {
 });
 
 function writeJSONL(filePath: string, records: any[]) {
-  writeFileSync(filePath, records.map((r) => JSON.stringify(r)).join("\n") + "\n");
+  writeFileSync(
+    filePath,
+    `${records.map((r) => JSON.stringify(r)).join("\n")}\n`,
+  );
 }
 
 function readSyncState(stateFile: string): number {
@@ -35,13 +44,26 @@ function readSyncState(stateFile: string): number {
 
 // ─── collectUnsyncedEvents logic (reimplemented for testing) ─
 
-function collectUnsyncedEvents(filePath: string, stateFile: string, source: string) {
+function collectUnsyncedEvents(
+  filePath: string,
+  stateFile: string,
+  source: string,
+) {
   if (!existsSync(filePath)) return { events: [], totalLines: 0 };
-  const allLines = readFileSync(filePath, "utf-8").trim().split("\n").filter(Boolean);
+  const allLines = readFileSync(filePath, "utf-8")
+    .trim()
+    .split("\n")
+    .filter(Boolean);
   const lastSynced = readSyncState(stateFile);
   const newLines = allLines.slice(lastSynced);
   const events = newLines
-    .map((line) => { try { return { ...JSON.parse(line), _source: source }; } catch { return null; } })
+    .map((line) => {
+      try {
+        return { ...JSON.parse(line), _source: source };
+      } catch {
+        return null;
+      }
+    })
     .filter(Boolean);
   return { events, totalLines: allLines.length };
 }
@@ -92,7 +114,10 @@ describe("collectUnsyncedEvents", () => {
   });
 
   test("skips malformed JSON lines", () => {
-    writeFileSync(join(ANALYTICS_DIR, "bad.jsonl"), '{"good":true}\nNOT JSON\n{"also":true}\n');
+    writeFileSync(
+      join(ANALYTICS_DIR, "bad.jsonl"),
+      '{"good":true}\nNOT JSON\n{"also":true}\n',
+    );
     const result = collectUnsyncedEvents(
       join(ANALYTICS_DIR, "bad.jsonl"),
       join(ANALYTICS_DIR, ".sync-state"),
@@ -106,10 +131,13 @@ describe("collectUnsyncedEvents", () => {
 describe("multi-file independent cursors", () => {
   test("each file tracks its own sync position", () => {
     writeJSONL(join(ANALYTICS_DIR, "usage.jsonl"), [
-      { skill: "a" }, { skill: "b" }, { skill: "c" },
+      { skill: "a" },
+      { skill: "b" },
+      { skill: "c" },
     ]);
     writeJSONL(join(ANALYTICS_DIR, "orchestrator.jsonl"), [
-      { adapter: "claude" }, { adapter: "codex" },
+      { adapter: "claude" },
+      { adapter: "codex" },
     ]);
 
     // Usage synced up to line 2, orchestrator not synced at all

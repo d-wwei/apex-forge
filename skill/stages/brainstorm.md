@@ -62,7 +62,7 @@ What is the user asking for?
   → Output: PRD document or validation summary
 
 → Specific development task / feature / bug fix / refactor
-  → Continue with 9-step checklist below
+  → Continue with brainstorm checklist below
   → Output: requirements confirmation document
 ```
 
@@ -77,28 +77,29 @@ When routing to PRD path: `apex trace-skill brainstorm product-prd 2.0.0 <output
 | Scope | Criteria | Checklist | Typical Duration |
 |-------|----------|-----------|-----------------|
 | **Lightweight** | Single-file change, config update, bug fix with known cause, < 30 min effort | Abbreviated (steps 1, 3, 5, 8, 9) | 5-10 min |
-| **Standard** | Multi-file feature, API addition, moderate refactor, 30 min - 4 hr effort | Full 9-step | 15-30 min |
-| **Deep** | Architecture change, new subsystem, multi-service coordination, 4+ hr effort | Full 9-step + architecture diagram + risk matrix | 30-60 min |
+| **Standard** | Multi-file feature, API addition, moderate refactor, 30 min - 4 hr effort | Full checklist | 15-30 min |
+| **Deep** | Architecture change, new subsystem, multi-service coordination, 4+ hr effort | Full checklist + architecture diagram + risk matrix | 30-60 min |
 
 If user claims Lightweight but signals indicate higher complexity, escalate to Standard.
 
 ---
 
-## The 9-Step Checklist
+## The Brainstorm Checklist
 
 → See `details/brainstorm-checklist.md` for full step descriptions, output requirements, and the Multi-Issue Discussion Protocol.
 
 If any step surfaces > 5 open issues, switch to the Multi-Issue Discussion Protocol before continuing.
 
-1. Clarify the Actual Problem
+1. Clarify the Actual Problem (+ Evidence of Need)
 2. Identify Constraints and Boundaries
-3. Enumerate Approaches (Minimum 2)
-4. Evaluate Trade-offs
-5. Define Acceptance Criteria
-6. Identify Risks and Mitigations
-7. Specify Dependencies
-8. Draft the Solution Shape
-9. User Approval Checkpoint
+3. Capability Audit (prove existing mechanisms don't cover the need)
+4. Enumerate Approaches (Minimum 2)
+5. Evaluate Trade-offs
+6. Define Acceptance Criteria
+7. Identify Risks and Mitigations (+ Anti-Double-Counting check)
+8. Specify Dependencies
+9. Draft the Solution Shape
+10. User Approval Checkpoint
 
 → See `details/brainstorm-anti-patterns.md` for the Anti-Rationalization Table.
 
@@ -106,7 +107,7 @@ If any step surfaces > 5 open issues, switch to the Multi-Issue Discussion Proto
 
 ## Artifact Output
 
-On Step 9 approval, write to `docs/brainstorms/{name}-requirements.md` (frontmatter: title, scope, status, dates, approval). Include "Confirmed Decisions" section if a decisions log was maintained.
+On Step 10 approval, write to `docs/brainstorms/{name}-requirements.md` (frontmatter: title, scope, status, dates, approval). Include "Confirmed Decisions" section if a decisions log was maintained.
 
 → See `details/brainstorm-decisions-log.md` for decisions log format and rules.
 
@@ -132,6 +133,7 @@ Before `apex stage complete brainstorm`, run the Stage Exit Gate (`gates/stage-e
 | S5 | Scope classification | Frontmatter contains `scope:` field (Lightweight/Standard/Deep) | Frontmatter check |
 | S6 | Status approved | Frontmatter `status: approved` | Frontmatter check |
 | S7 | Decisions transferred | If `{name}-decisions.md` exists, requirements doc contains "Confirmed Decisions" section | Conditional: file exists check + section scan |
+| S8 | ADR written | If scope is Standard or Deep AND approaches section contains ≥2 rejected alternatives, then `docs/decisions/NNNN-*.md` must exist for this iteration. Lightweight scope is exempt. | Conditional: scope + approach count check + file glob |
 
 ### Substance Prompts (Tier 2+)
 

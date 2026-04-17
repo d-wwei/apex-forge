@@ -20,6 +20,9 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      - name: Lint (Biome)
+        run: bunx biome ci src/
+
       - name: Type check
         run: bunx tsc --noEmit
 
@@ -38,3 +41,18 @@ jobs:
           ./dist/apex-forge memory list
           ./dist/apex-forge status
           ./dist/apex-forge consensus test-all
+
+      - name: CLI backward compatibility smoke test
+        run: |
+          ./dist/apex-forge init
+          ./dist/apex-forge status --json | node -e "
+            const s = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
+            const required = ['version','session_id','stage','tasks'];
+            for (const f of required) {
+              if (!(f in s)) { console.error('Missing field: ' + f); process.exit(1); }
+            }
+            if (typeof s.tasks !== 'object') { console.error('tasks must be object'); process.exit(1); }
+            console.log('status --json contract OK');
+          "
+          ./dist/apex-forge task list 2>&1 | head -1
+          echo "Backward compat test passed"

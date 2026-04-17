@@ -8,9 +8,9 @@
  * Commands: goto, snapshot, click, fill, screenshot, text, html, links, console, is
  */
 
-import { z } from "zod";
+import * as fs from "node:fs";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import * as fs from "fs";
+import { z } from "zod";
 
 // ---------------------------------------------------------------------------
 // Daemon communication
@@ -48,7 +48,7 @@ async function ensureDaemon(): Promise<ServerState> {
       signal: AbortSignal.timeout(3000),
     });
     if (!resp.ok) throw new Error("unhealthy");
-    const health = await resp.json() as any;
+    const health = (await resp.json()) as any;
     if (health.status !== "healthy") throw new Error("unhealthy");
   } catch {
     throw new Error(
@@ -97,7 +97,10 @@ function ok(text: string) {
 
 function err(error: unknown) {
   const msg = error instanceof Error ? error.message : String(error);
-  return { content: [{ type: "text" as const, text: `Error: ${msg}` }], isError: true as const };
+  return {
+    content: [{ type: "text" as const, text: `Error: ${msg}` }],
+    isError: true as const,
+  };
 }
 
 // ---------------------------------------------------------------------------

@@ -11,11 +11,11 @@
  *   blocked -> open (unblock, restores previous_status metadata)
  */
 
-import { readJSON } from "../utils/json.js";
-import { TaskNotFoundError, InvalidTransitionError } from "../utils/errors.js";
-import type { Task, TaskStore, TaskStatus } from "../types/task.js";
+import type { Task, TaskStatus, TaskStore } from "../types/task.js";
 import { ALLOWED_TRANSITIONS } from "../types/task.js";
-import { appendEvent, rebuildAndCache, readEvents } from "./event-log.js";
+import { InvalidTransitionError, TaskNotFoundError } from "../utils/errors.js";
+import { readJSON } from "../utils/json.js";
+import { appendEvent, readEvents, rebuildAndCache } from "./event-log.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -79,7 +79,7 @@ export async function taskTransition(
     throw new InvalidTransitionError(
       taskId,
       from,
-      toStatus + " (evidence required)",
+      `${toStatus} (evidence required)`,
     );
   }
 
@@ -202,10 +202,7 @@ export async function taskSubmit(
  *   pass=true  -> to_verify -> done
  *   pass=false -> to_verify -> in_progress (verify fail, rework needed)
  */
-export async function taskVerify(
-  taskId: string,
-  pass: boolean,
-): Promise<Task> {
+export async function taskVerify(taskId: string, pass: boolean): Promise<Task> {
   if (pass) {
     return taskTransition(taskId, "done");
   }
@@ -215,10 +212,7 @@ export async function taskVerify(
 /**
  * Block a task: (any except done) -> blocked. Reason is required.
  */
-export async function taskBlock(
-  taskId: string,
-  reason: string,
-): Promise<Task> {
+export async function taskBlock(taskId: string, reason: string): Promise<Task> {
   return taskTransition(taskId, "blocked", { reason });
 }
 

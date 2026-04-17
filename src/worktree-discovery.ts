@@ -5,9 +5,9 @@
  * Used by the dashboard to aggregate multi-worktree views.
  */
 
-import { existsSync } from "fs";
-import { join, resolve, dirname } from "path";
-import { spawnSync } from "child_process";
+import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import type { ProjectEntry } from "./registry.js";
 
 // ---------------------------------------------------------------------------
@@ -16,12 +16,19 @@ import type { ProjectEntry } from "./registry.js";
 
 const CACHE_TTL_MS = 30_000; // 30 seconds
 
-interface CacheEntry<T> { value: T; expires: number; }
+interface CacheEntry<T> {
+  value: T;
+  expires: number;
+}
 
 const repoRootCache = new Map<string, CacheEntry<string | null>>();
 const worktreeCache = new Map<string, CacheEntry<WorktreeInfo[]>>();
 
-function cached<T>(map: Map<string, CacheEntry<T>>, key: string, compute: () => T): T {
+function cached<T>(
+  map: Map<string, CacheEntry<T>>,
+  key: string,
+  compute: () => T,
+): T {
   const entry = map.get(key);
   if (entry && Date.now() < entry.expires) return entry.value;
   const value = compute();
@@ -30,11 +37,11 @@ function cached<T>(map: Map<string, CacheEntry<T>>, key: string, compute: () => 
 }
 
 export interface WorktreeInfo {
-  path: string;       // absolute worktree path
-  branch: string;     // e.g. "refs/heads/feature-a"
-  label: string;      // short name: "feature-a" or "main"
-  isMain: boolean;    // is this the main worktree?
-  hasApex: boolean;   // does .apex/ exist here?
+  path: string; // absolute worktree path
+  branch: string; // e.g. "refs/heads/feature-a"
+  label: string; // short name: "feature-a" or "main"
+  isMain: boolean; // is this the main worktree?
+  hasApex: boolean; // does .apex/ exist here?
 }
 
 export interface WorktreeGroup {
@@ -155,7 +162,7 @@ export function groupProjectsByRepo(projects: ProjectEntry[]): WorktreeGroup[] {
     if (entries.length < 2) continue;
 
     // Discover all worktrees (including unregistered ones with .apex/)
-    const allWorktrees = discoverWorktrees(repoRoot).filter(wt => wt.hasApex);
+    const allWorktrees = discoverWorktrees(repoRoot).filter((wt) => wt.hasApex);
     if (allWorktrees.length < 2) continue;
 
     const repoName = repoRoot.split("/").filter(Boolean).pop() || "unknown";
@@ -163,7 +170,7 @@ export function groupProjectsByRepo(projects: ProjectEntry[]): WorktreeGroup[] {
       repoRoot,
       repoName,
       worktrees: allWorktrees,
-      projectPaths: allWorktrees.map(wt => wt.path),
+      projectPaths: allWorktrees.map((wt) => wt.path),
     });
   }
 

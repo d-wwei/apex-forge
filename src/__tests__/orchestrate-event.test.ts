@@ -1,7 +1,7 @@
-import { describe, test, expect, beforeEach, afterEach, spyOn } from "bun:test";
-import { existsSync, mkdirSync, rmSync, readFileSync } from "fs";
-import { join } from "path";
-import { tmpdir } from "os";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
+import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 describe("apex orchestrate event", () => {
   let tmpDir: string;
@@ -11,7 +11,10 @@ describe("apex orchestrate event", () => {
   let exitSpy: ReturnType<typeof spyOn>;
 
   beforeEach(() => {
-    tmpDir = join(tmpdir(), `apex-orch-event-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    tmpDir = join(
+      tmpdir(),
+      `apex-orch-event-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    );
     mkdirSync(tmpDir, { recursive: true });
     origCwd = process.cwd();
     process.chdir(tmpDir);
@@ -31,12 +34,22 @@ describe("apex orchestrate event", () => {
     logSpy.mockRestore();
     errorSpy.mockRestore();
     exitSpy.mockRestore();
-    try { rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+    try {
+      rmSync(tmpDir, { recursive: true, force: true });
+    } catch {}
   });
 
   test("cmdOrchestrateEvent writes event to state.jsonl", async () => {
-    const { cmdOrchestrateEvent } = await import("../commands/orchestrate-event.js");
-    await cmdOrchestrateEvent(["worker_completed", "--task", "T1", "--detail", '{"verdict":"pass"}']);
+    const { cmdOrchestrateEvent } = await import(
+      "../commands/orchestrate-event.js"
+    );
+    await cmdOrchestrateEvent([
+      "worker_completed",
+      "--task",
+      "T1",
+      "--detail",
+      '{"verdict":"pass"}',
+    ]);
 
     const logPath = join(tmpDir, ".apex", "log", "state.jsonl");
     expect(existsSync(logPath)).toBe(true);
@@ -52,7 +65,9 @@ describe("apex orchestrate event", () => {
   });
 
   test("cmdOrchestrateEvent works without --task and --detail", async () => {
-    const { cmdOrchestrateEvent } = await import("../commands/orchestrate-event.js");
+    const { cmdOrchestrateEvent } = await import(
+      "../commands/orchestrate-event.js"
+    );
     await cmdOrchestrateEvent(["user_request"]);
 
     const logPath = join(tmpDir, ".apex", "log", "state.jsonl");
@@ -63,13 +78,17 @@ describe("apex orchestrate event", () => {
   });
 
   test("cmdOrchestrateEvent requires action argument", async () => {
-    const { cmdOrchestrateEvent } = await import("../commands/orchestrate-event.js");
+    const { cmdOrchestrateEvent } = await import(
+      "../commands/orchestrate-event.js"
+    );
     await expect(cmdOrchestrateEvent([])).rejects.toThrow("process.exit(1)");
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("Usage:"));
   });
 
   test("cmdOrchestrateEvent parses complex --detail JSON", async () => {
-    const { cmdOrchestrateEvent } = await import("../commands/orchestrate-event.js");
+    const { cmdOrchestrateEvent } = await import(
+      "../commands/orchestrate-event.js"
+    );
     const detail = JSON.stringify({ added: ["T5"], cancelled: ["T3"] });
     await cmdOrchestrateEvent(["re_split", "--detail", detail]);
 

@@ -1,7 +1,7 @@
-import { describe, test, expect, beforeAll, afterAll } from "bun:test";
-import { mkdirSync, rmSync, writeFileSync } from "fs";
-import { join } from "path";
-import { spawn, type Subprocess } from "bun";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { type Subprocess, spawn } from "bun";
 
 /**
  * E2E test: start a Dashboard server, write analytics data, and verify
@@ -16,7 +16,10 @@ const PORT = 3599; // High port unlikely to conflict
 let server: Subprocess | null = null;
 
 function writeJSONL(filePath: string, records: any[]) {
-  writeFileSync(filePath, records.map((r) => JSON.stringify(r)).join("\n") + "\n");
+  writeFileSync(
+    filePath,
+    `${records.map((r) => JSON.stringify(r)).join("\n")}\n`,
+  );
 }
 
 beforeAll(async () => {
@@ -26,19 +29,60 @@ beforeAll(async () => {
   mkdirSync(join(APEX_DIR, "log"), { recursive: true });
 
   // Write test state files
-  writeFileSync(join(APEX_DIR, "tasks.json"), JSON.stringify({ tasks: [], next_id: 1 }));
-  writeFileSync(join(APEX_DIR, "state.json"), JSON.stringify({ current_stage: "idle", artifacts: {}, history: [] }));
-  writeFileSync(join(APEX_DIR, "memory.json"), JSON.stringify({ facts: [], next_id: 1 }));
+  writeFileSync(
+    join(APEX_DIR, "tasks.json"),
+    JSON.stringify({ tasks: [], next_id: 1 }),
+  );
+  writeFileSync(
+    join(APEX_DIR, "state.json"),
+    JSON.stringify({ current_stage: "idle", artifacts: {}, history: [] }),
+  );
+  writeFileSync(
+    join(APEX_DIR, "memory.json"),
+    JSON.stringify({ facts: [], next_id: 1 }),
+  );
 
   // Write test analytics data
   writeJSONL(join(ANALYTICS_DIR, "orchestrator.jsonl"), [
-    { task_id: "T1", run_key: "T1", adapter: "claude", outcome: "success", exit_code: 0, duration_s: 30, attempt: 1, ts: "2026-01-01T00:00:00Z" },
-    { task_id: "T2", run_key: "T2:codex", adapter: "codex", outcome: "success", exit_code: 0, duration_s: 20, attempt: 1, ts: "2026-01-01T00:01:00Z" },
-    { task_id: "T2", event: "cross_model_synthesis", agents: ["claude", "codex"], verdict: "pass", blocker_count: 0, concern_count: 1, note_count: 2, ts: "2026-01-01T00:02:00Z" },
+    {
+      task_id: "T1",
+      run_key: "T1",
+      adapter: "claude",
+      outcome: "success",
+      exit_code: 0,
+      duration_s: 30,
+      attempt: 1,
+      ts: "2026-01-01T00:00:00Z",
+    },
+    {
+      task_id: "T2",
+      run_key: "T2:codex",
+      adapter: "codex",
+      outcome: "success",
+      exit_code: 0,
+      duration_s: 20,
+      attempt: 1,
+      ts: "2026-01-01T00:01:00Z",
+    },
+    {
+      task_id: "T2",
+      event: "cross_model_synthesis",
+      agents: ["claude", "codex"],
+      verdict: "pass",
+      blocker_count: 0,
+      concern_count: 1,
+      note_count: 2,
+      ts: "2026-01-01T00:02:00Z",
+    },
   ]);
 
   writeJSONL(join(ANALYTICS_DIR, "usage.jsonl"), [
-    { skill: "apex-forge", duration_s: 5, outcome: "success", ts: "2026-01-01T00:03:00Z" },
+    {
+      skill: "apex-forge",
+      duration_s: 5,
+      outcome: "success",
+      ts: "2026-01-01T00:03:00Z",
+    },
   ]);
 
   // Start dashboard as a standalone Bun HTTP server
@@ -105,7 +149,9 @@ describe("Dashboard E2E — /api/state", () => {
     expect(analytics.length).toBeGreaterThanOrEqual(4);
 
     // Verify orchestrator events are present
-    const orchEvents = analytics.filter((a: any) => a.source === "orchestrator");
+    const orchEvents = analytics.filter(
+      (a: any) => a.source === "orchestrator",
+    );
     expect(orchEvents.length).toBe(3);
 
     // Verify telemetry events are present
@@ -138,7 +184,9 @@ describe("Dashboard E2E — /api/state", () => {
     const res = await fetch(`http://localhost:${PORT}/api/state`);
     const data = await res.json();
 
-    const synthesis = data.analytics.find((a: any) => a.skill === "cross-model-synthesis");
+    const synthesis = data.analytics.find(
+      (a: any) => a.skill === "cross-model-synthesis",
+    );
     expect(synthesis).toBeDefined();
     expect(synthesis.outcome).toBe("pass");
     expect(synthesis.meta.agents).toEqual(["claude", "codex"]);
@@ -151,12 +199,17 @@ describe("Dashboard E2E — /api/state", () => {
     const analytics = data.analytics;
 
     const totalRuns = analytics.length;
-    const totalDur = analytics.reduce((s: number, a: any) => s + (a.duration_s || 0), 0);
-    const successes = analytics.filter((a: any) => a.outcome === "success" || a.outcome === "pass").length;
+    const totalDur = analytics.reduce(
+      (s: number, a: any) => s + (a.duration_s || 0),
+      0,
+    );
+    const successes = analytics.filter(
+      (a: any) => a.outcome === "success" || a.outcome === "pass",
+    ).length;
 
     expect(totalRuns).toBe(4);
     expect(totalDur).toBe(55); // 30 + 20 + 0 + 5
     expect(successes).toBe(4); // all succeed
-    expect(Math.round(successes / totalRuns * 100)).toBe(100);
+    expect(Math.round((successes / totalRuns) * 100)).toBe(100);
   });
 });

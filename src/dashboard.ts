@@ -1,18 +1,22 @@
 #!/usr/bin/env bun
 
-import { readJSON } from "./utils/json.js";
-import { existsSync, readFileSync, readdirSync, writeFileSync } from "fs";
-import { join, resolve, extname } from "path";
-import { execSync } from "child_process";
+import { execSync } from "node:child_process";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { extname, join, resolve } from "node:path";
 import {
   autoPort,
   hubPort,
-  register,
-  unregister,
   listProjects,
   pruneRegistry,
+  register,
+  unregister,
 } from "./registry.js";
-import { discoverWorktrees, groupProjectsByRepo, getRepoRoot } from "./worktree-discovery.js";
+import { readJSON } from "./utils/json.js";
+import {
+  discoverWorktrees,
+  getRepoRoot,
+  groupProjectsByRepo,
+} from "./worktree-discovery.js";
 
 /** Human-readable relative time string. */
 function timeAgo(iso: string): string {
@@ -35,7 +39,9 @@ function getProjectName(dir: string): string {
     try {
       const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
       if (pkg.name) return pkg.name;
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
   // Try reading name from .apex/config.yaml (project_name: xxx)
   const configPath = join(dir, ".apex", "config.yaml");
@@ -44,7 +50,9 @@ function getProjectName(dir: string): string {
       const content = readFileSync(configPath, "utf-8");
       const match = content.match(/^project_name:\s*(.+)$/m);
       if (match) return match[1].trim();
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
   // Fallback: directory basename
   return dir.split("/").filter(Boolean).pop() || "unknown-project";
@@ -64,11 +72,12 @@ const MIME_TYPES: Record<string, string> = {
 };
 
 function findFrontendDir(): string | null {
-  const { dirname } = require("path") as typeof import("path");
+  const { dirname } = require("node:path") as typeof import("path");
   const execDir = dirname(process.execPath);
   const candidates = [
     // 1. Explicit override via env var
-    process.env.APEX_FORGE_HOME && join(process.env.APEX_FORGE_HOME, "frontend"),
+    process.env.APEX_FORGE_HOME &&
+      join(process.env.APEX_FORGE_HOME, "frontend"),
     // 2. Relative to the actual binary on disk (compiled: dist/apex → dist/../frontend)
     resolve(execDir, "..", "frontend"),
     // 3. Relative to this source file (works in dev: bun run src/cli.ts)
@@ -122,48 +131,67 @@ function openHub(hubUrl: string, projectPath?: string) {
     // PWAs on macOS can live in multiple locations
     const home = process.env.HOME || "";
     const searchDirs = [
-      join(home, "Applications"),                          // direct PWA install
+      join(home, "Applications"), // direct PWA install
       join(home, "Applications", "Chrome Apps.localized"), // Chrome managed
-      join(home, "Applications", "Chrome Apps"),            // Chrome alt
+      join(home, "Applications", "Chrome Apps"), // Chrome alt
     ];
     for (const dir of searchDirs) {
       if (existsSync(dir)) {
         try {
           const apps = readdirSync(dir);
-          const pwa = apps.find(a => a.toLowerCase().includes("apex forge") && a.endsWith(".app"));
+          const pwa = apps.find(
+            (a) => a.toLowerCase().includes("apex forge") && a.endsWith(".app"),
+          );
           if (pwa) {
             // Check if PWA is already running — don't open another instance
             try {
-              const running = execSync(`pgrep -f "Apex Forge" 2>/dev/null`, { encoding: "utf-8" }).trim();
+              const running = execSync(`pgrep -f "Apex Forge" 2>/dev/null`, {
+                encoding: "utf-8",
+              }).trim();
               if (running) {
                 console.log(`  PWA already running — skipping.`);
                 return;
               }
-            } catch { /* not running, proceed to open */ }
+            } catch {
+              /* not running, proceed to open */
+            }
             execSync(`open "${join(dir, pwa)}"`, { stdio: "ignore" });
             console.log(`  Opened PWA: ${pwa}`);
             return;
           }
-        } catch { /* fall through */ }
+        } catch {
+          /* fall through */
+        }
       }
     }
     // No PWA found — open in browser (will show PWA install prompt)
     try {
       execSync(`open "${urlWithProject}"`, { stdio: "ignore" });
-      console.log(`  Opened in browser (install as PWA for standalone experience)`);
-    } catch { /* ignore */ }
+      console.log(
+        `  Opened in browser (install as PWA for standalone experience)`,
+      );
+    } catch {
+      /* ignore */
+    }
   } else if (platform === "win32") {
     try {
       execSync(`start "" "${urlWithProject}"`, { stdio: "ignore" });
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   } else {
     try {
       execSync(`xdg-open "${urlWithProject}"`, { stdio: "ignore" });
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 }
 
-export async function startDashboard(portOverride?: number, options?: DashboardOptions) {
+export async function startDashboard(
+  portOverride?: number,
+  options?: DashboardOptions,
+) {
   const projectDir = options?.projectPath || process.cwd();
   const projectName = getProjectName(projectDir);
 
@@ -194,13 +222,17 @@ export async function startDashboard(portOverride?: number, options?: DashboardO
     console.log(`  Project "${projectName}" registered with existing Hub.`);
     // Check if a browser tab is actually open (SSE clients > 0)
     try {
-      const status = await fetch(`http://localhost:${hPort}/status`, { signal: AbortSignal.timeout(1000) });
-      const data = await status.json() as any;
+      const status = await fetch(`http://localhost:${hPort}/status`, {
+        signal: AbortSignal.timeout(1000),
+      });
+      const data = (await status.json()) as any;
       if (data.sseClients > 0) {
         console.log(`  Hub has active viewer — skipping browser open.`);
         return;
       }
-    } catch { /* can't check — open to be safe */ }
+    } catch {
+      /* can't check — open to be safe */
+    }
     // No active viewers — user probably closed the tab, reopen
     console.log(`  No active viewer detected — opening browser.`);
     openHub(hubUrl, projectDir);
@@ -216,16 +248,20 @@ export async function startDashboard(portOverride?: number, options?: DashboardO
 /**
  * Standalone per-project dashboard — only used with explicit --port override.
  */
-async function startStandaloneDashboard(port: number, projectDir: string, projectName: string) {
+async function startStandaloneDashboard(
+  port: number,
+  projectDir: string,
+  projectName: string,
+) {
   const frontendDir = findFrontendDir();
 
   if (!frontendDir) {
     console.warn(
       "Frontend assets not found. Searched:\n" +
-      "  - $APEX_FORGE_HOME/frontend\n" +
-      "  - <source-dir>/../frontend\n" +
-      "  - ~/.apex-forge/frontend\n" +
-      "Falling back to legacy inline dashboard."
+        "  - $APEX_FORGE_HOME/frontend\n" +
+        "  - <source-dir>/../frontend\n" +
+        "  - ~/.apex-forge/frontend\n" +
+        "Falling back to legacy inline dashboard.",
     );
   }
 
@@ -240,16 +276,28 @@ async function startStandaloneDashboard(port: number, projectDir: string, projec
   register(entry);
 
   const heartbeat = setInterval(() => {
-    try { register(entry); } catch { /* ignore */ }
+    try {
+      register(entry);
+    } catch {
+      /* ignore */
+    }
   }, 30_000);
 
   const cleanup = () => {
     clearInterval(heartbeat);
-    try { unregister(projectDir); } catch {}
+    try {
+      unregister(projectDir);
+    } catch {}
   };
   process.on("exit", cleanup);
-  process.on("SIGINT", () => { cleanup(); process.exit(0); });
-  process.on("SIGTERM", () => { cleanup(); process.exit(0); });
+  process.on("SIGINT", () => {
+    cleanup();
+    process.exit(0);
+  });
+  process.on("SIGTERM", () => {
+    cleanup();
+    process.exit(0);
+  });
 
   Bun.serve({
     port,
@@ -272,10 +320,9 @@ async function startStandaloneDashboard(port: number, projectDir: string, projec
       }
 
       if (url.pathname === "/api/projects") {
-        return Response.json(
-          await buildEnrichedProjectList(projectDir),
-          { headers: corsHeaders },
-        );
+        return Response.json(await buildEnrichedProjectList(projectDir), {
+          headers: corsHeaders,
+        });
       }
 
       if (url.pathname === "/api/events") {
@@ -286,9 +333,11 @@ async function startStandaloneDashboard(port: number, projectDir: string, projec
               try {
                 const data = await buildStatePayload(projectDir, projectName);
                 controller.enqueue(
-                  encoder.encode(`data: ${JSON.stringify(data)}\n\n`)
+                  encoder.encode(`data: ${JSON.stringify(data)}\n\n`),
                 );
-              } catch { /* ignore */ }
+              } catch {
+                /* ignore */
+              }
             }, 2000);
             req.signal.addEventListener("abort", () => clearInterval(interval));
           },
@@ -306,22 +355,34 @@ async function startStandaloneDashboard(port: number, projectDir: string, projec
       if (url.pathname === "/api/open-file") {
         const filePath = url.searchParams.get("path");
         if (!filePath) {
-          return Response.json({ error: "Missing path parameter" }, { status: 400, headers: corsHeaders });
+          return Response.json(
+            { error: "Missing path parameter" },
+            { status: 400, headers: corsHeaders },
+          );
         }
         const resolved = resolve(projectDir, filePath.replace(/\.\./g, ""));
         if (!resolved.startsWith(projectDir)) {
-          return Response.json({ error: "Path outside project" }, { status: 403, headers: corsHeaders });
+          return Response.json(
+            { error: "Path outside project" },
+            { status: 403, headers: corsHeaders },
+          );
         }
         try {
-          const { spawnSync: sp } = await import("child_process");
+          const { spawnSync: sp } = await import("node:child_process");
           if (existsSync(resolved)) {
             sp("open", ["-R", resolved]);
           } else {
-            return Response.json({ error: "File not found" }, { status: 404, headers: corsHeaders });
+            return Response.json(
+              { error: "File not found" },
+              { status: 404, headers: corsHeaders },
+            );
           }
           return Response.json({ ok: true }, { headers: corsHeaders });
         } catch {
-          return Response.json({ error: "Failed to open" }, { status: 500, headers: corsHeaders });
+          return Response.json(
+            { error: "Failed to open" },
+            { status: 500, headers: corsHeaders },
+          );
         }
       }
 
@@ -334,7 +395,10 @@ async function startStandaloneDashboard(port: number, projectDir: string, projec
       if (url.pathname === "/api/designs/file") {
         const filePath = url.searchParams.get("path");
         if (!filePath) {
-          return Response.json({ error: "Missing path parameter" }, { status: 400 });
+          return Response.json(
+            { error: "Missing path parameter" },
+            { status: 400 },
+          );
         }
         const designDir = join(projectDir, ".apex", "designs");
         const resolved = resolve(designDir, filePath.replace(/\.\./g, ""));
@@ -343,7 +407,14 @@ async function startStandaloneDashboard(port: number, projectDir: string, projec
         }
         const content = readFileSync(resolved);
         const ext = extname(resolved);
-        const mime = ext === ".png" ? "image/png" : ext === ".jpg" || ext === ".jpeg" ? "image/jpeg" : ext === ".html" ? "text/html" : "application/octet-stream";
+        const mime =
+          ext === ".png"
+            ? "image/png"
+            : ext === ".jpg" || ext === ".jpeg"
+              ? "image/jpeg"
+              : ext === ".html"
+                ? "text/html"
+                : "application/octet-stream";
         return new Response(content, { headers: { "Content-Type": mime } });
       }
 
@@ -356,7 +427,7 @@ async function startStandaloneDashboard(port: number, projectDir: string, projec
         return new Response("Not Found", { status: 404 });
       }
 
-      let filePath = url.pathname === "/" ? "/index.html" : url.pathname;
+      const filePath = url.pathname === "/" ? "/index.html" : url.pathname;
       const safePath = join(frontendDir, filePath.replace(/\.\./g, ""));
       if (existsSync(safePath)) {
         const ext = extname(safePath);
@@ -371,7 +442,9 @@ async function startStandaloneDashboard(port: number, projectDir: string, projec
     },
   });
 
-  console.log(`Apex Dashboard for "${projectName}" at http://localhost:${port}`);
+  console.log(
+    `Apex Dashboard for "${projectName}" at http://localhost:${port}`,
+  );
   console.log(`  Project: ${projectDir}`);
   console.log(`  Hub:     http://localhost:${hubPort()}`);
 }
@@ -424,7 +497,15 @@ export async function startHub() {
 
       // Extension API: health check
       if (url.pathname === "/status") {
-        return Response.json({ ok: true, port, projects: listProjects().length, sseClients: sseClientCount }, { headers: corsHeaders });
+        return Response.json(
+          {
+            ok: true,
+            port,
+            projects: listProjects().length,
+            sseClients: sseClientCount,
+          },
+          { headers: corsHeaders },
+        );
       }
 
       // Extension API: activity stream (SSE) — reads event log from .apex/log/
@@ -439,7 +520,8 @@ export async function startHub() {
           let result = "";
           if (payload.stage) result = `stage: ${payload.stage}`;
           else if (payload.title) result = payload.title;
-          else if (payload.id) result = `${payload.id}: ${payload.from || ""} → ${payload.to || ""}`;
+          else if (payload.id)
+            result = `${payload.id}: ${payload.from || ""} → ${payload.to || ""}`;
           return {
             ts: entry.ts || new Date().toISOString(),
             ok: !type.includes("fail") && !type.includes("block"),
@@ -452,10 +534,16 @@ export async function startHub() {
         function readLogLines(projectDir: string): string[] {
           const logDir = join(projectDir, ".apex", "log");
           if (!existsSync(logDir)) return [];
-          const files = readdirSync(logDir).filter(f => f.endsWith(".jsonl")).sort();
+          const files = readdirSync(logDir)
+            .filter((f) => f.endsWith(".jsonl"))
+            .sort();
           const lines: string[] = [];
           for (const file of files) {
-            lines.push(...readFileSync(join(logDir, file), "utf-8").split("\n").filter(Boolean));
+            lines.push(
+              ...readFileSync(join(logDir, file), "utf-8")
+                .split("\n")
+                .filter(Boolean),
+            );
           }
           return lines;
         }
@@ -470,8 +558,12 @@ export async function startHub() {
               for (const line of lines.slice(-50)) {
                 try {
                   const evt = eventLogToActivity(JSON.parse(line));
-                  controller.enqueue(encoder.encode(`data: ${JSON.stringify(evt)}\n\n`));
-                } catch { /* skip */ }
+                  controller.enqueue(
+                    encoder.encode(`data: ${JSON.stringify(evt)}\n\n`),
+                  );
+                } catch {
+                  /* skip */
+                }
               }
             }
             // Poll for new entries every 3s
@@ -483,41 +575,57 @@ export async function startHub() {
                     for (const line of lines.slice(lastLineCount)) {
                       try {
                         const evt = eventLogToActivity(JSON.parse(line));
-                        controller.enqueue(encoder.encode(`data: ${JSON.stringify(evt)}\n\n`));
-                      } catch { /* skip */ }
+                        controller.enqueue(
+                          encoder.encode(`data: ${JSON.stringify(evt)}\n\n`),
+                        );
+                      } catch {
+                        /* skip */
+                      }
                     }
                     lastLineCount = lines.length;
                   }
                 }
                 controller.enqueue(encoder.encode(": keepalive\n\n"));
-              } catch { /* ignore */ }
+              } catch {
+                /* ignore */
+              }
             }, 3000);
             req.signal.addEventListener("abort", () => clearInterval(interval));
           },
         });
         return new Response(stream, {
-          headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive", ...corsHeaders },
+          headers: {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            Connection: "keep-alive",
+            ...corsHeaders,
+          },
         });
       }
 
       // API: enriched project list
       if (url.pathname === "/api/projects") {
-        return Response.json(
-          await buildEnrichedProjectList(),
-          { headers: corsHeaders },
-        );
+        return Response.json(await buildEnrichedProjectList(), {
+          headers: corsHeaders,
+        });
       }
 
       // API: aggregated state — multi-worktree view
       if (url.pathname === "/api/state/aggregated") {
         const repo = url.searchParams.get("repo");
         if (!repo) {
-          return Response.json({ error: "Missing ?repo= parameter" }, { status: 400, headers: corsHeaders });
+          return Response.json(
+            { error: "Missing ?repo= parameter" },
+            { status: 400, headers: corsHeaders },
+          );
         }
         // Validate: repo must be the root of at least one registered project
-        const known = listProjects().some(p => getRepoRoot(p.path) === repo);
+        const known = listProjects().some((p) => getRepoRoot(p.path) === repo);
         if (!known) {
-          return Response.json({ error: "Unknown repo" }, { status: 403, headers: corsHeaders });
+          return Response.json(
+            { error: "Unknown repo" },
+            { status: 403, headers: corsHeaders },
+          );
         }
         const repoName = repo.split("/").filter(Boolean).pop() || "unknown";
         const data = await buildAggregatedPayload(repo, repoName);
@@ -528,11 +636,17 @@ export async function startHub() {
       if (url.pathname === "/api/events/aggregated") {
         const repo = url.searchParams.get("repo");
         if (!repo) {
-          return Response.json({ error: "Missing ?repo= parameter" }, { status: 400, headers: corsHeaders });
+          return Response.json(
+            { error: "Missing ?repo= parameter" },
+            { status: 400, headers: corsHeaders },
+          );
         }
-        const known = listProjects().some(p => getRepoRoot(p.path) === repo);
+        const known = listProjects().some((p) => getRepoRoot(p.path) === repo);
         if (!known) {
-          return Response.json({ error: "Unknown repo" }, { status: 403, headers: corsHeaders });
+          return Response.json(
+            { error: "Unknown repo" },
+            { status: 403, headers: corsHeaders },
+          );
         }
         sseClientCount++;
         const stream = new ReadableStream({
@@ -540,10 +654,15 @@ export async function startHub() {
             const encoder = new TextEncoder();
             const interval = setInterval(async () => {
               try {
-                const repoName = repo.split("/").filter(Boolean).pop() || "unknown";
+                const repoName =
+                  repo.split("/").filter(Boolean).pop() || "unknown";
                 const data = await buildAggregatedPayload(repo, repoName);
-                controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
-              } catch { /* ignore */ }
+                controller.enqueue(
+                  encoder.encode(`data: ${JSON.stringify(data)}\n\n`),
+                );
+              } catch {
+                /* ignore */
+              }
             }, 2000);
             req.signal.addEventListener("abort", () => {
               clearInterval(interval);
@@ -552,7 +671,12 @@ export async function startHub() {
           },
         });
         return new Response(stream, {
-          headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive", ...corsHeaders },
+          headers: {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            Connection: "keep-alive",
+            ...corsHeaders,
+          },
         });
       }
 
@@ -563,14 +687,17 @@ export async function startHub() {
           const data = await buildStatePayload(proj[0], proj[1]);
           return Response.json(data, { headers: corsHeaders });
         }
-        return Response.json({
-          project: { name: "Apex Hub", path: "" },
-          tasks: { tasks: [], next_id: 1 },
-          memory: { facts: [], next_id: 1 },
-          state: { current_stage: "idle", artifacts: {}, history: [] },
-          analytics: [],
-          sessions: [],
-        }, { headers: corsHeaders });
+        return Response.json(
+          {
+            project: { name: "Apex Hub", path: "" },
+            tasks: { tasks: [], next_id: 1 },
+            memory: { facts: [], next_id: 1 },
+            state: { current_stage: "idle", artifacts: {}, history: [] },
+            analytics: [],
+            sessions: [],
+          },
+          { headers: corsHeaders },
+        );
       }
 
       // API: SSE — stream real project data
@@ -584,11 +711,15 @@ export async function startHub() {
               try {
                 if (proj) {
                   const data = await buildStatePayload(proj[0], proj[1]);
-                  controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+                  controller.enqueue(
+                    encoder.encode(`data: ${JSON.stringify(data)}\n\n`),
+                  );
                 } else {
                   controller.enqueue(encoder.encode(": keepalive\n\n"));
                 }
-              } catch { /* ignore */ }
+              } catch {
+                /* ignore */
+              }
             }, 2000);
             req.signal.addEventListener("abort", () => {
               clearInterval(interval);
@@ -597,7 +728,12 @@ export async function startHub() {
           },
         });
         return new Response(stream, {
-          headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive", ...corsHeaders },
+          headers: {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            Connection: "keep-alive",
+            ...corsHeaders,
+          },
         });
       }
 
@@ -617,7 +753,10 @@ export async function startHub() {
         const proj = resolveProject(url);
         const filePath = url.searchParams.get("path");
         if (!filePath || !proj) {
-          return Response.json({ error: "Missing path or project" }, { status: 400 });
+          return Response.json(
+            { error: "Missing path or project" },
+            { status: 400 },
+          );
         }
         const designDir = join(proj[0], ".apex", "designs");
         const resolved = resolve(designDir, filePath.replace(/\.\./g, ""));
@@ -626,25 +765,36 @@ export async function startHub() {
         }
         const content = readFileSync(resolved);
         const ext = extname(resolved);
-        const mime = ext === ".png" ? "image/png" : ext === ".jpg" || ext === ".jpeg" ? "image/jpeg" : ext === ".html" ? "text/html" : "application/octet-stream";
+        const mime =
+          ext === ".png"
+            ? "image/png"
+            : ext === ".jpg" || ext === ".jpeg"
+              ? "image/jpeg"
+              : ext === ".html"
+                ? "text/html"
+                : "application/octet-stream";
         return new Response(content, { headers: { "Content-Type": mime } });
       }
 
       // Serve static frontend — or fallback to legacy hub HTML
       if (!frontendDir) {
         if (url.pathname === "/" || url.pathname === "/index.html") {
-          return new Response(buildHubHTML(), { headers: { "Content-Type": "text/html" } });
+          return new Response(buildHubHTML(), {
+            headers: { "Content-Type": "text/html" },
+          });
         }
         return new Response("Not Found", { status: 404 });
       }
 
-      let filePath = url.pathname === "/" ? "/index.html" : url.pathname;
+      const filePath = url.pathname === "/" ? "/index.html" : url.pathname;
       const safePath = join(frontendDir, filePath.replace(/\.\./g, ""));
       if (existsSync(safePath)) {
         const ext = extname(safePath);
         const contentType = MIME_TYPES[ext] || "application/octet-stream";
         const content = readFileSync(safePath);
-        return new Response(content, { headers: { "Content-Type": contentType, "Cache-Control": "no-cache" } });
+        return new Response(content, {
+          headers: { "Content-Type": contentType, "Cache-Control": "no-cache" },
+        });
       }
 
       return new Response("Not Found", { status: 404 });
@@ -924,10 +1074,12 @@ setInterval(load, 5000);
 </html>`;
 }
 
-function listDesignFiles(designDir: string): { name: string; path: string; size: number; created: string }[] {
+function listDesignFiles(
+  designDir: string,
+): { name: string; path: string; size: number; created: string }[] {
   if (!existsSync(designDir)) return [];
   try {
-    const { readdirSync, statSync } = require("fs");
+    const { readdirSync, statSync } = require("node:fs");
     return (readdirSync(designDir) as string[])
       .filter((f: string) => /\.(png|jpg|jpeg|html)$/i.test(f))
       .map((f: string) => {
@@ -946,9 +1098,9 @@ function listDesignFiles(designDir: string): { name: string; path: string; size:
   }
 }
 
-// Analytics loading extracted to utils/analytics.ts for testability
-import { loadJSONL, loadEvents } from "./utils/analytics.js";
 import { materializePerSession } from "./state/event-log.js";
+// Analytics loading extracted to utils/analytics.ts for testability
+import { loadEvents, loadJSONL } from "./utils/analytics.js";
 
 /** Enriched project list shared by project dashboards and hub. */
 async function buildEnrichedProjectList(currentProjectDir?: string) {
@@ -956,7 +1108,10 @@ async function buildEnrichedProjectList(currentProjectDir?: string) {
   const enriched = await Promise.all(
     projects.map(async (p) => {
       const apexDir = join(p.path, ".apex");
-      const tasks = await readJSON(join(apexDir, "tasks.json"), { tasks: [] as any[], next_id: 1 });
+      const tasks = await readJSON(join(apexDir, "tasks.json"), {
+        tasks: [] as any[],
+        next_id: 1,
+      });
       const state = await readJSON(join(apexDir, "state.json"), {
         current_stage: "idle",
         last_updated: "",
@@ -964,8 +1119,11 @@ async function buildEnrichedProjectList(currentProjectDir?: string) {
         history: [],
       });
       const taskCount = tasks.tasks.length;
-      const doneTasks = tasks.tasks.filter((t: any) => t.status === "done").length;
-      const successRate = taskCount > 0 ? Math.round(doneTasks / taskCount * 1000) / 10 : 0;
+      const doneTasks = tasks.tasks.filter(
+        (t: any) => t.status === "done",
+      ).length;
+      const successRate =
+        taskCount > 0 ? Math.round((doneTasks / taskCount) * 1000) / 10 : 0;
       const derivedState = deriveStageFromTasks(state, tasks.tasks);
       const stage = derivedState.current_stage || "idle";
       const lastActiveTs = (state as any).last_updated || p.startedAt || "";
@@ -978,34 +1136,43 @@ async function buildEnrichedProjectList(currentProjectDir?: string) {
         last_active: timeAgo(lastActiveTs),
         last_active_ts: lastActiveTs,
       };
-    })
+    }),
   );
   // Compute worktree groups (only groups with 2+ worktrees)
   const wtGroups = groupProjectsByRepo(projects);
   // Build a lookup: projectPath → group info
-  const projectGroupMap = new Map<string, { repoRoot: string; repoName: string; siblingCount: number }>();
+  const projectGroupMap = new Map<
+    string,
+    { repoRoot: string; repoName: string; siblingCount: number }
+  >();
   for (const g of wtGroups) {
     for (const pp of g.projectPaths) {
-      projectGroupMap.set(pp, { repoRoot: g.repoRoot, repoName: g.repoName, siblingCount: g.worktrees.length });
+      projectGroupMap.set(pp, {
+        repoRoot: g.repoRoot,
+        repoName: g.repoName,
+        siblingCount: g.worktrees.length,
+      });
     }
   }
   // Annotate each project with its worktree group (if any)
-  const annotated = enriched.map(p => {
+  const annotated = enriched.map((p) => {
     const group = projectGroupMap.get(p.path);
     return group ? { ...p, worktreeGroup: group } : p;
   });
 
   // Sort by most recently active first (so default auto-select picks the right project)
-  annotated.sort((a, b) => (b.last_active_ts || "").localeCompare(a.last_active_ts || ""));
+  annotated.sort((a, b) =>
+    (b.last_active_ts || "").localeCompare(a.last_active_ts || ""),
+  );
 
   return {
     current: currentProjectDir || null,
     hub: hubPort(),
     projects: annotated,
-    worktreeGroups: wtGroups.map(g => ({
+    worktreeGroups: wtGroups.map((g) => ({
       repoRoot: g.repoRoot,
       repoName: g.repoName,
-      worktrees: g.worktrees.map(wt => wt.label),
+      worktrees: g.worktrees.map((wt) => wt.label),
       projectPaths: g.projectPaths,
     })),
   };
@@ -1042,18 +1209,21 @@ function deriveStageFromTasks(state: any, tasks: any[]): any {
   let cycleStartTime = 0;
   for (let i = history.length - 1; i >= 0; i--) {
     if (history[i].stage === "idle") {
-      cycleStartTime = history[i].started ? new Date(history[i].started).getTime() : 0;
+      cycleStartTime = history[i].started
+        ? new Date(history[i].started).getTime()
+        : 0;
       break;
     }
   }
 
   // Filter to current-cycle tasks only
-  const currentCycleTasks = cycleStartTime > 0
-    ? tasks.filter((t: any) => {
-        const ts = t.created_at || t.updated_at || "";
-        return ts ? new Date(ts).getTime() >= cycleStartTime : false;
-      })
-    : tasks;
+  const currentCycleTasks =
+    cycleStartTime > 0
+      ? tasks.filter((t: any) => {
+          const ts = t.created_at || t.updated_at || "";
+          return ts ? new Date(ts).getTime() >= cycleStartTime : false;
+        })
+      : tasks;
 
   if (currentCycleTasks.length === 0) return state;
 
@@ -1072,7 +1242,9 @@ function deriveStageFromTasks(state: any, tasks: any[]): any {
   //   Action: trust state.json → stay idle.
   if (currentStage === "idle") {
     const hasActive = currentCycleTasks.some((t: any) =>
-      ["open", "assigned", "in_progress", "to_verify", "blocked"].includes(t.status)
+      ["open", "assigned", "in_progress", "to_verify", "blocked"].includes(
+        t.status,
+      ),
     );
     const hasHistory = history.length > 0;
 
@@ -1081,7 +1253,9 @@ function deriveStageFromTasks(state: any, tasks: any[]): any {
 
     // Case C: truly idle — no active tasks, no history, nothing happening
     if (!hasActive && !hasHistory) {
-      const stateTs = state.last_updated ? new Date(state.last_updated).getTime() : 0;
+      const stateTs = state.last_updated
+        ? new Date(state.last_updated).getTime()
+        : 0;
       const lastTaskTs = currentCycleTasks.reduce((max: number, t: any) => {
         const ts = t.updated_at || t.created_at || "";
         return ts ? Math.max(max, new Date(ts).getTime()) : max;
@@ -1092,7 +1266,9 @@ function deriveStageFromTasks(state: any, tasks: any[]): any {
     // Case A (or C with stale state): fall through to derive from tasks
   }
 
-  const stateLastUpdated = state.last_updated ? new Date(state.last_updated).getTime() : 0;
+  const stateLastUpdated = state.last_updated
+    ? new Date(state.last_updated).getTime()
+    : 0;
 
   // Heuristic: if state was updated AFTER the last task transition, state.json wins.
   // This catches the "reset to brainstorm but old tasks exist" case.
@@ -1107,11 +1283,21 @@ function deriveStageFromTasks(state: any, tasks: any[]): any {
   }
 
   // Derive what stage tasks suggest
-  const STAGE_ORDER = ["idle", "brainstorm", "plan", "execute", "review", "ship", "compound"];
+  const STAGE_ORDER = [
+    "idle",
+    "brainstorm",
+    "plan",
+    "execute",
+    "review",
+    "ship",
+    "compound",
+  ];
   const currentIdx = STAGE_ORDER.indexOf(currentStage);
   const total = currentCycleTasks.length;
   const done = currentCycleTasks.filter((t: any) => t.status === "done").length;
-  const inProgress = currentCycleTasks.filter((t: any) => t.status === "in_progress").length;
+  const inProgress = currentCycleTasks.filter(
+    (t: any) => t.status === "in_progress",
+  ).length;
 
   let derivedStage = currentStage;
   if (done === total && total > 0) {
@@ -1129,10 +1315,14 @@ function deriveStageFromTasks(state: any, tasks: any[]): any {
   for (let i = currentIdx; i < STAGE_ORDER.indexOf(derivedStage); i++) {
     const stageName = STAGE_ORDER[i];
     if (stageName === "idle") continue;
-    const existing = updatedHistory.find((h: any) => h.stage === stageName && !h.completed);
+    const existing = updatedHistory.find(
+      (h: any) => h.stage === stageName && !h.completed,
+    );
     if (existing) existing.completed = now;
   }
-  if (!updatedHistory.some((h: any) => h.stage === derivedStage && !h.completed)) {
+  if (
+    !updatedHistory.some((h: any) => h.stage === derivedStage && !h.completed)
+  ) {
     updatedHistory.push({ stage: derivedStage, started: now });
   }
 
@@ -1172,16 +1362,22 @@ function reconcileTasksFromGit(projectDir: string, tasks: any): boolean {
         for (const line of log.split("\n")) {
           if (line.toLowerCase().includes(taskIdLower)) {
             score += 2;
-            evidenceParts.push(`commit mentions ${task.id}: ${line.trim().slice(0, 80)}`);
+            evidenceParts.push(
+              `commit mentions ${task.id}: ${line.trim().slice(0, 80)}`,
+            );
             break;
           }
         }
       }
-    } catch { /* skip */ }
+    } catch {
+      /* skip */
+    }
 
     // Evidence B (+1 each): Files explicitly named in description exist and were committed after creation
     const searchText = `${task.title || ""} ${task.description || ""}`;
-    const filePatterns = searchText.match(/[\w\-./]+\.(md|ts|js|yaml|json|css|html|tsx|jsx)/g) || [];
+    const filePatterns =
+      searchText.match(/[\w\-./]+\.(md|ts|js|yaml|json|css|html|tsx|jsx)/g) ||
+      [];
     let filesVerified = 0;
     for (const pattern of filePatterns) {
       const candidates = [
@@ -1204,7 +1400,9 @@ function reconcileTasksFromGit(projectDir: string, tasks: any): boolean {
               break;
             }
           }
-        } catch { /* skip */ }
+        } catch {
+          /* skip */
+        }
       }
     }
     score += Math.min(filesVerified, 2); // cap at +2
@@ -1215,19 +1413,27 @@ function reconcileTasksFromGit(projectDir: string, tasks: any): boolean {
         const changedFiles = execSync(
           `git -C "${projectDir}" log --after="${createdAt}" --all --name-only --format="" 2>/dev/null`,
           { encoding: "utf-8", timeout: 3000 },
-        ).trim().split("\n").filter(Boolean);
+        )
+          .trim()
+          .split("\n")
+          .filter(Boolean);
         // Require 2+ title words to match (not just one generic word)
-        const titleWords = (task.title || "").toLowerCase().split(/\s+/).filter((w: string) => w.length > 4);
+        const titleWords = (task.title || "")
+          .toLowerCase()
+          .split(/\s+/)
+          .filter((w: string) => w.length > 4);
         if (titleWords.length >= 2) {
           const matchCount = titleWords.filter((w: string) =>
-            changedFiles.some(f => f.toLowerCase().includes(w))
+            changedFiles.some((f) => f.toLowerCase().includes(w)),
           ).length;
           if (matchCount >= 2) {
             score += 1;
             evidenceParts.push(`${matchCount} title keywords in changed files`);
           }
         }
-      } catch { /* skip */ }
+      } catch {
+        /* skip */
+      }
     }
 
     // Threshold: need score >= 2 from independent sources
@@ -1267,8 +1473,11 @@ function reconcileStageFromFiles(projectDir: string, state: any): any {
   // so using them to override a stable idle state causes false positives
   // where completed-cycle artifacts make the project appear active.
   const staleThresholdMs = 60 * 60 * 1000; // 1 hour
-  const lastUpdated = state.last_updated ? new Date(state.last_updated).getTime() : 0;
-  if (lastUpdated > 0 && (Date.now() - lastUpdated) > staleThresholdMs) return state;
+  const lastUpdated = state.last_updated
+    ? new Date(state.last_updated).getTime()
+    : 0;
+  if (lastUpdated > 0 && Date.now() - lastUpdated > staleThresholdMs)
+    return state;
 
   // Only consider files created AFTER the current session started
   const sessionStart = lastUpdated;
@@ -1283,7 +1492,7 @@ function reconcileStageFromFiles(projectDir: string, state: any): any {
     const fullPath = join(projectDir, dir);
     if (!existsSync(fullPath)) return false;
     try {
-      const files = readdirSync(fullPath).filter(f => !f.startsWith("."));
+      const files = readdirSync(fullPath).filter((f) => !f.startsWith("."));
       // Check if any file was created/modified after session start
       for (const file of files) {
         try {
@@ -1291,16 +1500,23 @@ function reconcileStageFromFiles(projectDir: string, state: any): any {
             `git -C "${projectDir}" log -1 --format=%aI -- "${join(dir, file)}" 2>/dev/null`,
             { encoding: "utf-8", timeout: 2000 },
           ).trim();
-          if (gitTime && new Date(gitTime).getTime() > sessionStart) return true;
-        } catch { /* skip */ }
+          if (gitTime && new Date(gitTime).getTime() > sessionStart)
+            return true;
+        } catch {
+          /* skip */
+        }
         // Fallback: check filesystem mtime
         try {
           const filePath = join(fullPath, file);
           const mtime = Bun.file(filePath).lastModified;
           if (mtime > sessionStart) return true;
-        } catch { /* skip */ }
+        } catch {
+          /* skip */
+        }
       }
-    } catch { /* skip */ }
+    } catch {
+      /* skip */
+    }
     return false;
   }
 
@@ -1323,14 +1539,17 @@ function reconcileStageFromFiles(projectDir: string, state: any): any {
     if (existsSync(tasksPath)) {
       try {
         const tasks = JSON.parse(readFileSync(tasksPath, "utf-8"));
-        const recentTasks = tasks.tasks?.filter((t: any) =>
-          t.created_at && new Date(t.created_at).getTime() > sessionStart
+        const recentTasks = tasks.tasks?.filter(
+          (t: any) =>
+            t.created_at && new Date(t.created_at).getTime() > sessionStart,
         );
         if (recentTasks && recentTasks.length > 0) {
           completedStages.push("execute");
           latestStage = "execute";
         }
-      } catch { /* skip */ }
+      } catch {
+        /* skip */
+      }
     }
   }
 
@@ -1338,12 +1557,21 @@ function reconcileStageFromFiles(projectDir: string, state: any): any {
 
   // Current stage = the latest completed one (still in progress)
   // or the next one if we're sure it's done
-  const STAGE_ORDER = ["brainstorm", "plan", "execute", "review", "ship", "compound"];
+  const STAGE_ORDER = [
+    "brainstorm",
+    "plan",
+    "execute",
+    "review",
+    "ship",
+    "compound",
+  ];
   const latestIdx = STAGE_ORDER.indexOf(latestStage);
   const currentStage = STAGE_ORDER[latestIdx]; // stay on the latest detected stage
 
   const now = new Date().toISOString();
-  const history: any[] = completedStages.slice(0, -1).map(s => ({ stage: s, started: now, completed: now }));
+  const history: any[] = completedStages
+    .slice(0, -1)
+    .map((s) => ({ stage: s, started: now, completed: now }));
   // Last stage is current (not completed)
   history.push({ stage: currentStage, started: now });
 
@@ -1395,7 +1623,10 @@ async function buildStatePayload(projectDir: string, projectName: string) {
     }
   }
 
-  const tasks = await readJSON(join(apexDir, "tasks.json"), { tasks: [] as any[], next_id: 1 });
+  const tasks = await readJSON(join(apexDir, "tasks.json"), {
+    tasks: [] as any[],
+    next_id: 1,
+  });
 
   // Reconcile task status from git reality before building payload
   reconcileTasksFromGit(projectDir, tasks);
@@ -1414,14 +1645,19 @@ async function buildStatePayload(projectDir: string, projectName: string) {
   // Resolve GitHub remote URL for commit links
   let gitRemoteUrl = "";
   try {
-    const { spawnSync: sp } = await import("child_process");
-    const r = sp("git", ["-C", projectDir, "remote", "get-url", "origin"], { encoding: "utf-8" });
+    const { spawnSync: sp } = await import("node:child_process");
+    const r = sp("git", ["-C", projectDir, "remote", "get-url", "origin"], {
+      encoding: "utf-8",
+    });
     if (r.status === 0 && r.stdout) {
-      gitRemoteUrl = r.stdout.trim()
+      gitRemoteUrl = r.stdout
+        .trim()
         .replace(/\.git$/, "")
         .replace(/^git@github\.com:/, "https://github.com/");
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 
   return {
     project: {
@@ -1430,8 +1666,14 @@ async function buildStatePayload(projectDir: string, projectName: string) {
       gitRemoteUrl,
     },
     tasks,
-    memory: await readJSON(join(apexDir, "memory.json"), { facts: [], next_id: 1 }),
-    globalMemory: await readJSON(join(process.env.HOME || "/tmp", ".apex-forge", "memory.json"), { facts: [], next_id: 1 }),
+    memory: await readJSON(join(apexDir, "memory.json"), {
+      facts: [],
+      next_id: 1,
+    }),
+    globalMemory: await readJSON(
+      join(process.env.HOME || "/tmp", ".apex-forge", "memory.json"),
+      { facts: [], next_id: 1 },
+    ),
     state: derivedState,
     analytics: loadEvents(apexDir),
     sessions: Array.from(sessions),
@@ -1444,16 +1686,32 @@ async function buildStatePayload(projectDir: string, projectName: string) {
  * Each worktree's full state is included, plus a merged task list.
  */
 async function buildAggregatedPayload(repoRoot: string, repoName: string) {
-  const worktrees = discoverWorktrees(repoRoot).filter(wt => wt.hasApex);
+  const worktrees = discoverWorktrees(repoRoot).filter((wt) => wt.hasApex);
   if (worktrees.length === 0) {
-    return { mode: "aggregated" as const, repo: { name: repoName, root: repoRoot }, worktrees: [], tasks: { tasks: [], next_id: 1 }, summary: { totalTasks: 0, completedTasks: 0, activeWorktrees: 0 } };
+    return {
+      mode: "aggregated" as const,
+      repo: { name: repoName, root: repoRoot },
+      worktrees: [],
+      tasks: { tasks: [], next_id: 1 },
+      summary: { totalTasks: 0, completedTasks: 0, activeWorktrees: 0 },
+    };
   }
 
   const wtPayloads = await Promise.all(
     worktrees.map(async (wt) => {
       // Check for worker metadata at .apex/workers/<label>/meta.json
-      let worker: { agent: string; started_at: string; task_id: string } | null = null;
-      const workerMetaPath = join(repoRoot, ".apex", "workers", wt.label, "meta.json");
+      let worker: {
+        agent: string;
+        started_at: string;
+        task_id: string;
+      } | null = null;
+      const workerMetaPath = join(
+        repoRoot,
+        ".apex",
+        "workers",
+        wt.label,
+        "meta.json",
+      );
       if (existsSync(workerMetaPath)) {
         try {
           const meta = JSON.parse(readFileSync(workerMetaPath, "utf-8"));
@@ -1471,7 +1729,7 @@ async function buildAggregatedPayload(repoRoot: string, repoName: string) {
         state: await buildStatePayload(wt.path, wt.label),
         worker,
       };
-    })
+    }),
   );
 
   // Merge tasks across worktrees, prefix IDs and tag with _worktree
@@ -1484,14 +1742,16 @@ async function buildAggregatedPayload(repoRoot: string, repoName: string) {
         ...t,
         id: `${wtp.label}/${t.id}`,
         _worktree: wtp.label,
-        depends_on: (t.depends_on || []).map((d: string) => `${wtp.label}/${d}`),
+        depends_on: (t.depends_on || []).map(
+          (d: string) => `${wtp.label}/${d}`,
+        ),
       });
     }
     const nextId = wtp.state.tasks?.next_id || 1;
     if (nextId > maxNextId) maxNextId = nextId;
   }
 
-  const completedTasks = mergedTasks.filter(t => t.status === "done").length;
+  const completedTasks = mergedTasks.filter((t) => t.status === "done").length;
 
   // Read worker cost data
   let costEntries: any[] = [];
@@ -1504,7 +1764,9 @@ async function buildAggregatedPayload(repoRoot: string, repoName: string) {
   let rateLimit: any = null;
   const rateLimitPath = join(repoRoot, ".apex", "rate-limit.json");
   if (existsSync(rateLimitPath)) {
-    try { rateLimit = JSON.parse(readFileSync(rateLimitPath, "utf-8")); } catch {}
+    try {
+      rateLimit = JSON.parse(readFileSync(rateLimitPath, "utf-8"));
+    } catch {}
   }
 
   return {
@@ -1517,7 +1779,13 @@ async function buildAggregatedPayload(repoRoot: string, repoName: string) {
       completedTasks,
       activeWorktrees: worktrees.length,
     },
-    cost: { entries: costEntries, totalUsd: costEntries.reduce((s: number, e: any) => s + (e.cost_usd || 0), 0) },
+    cost: {
+      entries: costEntries,
+      totalUsd: costEntries.reduce(
+        (s: number, e: any) => s + (e.cost_usd || 0),
+        0,
+      ),
+    },
     rateLimit,
   };
 }

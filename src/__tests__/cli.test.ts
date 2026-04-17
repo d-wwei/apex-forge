@@ -1,8 +1,8 @@
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { spawnSync } from "child_process";
-import { rmSync, existsSync, mkdirSync } from "fs";
-import { join } from "path";
-import { tmpdir } from "os";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const PROJECT_ROOT = process.cwd();
 const APEX = join(PROJECT_ROOT, "dist/apex-forge");
@@ -10,9 +10,11 @@ const APEX = join(PROJECT_ROOT, "dist/apex-forge");
 let testDir: string;
 let originalCwd: string;
 
-function run(
-  ...args: string[]
-): { stdout: string; stderr: string; exitCode: number } {
+function run(...args: string[]): {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+} {
   const result = spawnSync(APEX, args, {
     encoding: "utf-8",
     cwd: process.cwd(),
@@ -27,7 +29,10 @@ function run(
 
 beforeEach(() => {
   originalCwd = process.cwd();
-  testDir = join(tmpdir(), `apex-test-cli-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+  testDir = join(
+    tmpdir(),
+    `apex-test-cli-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  );
   mkdirSync(testDir, { recursive: true });
   process.chdir(testDir);
 });
@@ -130,7 +135,14 @@ describe("CLI Integration", () => {
 
   test("apex stage set prints MANDATORY read reminder for non-idle stages", () => {
     run("init");
-    for (const stage of ["brainstorm", "plan", "execute", "review", "ship", "compound"]) {
+    for (const stage of [
+      "brainstorm",
+      "plan",
+      "execute",
+      "review",
+      "ship",
+      "compound",
+    ]) {
       const r = run("stage", "set", stage);
       expect(r.exitCode).toBe(0);
       expect(r.stdout).toContain("MANDATORY");

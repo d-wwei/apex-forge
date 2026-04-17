@@ -1,17 +1,20 @@
-import { describe, test, expect } from "bun:test";
+import { describe, expect, test } from "bun:test";
 
 // Test the porcelain parsing logic by extracting the internal parser
 // We test via the public API since finalizeWorktree is not exported
 
-import { getRepoRoot, discoverWorktrees, groupProjectsByRepo } from "../worktree-discovery.js";
+import {
+  discoverWorktrees,
+  getRepoRoot,
+  groupProjectsByRepo,
+} from "../worktree-discovery.js";
 
 describe("worktree-discovery", () => {
-
   describe("getRepoRoot", () => {
     test("returns repo root for current directory", () => {
       const root = getRepoRoot(".");
       expect(root).not.toBeNull();
-      expect(root!.length).toBeGreaterThan(0);
+      expect(root?.length).toBeGreaterThan(0);
     });
 
     test("returns null for non-git directory", () => {
@@ -80,8 +83,20 @@ describe("worktree-discovery", () => {
 
     test("returns empty array for non-git projects", () => {
       const groups = groupProjectsByRepo([
-        { name: "a", path: "/tmp/nonexistent-a", port: 3460, pid: 1, startedAt: "" },
-        { name: "b", path: "/tmp/nonexistent-b", port: 3461, pid: 2, startedAt: "" },
+        {
+          name: "a",
+          path: "/tmp/nonexistent-a",
+          port: 3460,
+          pid: 1,
+          startedAt: "",
+        },
+        {
+          name: "b",
+          path: "/tmp/nonexistent-b",
+          port: 3461,
+          pid: 2,
+          startedAt: "",
+        },
       ]);
       expect(groups).toEqual([]);
     });

@@ -5,7 +5,7 @@
  * Writes completed spans to .apex/analytics/traces.jsonl for post-hoc analysis.
  */
 
-import { existsSync, readFileSync } from "fs";
+import { existsSync, readFileSync } from "node:fs";
 import { appendJSONL } from "./utils/logger.js";
 import { isoTimestamp } from "./utils/timestamp.js";
 
@@ -111,7 +111,10 @@ export function getActiveSpans(): Span[] {
 export function loadTraces(): Span[] {
   if (!existsSync(TRACE_FILE)) return [];
 
-  const lines = readFileSync(TRACE_FILE, "utf-8").trim().split("\n").filter(Boolean);
+  const lines = readFileSync(TRACE_FILE, "utf-8")
+    .trim()
+    .split("\n")
+    .filter(Boolean);
   return lines.map((line) => JSON.parse(line) as Span);
 }
 
@@ -136,9 +139,7 @@ export function listTraceSummaries(limit = 20): TraceSummary[] {
     const totalMs = allEnded.reduce((sum, s) => sum + (s.duration_ms || 0), 0);
     const hasErrors = traceSpans.some((s) => s.status === "error");
 
-    const endedAts = allEnded
-      .map((s) => s.ended_at!)
-      .sort();
+    const endedAts = allEnded.map((s) => s.ended_at!).sort();
 
     summaries.push({
       trace_id: traceId,

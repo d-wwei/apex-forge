@@ -5,8 +5,8 @@
  * Four data sources: orchestrator (agent-agnostic), telemetry CLI, traces, hook events.
  */
 
-import { existsSync, readFileSync } from "fs";
-import { join } from "path";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
 export interface AnalyticsEvent {
   ts: string;
@@ -29,7 +29,11 @@ export function loadJSONL(filePath: string): any[] {
       .split("\n")
       .filter(Boolean)
       .map((l) => {
-        try { return JSON.parse(l); } catch { return null; }
+        try {
+          return JSON.parse(l);
+        } catch {
+          return null;
+        }
       })
       .filter(Boolean);
   } catch {
@@ -50,7 +54,9 @@ export function loadJSONL(filePath: string): any[] {
  */
 export function loadEvents(apexDir: string): AnalyticsEvent[] {
   // Source 1: Orchestrator events — multi-agent dispatch results (agent-agnostic, primary)
-  const orchestratorEvents = loadJSONL(join(apexDir, "analytics", "orchestrator.jsonl"));
+  const orchestratorEvents = loadJSONL(
+    join(apexDir, "analytics", "orchestrator.jsonl"),
+  );
   const orchestrator: AnalyticsEvent[] = orchestratorEvents.map((o) => {
     if (o.event === "cross_model_synthesis") {
       return {
@@ -58,7 +64,13 @@ export function loadEvents(apexDir: string): AnalyticsEvent[] {
         skill: "cross-model-synthesis",
         outcome: o.verdict || "unknown",
         duration_s: 0,
-        meta: { task_id: o.task_id, agents: o.agents, blocker_count: o.blocker_count, concern_count: o.concern_count, note_count: o.note_count },
+        meta: {
+          task_id: o.task_id,
+          agents: o.agents,
+          blocker_count: o.blocker_count,
+          concern_count: o.concern_count,
+          note_count: o.note_count,
+        },
         source: "orchestrator" as const,
       };
     }
@@ -91,7 +103,8 @@ export function loadEvents(apexDir: string): AnalyticsEvent[] {
       ts: s.ended_at || s.started_at || "",
       skill: s.name || "unknown",
       outcome: s.status === "ok" ? "success" : "error",
-      duration_s: s.duration_ms != null ? Math.round(s.duration_ms / 100) / 10 : 0,
+      duration_s:
+        s.duration_ms != null ? Math.round(s.duration_ms / 100) / 10 : 0,
       meta: { trace_id: s.trace_id, span_id: s.span_id },
       source: "trace" as const,
     }));
@@ -123,29 +136,49 @@ export function loadEvents(apexDir: string): AnalyticsEvent[] {
       case "stage.set":
         stageStarts.set(p.stage as string, e.ts);
         domainMapped.push({
-          ts: e.ts, skill: p.stage as string, outcome: "started",
-          duration_s: 0, meta: { session_id: e.session_id }, source: "orchestrator",
+          ts: e.ts,
+          skill: p.stage as string,
+          outcome: "started",
+          duration_s: 0,
+          meta: { session_id: e.session_id },
+          source: "orchestrator",
         });
         break;
       case "stage.completed": {
         const started = stageStarts.get(p.stage as string);
-        const dur = started ? Math.round((new Date(e.ts).getTime() - new Date(started).getTime()) / 1000) : 0;
+        const dur = started
+          ? Math.round(
+              (new Date(e.ts).getTime() - new Date(started).getTime()) / 1000,
+            )
+          : 0;
         domainMapped.push({
-          ts: e.ts, skill: p.stage as string, outcome: "success",
-          duration_s: dur, meta: { session_id: e.session_id }, source: "orchestrator",
+          ts: e.ts,
+          skill: p.stage as string,
+          outcome: "success",
+          duration_s: dur,
+          meta: { session_id: e.session_id },
+          source: "orchestrator",
         });
         break;
       }
       case "skill.invoked":
         domainMapped.push({
-          ts: e.ts, skill: (p.skill as string) || "unknown", outcome: (p.output_status as string) || "success",
-          duration_s: 0, meta: { stage: p.stage, af_mapping: p.af_mapping }, source: "orchestrator",
+          ts: e.ts,
+          skill: (p.skill as string) || "unknown",
+          outcome: (p.output_status as string) || "success",
+          duration_s: 0,
+          meta: { stage: p.stage, af_mapping: p.af_mapping },
+          source: "orchestrator",
         });
         break;
       case "artifact.added":
         domainMapped.push({
-          ts: e.ts, skill: "artifact", outcome: "success",
-          duration_s: 0, meta: { stage: p.stage, path: p.path }, source: "orchestrator",
+          ts: e.ts,
+          skill: "artifact",
+          outcome: "success",
+          duration_s: 0,
+          meta: { stage: p.stage, path: p.path },
+          source: "orchestrator",
         });
         break;
     }
@@ -155,8 +188,12 @@ export function loadEvents(apexDir: string): AnalyticsEvent[] {
     const p = e.payload || {};
     if (e.type === "task.transitioned") {
       domainMapped.push({
-        ts: e.ts, skill: "task", outcome: (p.to as string) || "unknown",
-        duration_s: 0, meta: { task_id: p.id, from: p.from }, source: "orchestrator",
+        ts: e.ts,
+        skill: "task",
+        outcome: (p.to as string) || "unknown",
+        duration_s: 0,
+        meta: { task_id: p.id, from: p.from },
+        source: "orchestrator",
       });
     }
   }
@@ -165,8 +202,12 @@ export function loadEvents(apexDir: string): AnalyticsEvent[] {
     const p = e.payload || {};
     if (e.type === "fact.added") {
       domainMapped.push({
-        ts: e.ts, skill: "memory", outcome: "added",
-        duration_s: 0, meta: { fact_id: p.id }, source: "orchestrator",
+        ts: e.ts,
+        skill: "memory",
+        outcome: "added",
+        duration_s: 0,
+        meta: { fact_id: p.id },
+        source: "orchestrator",
       });
     }
   }

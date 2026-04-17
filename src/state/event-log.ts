@@ -9,13 +9,19 @@
  * Two processes appending simultaneously produce two complete lines.
  */
 
-import { appendFileSync, existsSync, mkdirSync, readFileSync, copyFileSync } from "fs";
-import { join } from "path";
+import {
+  appendFileSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+} from "node:fs";
+import { join } from "node:path";
+import type { MemoryStore } from "../types/memory.js";
+import type { SessionPipeline, StageState } from "../types/state.js";
+import type { TaskStatus, TaskStore } from "../types/task.js";
 import { writeJSON } from "../utils/json.js";
 import { isoTimestamp, sessionId } from "../utils/timestamp.js";
-import type { TaskStore, TaskStatus } from "../types/task.js";
-import type { StageState, SessionPipeline } from "../types/state.js";
-import type { MemoryStore } from "../types/memory.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -82,7 +88,19 @@ export function currentSessionId(): string {
   // 2. Cached from previous call
   if (_cachedSessionId) return _cachedSessionId;
 
-  // 3. Generate new (do NOT read state.json — avoids cross-session pollution)
+  // 3. Read from state.json — the canonical session for this project
+  try {
+    const raw = readFileSync(STATE_CACHE, "utf-8");
+    const state = JSON.parse(raw);
+    if (typeof state.session_id === "string" && state.session_id) {
+      _cachedSessionId = state.session_id;
+      return _cachedSessionId!;
+    }
+  } catch {
+    // First init or missing file — fall through to generate
+  }
+
+  // 4. Generate new (only on truly fresh projects with no state.json)
   _cachedSessionId = sessionId();
   return _cachedSessionId;
 }
@@ -99,17 +117,23 @@ function ensureLogDir(): void {
 
 function logPath(domain: Domain): string {
   switch (domain) {
-    case "task": return TASKS_LOG;
-    case "state": return STATE_LOG;
-    case "memory": return MEMORY_LOG;
+    case "task":
+      return TASKS_LOG;
+    case "state":
+      return STATE_LOG;
+    case "memory":
+      return MEMORY_LOG;
   }
 }
 
 function cachePath(domain: Domain): string {
   switch (domain) {
-    case "task": return TASKS_CACHE;
-    case "state": return STATE_CACHE;
-    case "memory": return MEMORY_CACHE;
+    case "task":
+      return TASKS_CACHE;
+    case "state":
+      return STATE_CACHE;
+    case "memory":
+      return MEMORY_CACHE;
   }
 }
 
@@ -133,7 +157,11 @@ export function appendEvent(
   const cp = cachePath(domain);
   const sp = seedPath(domain);
   if (!existsSync(lp) && existsSync(cp) && !existsSync(sp)) {
-    try { copyFileSync(cp, sp); } catch { /* ignore */ }
+    try {
+      copyFileSync(cp, sp);
+    } catch {
+      /* ignore */
+    }
   }
 
   const event: DomainEvent = {
@@ -144,7 +172,7 @@ export function appendEvent(
     payload,
   };
 
-  appendFileSync(lp, JSON.stringify(event) + "\n");
+  appendFileSync(lp, `${JSON.stringify(event)}\n`);
 }
 
 /**
@@ -159,7 +187,11 @@ export function readEvents(domain: Domain): DomainEvent[] {
       .split("\n")
       .filter(Boolean)
       .map((line) => {
-        try { return JSON.parse(line) as DomainEvent; } catch { return null; }
+        try {
+          return JSON.parse(line) as DomainEvent;
+        } catch {
+          return null;
+        }
       })
       .filter(Boolean) as DomainEvent[];
   } catch {
@@ -285,7 +317,10 @@ export function materializeState(events: DomainEvent[]): StageState {
         // Close previous stage (auto-close by transition, NOT gate-verified)
         if (oldStage !== "idle" && oldStage !== newStage) {
           for (let i = state.history.length - 1; i >= 0; i--) {
-            if (state.history[i].stage === oldStage && !state.history[i].completed) {
+            if (
+              state.history[i].stage === oldStage &&
+              !state.history[i].completed
+            ) {
               state.history[i].completed = evt.ts;
               state.history[i].completed_via = "transition";
               break;
@@ -377,13 +412,18 @@ export function materializeState(events: DomainEvent[]): StageState {
  */
 const SESSION_STALE_MS = 30 * 60 * 1000; // 30 minutes
 
-export function materializePerSession(events: DomainEvent[]): SessionPipeline[] {
+export function materializePerSession(
+  events: DomainEvent[],
+): SessionPipeline[] {
   // 1. Group events by session_id
   const groups = new Map<string, DomainEvent[]>();
   for (const evt of events) {
     const sid = evt.session_id || "unknown";
     let arr = groups.get(sid);
-    if (!arr) { arr = []; groups.set(sid, arr); }
+    if (!arr) {
+      arr = [];
+      groups.set(sid, arr);
+    }
     arr.push(evt);
   }
 
@@ -413,7 +453,10 @@ export function materializePerSession(events: DomainEvent[]): SessionPipeline[] 
           const oldStage = state.current_stage;
           if (oldStage !== "idle" && oldStage !== newStage) {
             for (let i = state.history.length - 1; i >= 0; i--) {
-              if (state.history[i].stage === oldStage && !state.history[i].completed) {
+              if (
+                state.history[i].stage === oldStage &&
+                !state.history[i].completed
+              ) {
                 state.history[i].completed = evt.ts;
                 state.history[i].completed_via = "transition";
                 break;
@@ -429,7 +472,10 @@ export function materializePerSession(events: DomainEvent[]): SessionPipeline[] 
         case "stage.completed": {
           const stage = p.stage as string;
           for (let i = state.history.length - 1; i >= 0; i--) {
-            if (state.history[i].stage === stage && !state.history[i].completed) {
+            if (
+              state.history[i].stage === stage &&
+              !state.history[i].completed
+            ) {
               state.history[i].completed = evt.ts;
               state.history[i].completed_via = "gate";
               break;
@@ -467,18 +513,28 @@ export function materializePerSession(events: DomainEvent[]): SessionPipeline[] 
       last_updated: state.last_updated,
       history: state.history,
       artifacts: state.artifacts,
-      stale: (now - lastUpdatedMs) > SESSION_STALE_MS,
+      stale: now - lastUpdatedMs > SESSION_STALE_MS,
       summary: sessionSummary,
     });
   }
 
-  // 3. Sort: non-stale first, then by last_updated descending
-  pipelines.sort((a, b) => {
+  // 3. Filter phantom sessions — CLI calls without APEX_SESSION_ID each
+  //    generated a unique session with a single orphan event.
+  //    Keep sessions that have ≥2 events or reached a non-idle stage.
+  const meaningful = pipelines.filter(
+    (p) =>
+      (groups.get(p.session_id)?.length ?? 0) >= 2 ||
+      p.current_stage !== "idle" ||
+      p.history.length > 0,
+  );
+
+  // 4. Sort: non-stale first, then by last_updated descending
+  meaningful.sort((a, b) => {
     if (a.stale !== b.stale) return a.stale ? 1 : -1;
     return b.last_updated.localeCompare(a.last_updated);
   });
 
-  return pipelines;
+  return meaningful;
 }
 
 export function materializeMemory(events: DomainEvent[]): MemoryStore {
@@ -533,7 +589,7 @@ export async function rebuildAndCache(domain: Domain): Promise<void> {
     }
     case "state": {
       const sid = currentSessionId();
-      const sessionEvents = events.filter(e => e.session_id === sid);
+      const sessionEvents = events.filter((e) => e.session_id === sid);
 
       // 1. Per-session cache (CLI reads this)
       const sessionState = materializeState(sessionEvents);
@@ -586,7 +642,7 @@ export function appendGlobalMemoryEvent(
     type,
     payload,
   };
-  appendFileSync(GLOBAL_MEMORY_LOG, JSON.stringify(event) + "\n");
+  appendFileSync(GLOBAL_MEMORY_LOG, `${JSON.stringify(event)}\n`);
 }
 
 export function readGlobalMemoryEvents(): DomainEvent[] {
@@ -597,7 +653,11 @@ export function readGlobalMemoryEvents(): DomainEvent[] {
       .split("\n")
       .filter(Boolean)
       .map((line) => {
-        try { return JSON.parse(line) as DomainEvent; } catch { return null; }
+        try {
+          return JSON.parse(line) as DomainEvent;
+        } catch {
+          return null;
+        }
       })
       .filter(Boolean) as DomainEvent[];
   } catch {

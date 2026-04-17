@@ -1,6 +1,6 @@
+import { memoryList } from "../state/memory.js";
 import { loadState } from "../state/stage.js";
 import { taskList } from "../state/tasks.js";
-import { memoryList } from "../state/memory.js";
 import type { TaskStatus } from "../types/task.js";
 
 const VERSION = "0.1.0";
@@ -28,18 +28,14 @@ export async function cmdStatus(args: string[]): Promise<void> {
 
   // Find highest confidence
   const highestConf =
-    facts.length > 0
-      ? Math.max(...facts.map((f) => f.confidence))
-      : 0;
+    facts.length > 0 ? Math.max(...facts.map((f) => f.confidence)) : 0;
 
   // Find next available task
   const doneIds = new Set(
     tasks.filter((t) => t.status === "done").map((t) => t.id),
   );
   const nextTask = tasks.find(
-    (t) =>
-      t.status === "open" &&
-      t.depends_on.every((dep) => doneIds.has(dep)),
+    (t) => t.status === "open" && t.depends_on.every((dep) => doneIds.has(dep)),
   );
 
   // Collect recent artifacts (last 5 entries across all types)
@@ -66,9 +62,7 @@ export async function cmdStatus(args: string[]): Promise<void> {
         highest_confidence: highestConf,
       },
       artifacts: state.artifacts,
-      next_task: nextTask
-        ? { id: nextTask.id, title: nextTask.title }
-        : null,
+      next_task: nextTask ? { id: nextTask.id, title: nextTask.title } : null,
     };
     console.log(JSON.stringify(output, null, 2));
     return;

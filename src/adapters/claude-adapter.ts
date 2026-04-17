@@ -1,7 +1,18 @@
-import { spawn, spawnSync } from "child_process";
-import { mkdirSync, appendFileSync, readFileSync, writeFileSync } from "fs";
-import { join } from "path";
-import type { RuntimeAdapter, AgentHandle, AdapterStatus, AdapterConfig, TaskDispatchInfo } from "./runtime.js";
+import { spawn, spawnSync } from "node:child_process";
+import {
+  appendFileSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
+import { join } from "node:path";
+import type {
+  AdapterConfig,
+  AdapterStatus,
+  AgentHandle,
+  RuntimeAdapter,
+  TaskDispatchInfo,
+} from "./runtime.js";
 
 function uniqueId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -22,14 +33,21 @@ export class ClaudeAdapter implements RuntimeAdapter {
 
   available(): boolean {
     try {
-      const result = spawnSync("claude", ["--version"], { encoding: "utf-8", timeout: 5000 });
+      const result = spawnSync("claude", ["--version"], {
+        encoding: "utf-8",
+        timeout: 5000,
+      });
       return result.status === 0;
     } catch {
       return false;
     }
   }
 
-  async spawn(task: TaskDispatchInfo, prompt: string, config: AdapterConfig): Promise<AgentHandle> {
+  async spawn(
+    task: TaskDispatchInfo,
+    prompt: string,
+    config: AdapterConfig,
+  ): Promise<AgentHandle> {
     const logDir = ".apex/orchestrator-logs";
     mkdirSync(logDir, { recursive: true });
     const logPath = `${logDir}/${task.id}.log`;
@@ -48,7 +66,10 @@ export class ClaudeAdapter implements RuntimeAdapter {
         // Long prompt: use shell to read from file, avoids ARG_MAX
         const extraArgs = (config.args || []).join(" ");
         spawnCmd = "sh";
-        args = ["-c", `${baseCmd} ${extraArgs} --print -p "$(cat '${promptFile}')"`.trim()];
+        args = [
+          "-c",
+          `${baseCmd} ${extraArgs} --print -p "$(cat '${promptFile}')"`.trim(),
+        ];
       } else {
         // Normal prompt: pass directly as argument
         spawnCmd = baseCmd;
@@ -102,7 +123,12 @@ export class ClaudeAdapter implements RuntimeAdapter {
     }
   }
 
-  async resume(sessionId: string, prompt: string, config: AdapterConfig, taskId?: string): Promise<AgentHandle> {
+  async resume(
+    sessionId: string,
+    prompt: string,
+    config: AdapterConfig,
+    taskId?: string,
+  ): Promise<AgentHandle> {
     const logDir = ".apex/orchestrator-logs";
     mkdirSync(logDir, { recursive: true });
     const logPath = `${logDir}/resume-${sessionId}.log`;
@@ -117,7 +143,10 @@ export class ClaudeAdapter implements RuntimeAdapter {
       const promptBytes = Buffer.byteLength(prompt);
       if (promptBytes > 200_000) {
         spawnCmd = "sh";
-        args = ["-c", `${baseCmd} --print --resume ${sessionId} -p "$(cat '${promptFile}')"`.trim()];
+        args = [
+          "-c",
+          `${baseCmd} --print --resume ${sessionId} -p "$(cat '${promptFile}')"`.trim(),
+        ];
       } else {
         spawnCmd = baseCmd;
         args = ["--print", "--resume", sessionId, "-p", prompt];

@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from "fs";
-import { join } from "path";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { Task } from "../types/task.js";
 
 interface PromptTemplate {
@@ -33,7 +33,9 @@ export function buildAgentPrompt(
   lines.push(`Description: ${task.description}`);
 
   if (task.depends_on.length > 0) {
-    lines.push(`Dependencies: ${task.depends_on.join(", ")} (already completed)`);
+    lines.push(
+      `Dependencies: ${task.depends_on.join(", ")} (already completed)`,
+    );
   }
 
   // Template / role info
@@ -73,7 +75,9 @@ export function buildAgentPrompt(
   if (options.attempt && options.attempt > 1) {
     lines.push("");
     lines.push(`## Retry Context (Attempt ${options.attempt})`);
-    lines.push("This is a retry. Review previous attempt notes before starting.");
+    lines.push(
+      "This is a retry. Review previous attempt notes before starting.",
+    );
     if (options.previousAttemptNotes) {
       lines.push("");
       lines.push("### Previous Attempt Notes");
@@ -89,18 +93,24 @@ export function buildAgentPrompt(
       lines.push(`- ${artifact.taskId}: ${artifact.summary}`);
     }
     lines.push("");
-    lines.push("Check the `input/` directory in your workspace for full upstream results.");
+    lines.push(
+      "Check the `input/` directory in your workspace for full upstream results.",
+    );
   }
 
   // Standard rules
   lines.push("");
   lines.push("## Rules");
   lines.push("1. Stay scoped: only work on this task");
-  lines.push("2. When the task involves writing code, follow TDD where appropriate");
+  lines.push(
+    "2. When the task involves writing code, follow TDD where appropriate",
+  );
   lines.push("3. When done, exit with code 0. If blocked, exit with code 1");
   lines.push("");
   lines.push("## REQUIRED OUTPUT (do this BEFORE exiting)");
-  lines.push("You MUST create the file `output/result.json` in your workspace.");
+  lines.push(
+    "You MUST create the file `output/result.json` in your workspace.",
+  );
   lines.push("This file is how the orchestrator knows what you accomplished.");
   lines.push("Without it, your work is considered incomplete.");
   lines.push("");
@@ -108,12 +118,14 @@ export function buildAgentPrompt(
   lines.push("```json");
   lines.push("{");
   lines.push('  "verdict": "pass" or "fail",');
-  lines.push('  "findings": [{"severity": "high|medium|low", "description": "..."}],');
+  lines.push(
+    '  "findings": [{"severity": "high|medium|low", "description": "..."}],',
+  );
   lines.push('  "summary": "One-sentence summary of what was done"');
   lines.push("}");
   lines.push("```");
 
-  return lines.filter(l => l !== undefined).join("\n");
+  return lines.filter((l) => l !== undefined).join("\n");
 }
 
 /**
@@ -173,8 +185,10 @@ function formatPersonaYaml(yaml: string): string {
       if (key === "name") lines.push(`**Role**: ${value}`);
       else if (key === "background") lines.push(`**Background**: ${value}`);
       else if (key === "evaluates_from") lines.push(`**Focus**: ${value}`);
-      else if (key === "blind_spots") lines.push(`**Known blind spots**: ${value}`);
-      else if (key === "output_format") lines.push(`**Output format**: ${value}`);
+      else if (key === "blind_spots")
+        lines.push(`**Known blind spots**: ${value}`);
+      else if (key === "output_format")
+        lines.push(`**Output format**: ${value}`);
     } else if ((match = line.match(/^\s+-\s+"?(.+)"?\s*$/))) {
       lines.push(`  - ${match[1]}`);
     } else if (line.match(/^typical_questions:/)) {

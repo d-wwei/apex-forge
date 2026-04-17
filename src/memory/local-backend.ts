@@ -7,21 +7,21 @@
 
 import {
   memoryAdd,
-  memoryList,
-  memorySearch,
-  memoryRemove,
   memoryInject,
+  memoryList,
   memoryPrune,
+  memoryRemove,
+  memorySearch,
 } from "../state/memory.js";
+import type { TaskStore } from "../types/task.js";
 import { readJSON } from "../utils/json.js";
 import { isoTimestamp } from "../utils/timestamp.js";
-import type { TaskStore } from "../types/task.js";
 import type {
+  ActiveTask,
+  CheckpointData,
   MemoryBackend,
   MemoryFact,
   SolutionRef,
-  ActiveTask,
-  CheckpointData,
 } from "./interface.js";
 
 const TASKS_PATH = ".apex/tasks.json";
@@ -95,8 +95,7 @@ export class LocalBackend implements MemoryBackend {
       .filter((f) => f.tags.includes("solution"))
       .map((f) => {
         const pathMatch = f.content.match(/Solution:\s*(\S+)/);
-        const category =
-          f.tags.find((t) => t !== "solution") || "unknown";
+        const category = f.tags.find((t) => t !== "solution") || "unknown";
         return {
           path: pathMatch?.[1] || "",
           category,

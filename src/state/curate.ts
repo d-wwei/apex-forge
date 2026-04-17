@@ -6,11 +6,11 @@
  * to auto-populate the memory store without LLM calls.
  */
 
-import { spawnSync } from "child_process";
-import { readJSON } from "../utils/json.js";
-import { existsSync, readdirSync, readFileSync } from "fs";
-import type { TaskStore } from "../types/task.js";
+import { spawnSync } from "node:child_process";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import type { MemoryStore } from "../types/memory.js";
+import type { TaskStore } from "../types/task.js";
+import { readJSON } from "../utils/json.js";
 
 interface CuratedFact {
   content: string;

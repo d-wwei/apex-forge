@@ -47,11 +47,7 @@ export interface MemoryBackend {
   readonly name: string;
 
   // --- Fact operations ---
-  addFact(
-    fact: string,
-    confidence: number,
-    tags?: string[],
-  ): Promise<string>; // returns fact ID
+  addFact(fact: string, confidence: number, tags?: string[]): Promise<string>; // returns fact ID
 
   searchFacts(query: string, limit?: number): Promise<MemoryFact[]>;
   listFacts(minConfidence?: number): Promise<MemoryFact[]>;
@@ -59,11 +55,7 @@ export interface MemoryBackend {
   pruneFacts(minConfidence?: number): Promise<number>; // returns deleted count
 
   // --- Solution docs (compound stage) ---
-  addSolution(
-    path: string,
-    category: string,
-    tags: string[],
-  ): Promise<void>;
+  addSolution(path: string, category: string, tags: string[]): Promise<void>;
   searchSolutions(query: string): Promise<SolutionRef[]>;
 
   // --- Context injection (session start) ---

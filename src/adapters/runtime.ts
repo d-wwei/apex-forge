@@ -1,4 +1,4 @@
-import type { ChildProcess } from "child_process";
+import type { ChildProcess } from "node:child_process";
 
 // --- Adapter Status ---
 
@@ -48,7 +48,11 @@ export interface RuntimeAdapter {
   available(): boolean;
 
   /** Spawn a new agent for a task */
-  spawn(task: TaskDispatchInfo, prompt: string, config: AdapterConfig): Promise<AgentHandle>;
+  spawn(
+    task: TaskDispatchInfo,
+    prompt: string,
+    config: AdapterConfig,
+  ): Promise<AgentHandle>;
 
   /** Check agent status without blocking */
   monitor(handle: AgentHandle): AdapterStatus;
@@ -60,5 +64,9 @@ export interface RuntimeAdapter {
   kill(handle: AgentHandle): void;
 
   /** Resume a previous session for retry */
-  resume(sessionId: string, prompt: string, config: AdapterConfig): Promise<AgentHandle>;
+  resume(
+    sessionId: string,
+    prompt: string,
+    config: AdapterConfig,
+  ): Promise<AgentHandle>;
 }
