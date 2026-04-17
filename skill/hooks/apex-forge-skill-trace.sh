@@ -25,6 +25,20 @@ fi
 SKILL=$(echo "$INPUT" | jq -r '.tool_input.skill // .tool_input.skill_name // empty' 2>/dev/null)
 [ -n "$SKILL" ] || exit 0
 
+# Init detection: when apex-forge skill is loaded but pipeline not initialized
+if [ "$SKILL" = "apex-forge" ] || [ "$SKILL" = "better-work" ]; then
+  APEX_DIR=".apex"
+  if [ ! -d "$APEX_DIR" ] || [ ! -f "$APEX_DIR/state.json" ]; then
+    echo "⚠ apex-forge loaded but .apex/ not initialized. Run: apex init && apex stage set brainstorm" >&2
+    exit 0
+  fi
+  STAGE=$(jq -r '.current_stage // "idle"' "$APEX_DIR/state.json" 2>/dev/null || echo "idle")
+  if [ "$STAGE" = "idle" ]; then
+    echo "⚠ Pipeline is idle. Start with Dashboard Gate → apex init → Complexity Router. Do NOT skip to analysis." >&2
+  fi
+  exit 0
+fi
+
 # Companion skills from bindings.yaml (extracted statically to avoid parsing YAML in bash)
 COMPANIONS="product-prd systematic-debugging tasteful-frontend design-to-code-runner browser-qa-testing thorough-code-review security-audit product-review iteration-reflector great-writer product-goal-based-audit"
 # NOTE: design-review and codex-consult are now builtin (aliases/), not companion skills
