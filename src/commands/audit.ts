@@ -79,6 +79,30 @@ const ICONS: Record<Verdict, string> = {
   SKIP: "\u2500",
 };
 
+// ─── Frontmatter parser (local copy — avoids circular import from state.ts)
+
+function parseFrontmatter(filePath: string): Record<string, string> {
+  if (!existsSync(filePath)) return {};
+  try {
+    const content = readFileSync(filePath, "utf-8");
+    const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    if (!match) return {};
+    const fm: Record<string, string> = {};
+    for (const line of match[1].split(/\r?\n/)) {
+      const colonIdx = line.indexOf(":");
+      if (colonIdx > 0) {
+        const key = line.slice(0, colonIdx).trim();
+        let val = line.slice(colonIdx + 1).trim();
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+          val = val.slice(1, -1);
+        }
+        fm[key] = val;
+      }
+    }
+    return fm;
+  } catch { return {}; }
+}
+
 // ─── Git helpers (P0-1 fix: execFileSync, no shell) ─────────────────
 
 function gitArgs(...args: string[]): string {
@@ -888,12 +912,115 @@ function auditAll(events: DomainEvent[]): {
   return { checks: [], scores: [], grade: "-", sessions };
 }
 
+// ─── Quick Summary (human decision support) ───────────────────────
+
+function formatQuickSummary(pipeline: PipelineSlice): string {
+  const lines: string[] = [];
+  const { artifacts, history } = pipeline;
+
+  // ── Header: task name + scope
+  let taskName = pipeline.sessionId;
+  let scope = "Unknown";
+  const bPaths = (artifacts.brainstorm || []).filter((p: string) => p.endsWith(".md") && existsSync(p));
+  if (bPaths.length > 0) {
+    const bFm = parseFrontmatter(bPaths[0]);
+    taskName = bFm.title || taskName;
+    scope = bFm.scope || scope;
+  }
+
+  lines.push(`\n═══ Pipeline Audit ═══════════════════════════════`);
+  lines.push(`任务: ${taskName}`);
+
+  // Tier + scope + file count
+  const shipCommits = (artifacts.ship || []).filter((a: string) => /^[0-9a-f]{7,40}$/.test(a));
+  let diffStat = "";
+  if (shipCommits.length > 0) {
+    diffStat = gitArgs("diff", "--stat", `${shipCommits[0]}~1`, shipCommits[0]);
+  }
+  const fileCount = diffStat ? diffStat.split("\n").filter((l: string) => l.includes("|")).length : 0;
+  lines.push(`范围: ${scope} | ${fileCount} files changed`);
+  lines.push("");
+
+  // ── AC checklist
+  if (bPaths.length > 0) {
+    const bContent = readFileSync(bPaths[0], "utf-8");
+    const acSection = extractSection(bContent, /^#+\s*Acceptance\s*Criteria/i);
+    const acLines = acSection.split("\n").filter((l: string) => /^\s*\d+\./.test(l));
+    if (acLines.length > 0) {
+      lines.push("── 验收标准 ──");
+      // Check if all tasks are done as a proxy for AC satisfaction
+      const allDone = pipeline.history.some((h: StageHistory) => h.stage === "ship" && h.completed);
+      for (const ac of acLines) {
+        const icon = allDone ? "✓" : "?";
+        lines.push(`  ${icon} ${ac.trim()}`);
+      }
+      lines.push("");
+    }
+  }
+
+  // ── Changes (git diff --stat, condensed)
+  if (diffStat) {
+    lines.push("── 变更 ──");
+    const statLines = diffStat.split("\n").filter((l: string) => l.includes("|"));
+    for (const sl of statLines.slice(0, 8)) {
+      lines.push(`  ${sl.trim()}`);
+    }
+    if (statLines.length > 8) lines.push(`  ... and ${statLines.length - 8} more files`);
+    lines.push("");
+  }
+
+  // ── Sub-agent findings
+  const advFiles = [
+    ".apex/verifications/brainstorm-adversarial.md",
+    ".apex/verifications/review-adversarial.md",
+  ].filter((f: string) => existsSync(f));
+
+  if (advFiles.length > 0) {
+    lines.push("── Sub-agent 发现 ──");
+    for (const advFile of advFiles) {
+      const content = readFileSync(advFile, "utf-8");
+      // Extract lines that look like findings (bullets with ⚠, *, -)
+      const findings = content.split("\n")
+        .filter((l: string) => /^\s*[-*⚠•]\s/.test(l) || /^\s*\d+\.\s+\*\*/.test(l))
+        .map((l: string) => l.trim())
+        .slice(0, 5);
+      for (const f of findings) {
+        lines.push(`  ${f}`);
+      }
+    }
+    lines.push("");
+  }
+
+  // ── Gate status per stage
+  lines.push("── 门控状态 ──");
+  const stageNames = ["brainstorm", "plan", "execute", "review", "ship", "compound"];
+  for (const s of stageNames) {
+    const stageHistory = history.find((h: StageHistory) => h.stage === s);
+    const hasArt = (artifacts[s] || []).length > 0;
+    const completed = stageHistory?.completed;
+    let icon = "—";
+    if (completed) icon = "✓";
+    else if (hasArt) icon = "◐";
+    lines.push(`  ${s.padEnd(12)} ${icon}`);
+  }
+  lines.push("");
+
+  // ── Decision prompt
+  lines.push("── 决定 ──");
+  lines.push("  [ ] 批准    [ ] 需要修改    [ ] 驳回");
+  lines.push("");
+
+  return lines.join("\n");
+}
+
+
 // ─── Main ───────────────────────────────────────────────────────────
 
 export async function cmdAudit(args: string[]): Promise<void> {
   const jsonMode = args.includes("--json");
   const noTest = args.includes("--no-test");
   const allMode = args.includes("--all");
+  const quickMode = args.includes("--quick");
   const sessionIdx = args.indexOf("--session");
   const targetSession =
     sessionIdx >= 0 && args[sessionIdx + 1] ? args[sessionIdx + 1] : undefined;
@@ -921,6 +1048,16 @@ export async function cmdAudit(args: string[]): Promise<void> {
       "No pipeline found. Run apex init and complete a pipeline first."
     );
     process.exit(1);
+  }
+
+  if (quickMode) {
+    if (jsonMode) {
+      const summary = formatQuickSummary(pipeline);
+      console.log(JSON.stringify({ format: "quick", summary, session: pipeline.sessionId }, null, 2));
+    } else {
+      console.log(formatQuickSummary(pipeline));
+    }
+    return;
   }
 
   const l1Checks = checkLayer1(pipeline);
