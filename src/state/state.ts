@@ -6,15 +6,16 @@
  */
 
 import { execSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { StageState } from "../types/state.js";
 import { readJSON } from "../utils/json.js";
 import { appendJSONL } from "../utils/logger.js";
-import { isoTimestamp, sessionId } from "../utils/timestamp.js";
+import { isoTimestamp } from "../utils/timestamp.js";
 import {
   appendEvent,
+  currentSessionId,
   rebuildAndCache,
   sessionStateCachePath,
 } from "./event-log.js";
@@ -79,7 +80,7 @@ function defaultState(): StageState {
   return {
     current_stage: "idle",
     last_updated: isoTimestamp(),
-    session_id: sessionId(),
+    session_id: currentSessionId(),
     artifacts: {
       brainstorm: [],
       plan: [],
@@ -340,6 +341,51 @@ export async function runStructuralGate(
           reason: bAdvExists
             ? "Adversarial verification file exists"
             : `BLOCKED: Spawn a sub-agent to verify this brainstorm. Prompt: "Read ${bArtifact}. Challenge every assumption, find gaps in acceptance criteria, and identify unstated constraints. Write your findings to ${bAdvFile}."`,
+        });
+      }
+
+      // S8: ADR written (conditional — Standard/Deep scope with rejected alternatives)
+      if (bIsLightweight) {
+        items.push({
+          id: "S8",
+          pass: true,
+          reason: "Lightweight scope — ADR check skipped",
+        });
+      } else if (bArtifact && existsSync(bArtifact)) {
+        const bContent = readFileSync(bArtifact, "utf-8");
+        const approachSection = bContent.match(
+          /##?\s+approaches\s*\n([\s\S]*?)(?=\n##|\n---|$)/i,
+        );
+        const hasMultipleApproaches = approachSection
+          ? (approachSection[1].match(/###\s+approach/gi) || []).length >= 2
+          : false;
+        if (!hasMultipleApproaches) {
+          items.push({
+            id: "S8",
+            pass: true,
+            reason: "Fewer than 2 approaches — ADR not required",
+          });
+        } else {
+          const decisionsDir = join("docs", "decisions");
+          const adrFiles = existsSync(decisionsDir)
+            ? readdirSync(decisionsDir).filter(
+                (f: string) => f.endsWith(".md") && f !== "TEMPLATE.md",
+              )
+            : [];
+          const hasAdr = adrFiles.length > 0;
+          items.push({
+            id: "S8",
+            pass: hasAdr,
+            reason: hasAdr
+              ? `ADR exists: ${adrFiles[adrFiles.length - 1]}`
+              : "BLOCKED: Scope is Standard/Deep with multiple approaches evaluated. Write an ADR to docs/decisions/NNNN-title.md documenting the decision and rejected alternatives.",
+          });
+        }
+      } else {
+        items.push({
+          id: "S8",
+          pass: true,
+          reason: "No brainstorm artifact — ADR check skipped",
         });
       }
 

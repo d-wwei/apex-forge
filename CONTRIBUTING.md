@@ -188,3 +188,8 @@ ADRs are triggered automatically during the Brainstorm stage exit gate for Stand
 - Secrets NEVER appear in logs, state files, or telemetry
 - Use OS Keychain or environment variables for credential storage
 - The pre-push hook scans for accidentally committed secrets (AWS keys, GitHub tokens, private keys, PII)
+
+**Security-sensitive subsystems** — review existing security measures before modifying:
+- `src/sandbox.ts`: Sandboxed code execution. Never allow breakout to host filesystem or network without explicit user consent.
+- `src/browse/`: Headless browser automation (Playwright). Session data must not leak between tasks. Never navigate to user-controlled URLs without sanitization.
+- `src/mcp/`: MCP server with role-based tools. Validate all incoming tool parameters. Never trust client-provided paths without normalization and boundary checks.

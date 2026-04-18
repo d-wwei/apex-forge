@@ -5,11 +5,11 @@
     "rules": {
       "recommended": true,
       "suspicious": {
-        "noExplicitAny": "off",
-        "noAssignInExpressions": "off"
+        "noExplicitAny": "warn",
+        "noAssignInExpressions": "warn"
       },
       "style": {
-        "noNonNullAssertion": "off"
+        "noNonNullAssertion": "warn"
       },
       "correctness": {
         "noUnusedVariables": "warn"
