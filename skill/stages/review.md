@@ -144,10 +144,12 @@ When the review involves specific domains, load and invoke external skills per `
 3. Sort by `priority` (lower number = higher priority)
 4. For `concurrent: false` skills: execute sequentially
 5. For `concurrent: true` skills: may run in parallel
-6. **Design review special flow** (two-layer):
-   a. First: run `gates/design-baseline.md` (AF-owned, objective checks)
-   b. If baseline fails → REJECTED, return to Execute. Do NOT proceed to layer 2.
-   c. If baseline passes → load `/tasteful-frontend` for subjective deep review
+6. **Design review flow** (two-phase within design-baseline gate):
+   a. First: run `gates/design-baseline.md` Phase 1 (objective checks)
+   b. If Phase 1 fails → REJECTED, return to Execute. Do NOT proceed to Phase 2.
+   c. If Phase 1 passes → Phase 2 dispatches 5 expert persona sub-agents (parallel, independent)
+   d. Persona verdicts aggregated via confidence voting (precedence: BLOCK > ESCALATE > PASS_WITH_NOTE > PASS)
+   e. PASS/PASS_WITH_NOTE = proceed in review, ESCALATE = present to user, BLOCK = REJECTED per `verdict_on_fail`, return to Execute
 7. After each skill completes: validate output against `output_schema`
 8. Map result to AF review state using `mapping` rules
 9. Record invocation in `.apex/state.json` → `skill_invocations[]`
