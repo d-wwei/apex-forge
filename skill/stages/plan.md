@@ -35,6 +35,42 @@ Before starting Plan work, verify Brainstorm artifact completeness:
 
 ---
 
+## EVIDENTIARY DISCIPLINE
+
+```
+================================================================
+  THIS STAGE ENFORCES EVIDENTIARY DISCIPLINE.
+
+  While Plan is active, all factual claims must be tagged:
+
+    [已验证] — Based on actual investigation (read code, checked
+               file existence, tested API, ran commands).
+    [假设]   — Unverified speculation. Must be explicitly marked.
+
+  Plan-specific violations:
+    ✗ "File X exports function Y" without reading the file.
+    ✗ "This library supports feature Z" without checking docs/code.
+    ✗ "This approach handles N items" without benchmark or evidence.
+    ✗ File paths in the manifest that were not verified against
+      the actual codebase (ls/glob).
+    ✗ Dependency claims ("package X provides Y") without checking
+      node_modules, go.mod, or equivalent.
+
+  When about to reference a file, API, or capability:
+    → STOP. Either verify now (read the file, check the export,
+      test the API), or tag [假设] and state why verification
+      is deferred.
+
+  Decisions in the plan MUST tag their rationale:
+    "Decision: use approach X. Rationale: Y [已验证] because
+     we read the codebase and confirmed Z."
+
+  This is a hard constraint, same severity as "no code."
+================================================================
+```
+
+---
+
 ## Process
 
 ### 1. Read Upstream Requirements
@@ -159,6 +195,8 @@ Before `apex stage complete plan`, run the Stage Exit Gate (`gates/stage-exit-ga
 |---|--------|----------------|
 | Q1 | Does every task trace back to at least one acceptance criterion? Are there acceptance criteria with no corresponding task? | `docs/brainstorms/{name}-requirements.md` |
 | Q2 | Are test scenarios meaningful — do they test behavior (given/when/then) or just existence? Flag any test that merely checks "function is callable" without verifying behavior. | Test scenario section in plan |
+| Q3 | Are decisions' rationale tagged with evidence basis ([已验证] or [假设])? Flag any decision whose rationale makes factual claims (file exists, API supports X, approach scales) without tagging the evidence source. | Decision log in plan |
+| Q4 | Are file manifest paths verified against the actual codebase? Run `ls` or `glob` on each path in the manifest. Flag any path that does not exist (new files are acceptable if marked as "create"). | File manifest, codebase |
 
 ---
 
