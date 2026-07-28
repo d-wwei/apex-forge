@@ -41,7 +41,7 @@ const PLATFORMS: Record<string, PlatformConfig> = {
       JSON.stringify(
         {
           name: "apex-forge",
-          version: "0.1.0",
+          version: "0.3.0",
           skills: skills.map((s) => ({
             name: s.name,
             path: s.path,
@@ -276,7 +276,7 @@ const PLATFORMS: Record<string, PlatformConfig> = {
       JSON.stringify(
         {
           name: "apex-forge",
-          version: "0.1.0",
+          version: "0.3.0",
           platform: "windsurf",
           skills: skills.map((s) => ({
             name: s.name,

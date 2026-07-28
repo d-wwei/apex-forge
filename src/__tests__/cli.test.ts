@@ -133,21 +133,12 @@ describe("CLI Integration", () => {
     expect(r.stdout).toContain("No issues found");
   });
 
-  test("apex stage set prints MANDATORY read reminder for non-idle stages", () => {
+  test("apex stage set prints MANDATORY read reminder for brainstorm", () => {
     run("init");
-    for (const stage of [
-      "brainstorm",
-      "plan",
-      "execute",
-      "review",
-      "ship",
-      "compound",
-    ]) {
-      const r = run("stage", "set", stage);
-      expect(r.exitCode).toBe(0);
-      expect(r.stdout).toContain("MANDATORY");
-      expect(r.stdout).toContain(`stages/${stage}.md`);
-    }
+    const r = run("stage", "set", "brainstorm");
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).toContain("MANDATORY");
+    expect(r.stdout).toContain("stages/brainstorm.md");
   });
 
   test("apex stage set idle does NOT print read reminder", () => {

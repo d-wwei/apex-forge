@@ -50,7 +50,7 @@ function isValidRole(value: string): value is Role {
 function createServer(role: Role): McpServer {
   const server = new McpServer({
     name: "apex-forge",
-    version: "0.1.0",
+    version: "0.3.0",
   });
 
   // Status is available to all roles

@@ -3,7 +3,7 @@ import { loadState } from "../state/stage.js";
 import { taskList } from "../state/tasks.js";
 import type { TaskStatus } from "../types/task.js";
 
-const VERSION = "0.1.0";
+const VERSION = "0.3.0";
 
 export async function cmdStatus(args: string[]): Promise<void> {
   const jsonMode = args.includes("--json");

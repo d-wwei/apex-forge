@@ -37,7 +37,7 @@ import {
 import { ApexError } from "./utils/errors.js";
 import { satisfies } from "./utils/semver.js";
 
-const VERSION = "0.1.0";
+const VERSION = "0.3.0";
 
 async function startupQuickCheck() {
   try {

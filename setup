@@ -5,7 +5,7 @@ set -euo pipefail
 # Detects platform and creates appropriate symlinks/manifests
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-VERSION=$(cat "$SCRIPT_DIR/VERSION" 2>/dev/null || echo "0.1.0")
+VERSION=$(cat "$SCRIPT_DIR/VERSION" 2>/dev/null || echo "0.3.0")
 
 echo "apex-forge v$VERSION — setup"
 echo "================================"

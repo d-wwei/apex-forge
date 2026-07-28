@@ -1005,7 +1005,7 @@ function buildHubHTML(): string {
 
 <div class="project-grid" id="grid"></div>
 
-<div class="hub-footer">apex-forge v0.1.0</div>
+<div class="hub-footer">apex-forge v0.3.0</div>
 
 <script>
 async function load() {
